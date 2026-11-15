@@ -160,6 +160,7 @@ impl Store {
     pub fn load_library(&self) -> Vec<Game> {
         for p in [self.library_path(), self.library_bak_path()] {
             if let Ok(s) = fs::read_to_string(&p) {
+                let s = self.rebase_legacy_paths(s);
                 if let Ok(g) = serde_json::from_str::<Vec<Game>>(&s) {
                     return g;
                 }
@@ -167,6 +168,28 @@ impl Store {
         }
         self.quarantine("library.json");
         Vec::new()
+    }
+
+    /// 目录改名后，旧版写进 library.json 的绝对路径（封面等）全部失效。
+    /// 读库时把 `%APPDATA%\vn-shelf` 前缀换成现行数据目录；只改内存不落盘，
+    /// 用户下次保存库时自然写回新路径。
+    fn rebase_legacy_paths(&self, raw: String) -> String {
+        let Some(base) = dirs::data_dir() else {
+            return raw;
+        };
+        let old = base.join(LEGACY_NAME).to_string_lossy().into_owned();
+        let new = self.dir.to_string_lossy().into_owned();
+        if old == new {
+            return raw;
+        }
+        // JSON 里的反斜杠是成对的；旧数据也可能是正斜杠写法
+        let old_esc = old.replace('\\', "\\\\");
+        let new_esc = new.replace('\\', "\\\\");
+        let old_fwd = old.replace('\\', "/");
+        let new_fwd = new.replace('\\', "/");
+        raw.replace(&old_esc, &new_esc)
+            .replace(&old_fwd, &new_fwd)
+            .replace(&old, &new)
     }
 
     /// 把无法解析的数据文件改名留档（`*.corrupt-<ts>`），返回是否真的动了文件。
@@ -760,6 +783,38 @@ mod tests {
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].play_seconds, 0);
         assert!(loaded[0].endings.is_empty());
+    }
+
+    /// 目录改名后，旧库里的封面绝对路径要跟着换到新目录，否则封面全部 404
+    #[test]
+    fn legacy_cover_paths_rebase_to_current_dir() {
+        let dir = std::env::temp_dir().join(format!("stash-rebase-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (mut games, _) = merge_games(&[], vec![detected("D:/games/REBASE")]);
+        let old_cover = dirs::data_dir()
+            .unwrap()
+            .join(LEGACY_NAME)
+            .join("covers")
+            .join("x.jpg");
+        games[0].cover = Some(old_cover.to_string_lossy().into_owned());
+        std::fs::write(
+            dir.join("library.json"),
+            serde_json::to_string(&games).unwrap(),
+        )
+        .unwrap();
+
+        let loaded = Store { dir: dir.clone() }.load_library();
+        let cover = loaded[0].cover.clone().unwrap();
+        assert!(
+            cover.starts_with(&*dir.to_string_lossy()),
+            "应换到现行目录：{cover}"
+        );
+        assert!(
+            cover.ends_with("covers\\x.jpg") || cover.ends_with("covers/x.jpg"),
+            "{cover}"
+        );
+        assert!(!cover.contains(LEGACY_NAME), "{cover}");
     }
 
     /// 旧 settings.json 没有 motion / verticalTitle 字段：必须仍能读，其余字段走默认
