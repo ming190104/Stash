@@ -21,7 +21,7 @@ const BASE: &str = "https://www.kungal.com/api/v1";
 const UA: &str = concat!(
     "Stash/",
     env!("CARGO_PKG_VERSION"),
-    " (local Galgame library front-end; +https://github.com/zhao1171921108-cyber/VN-SHELF)"
+    " (local Galgame library front-end; +https://github.com/zhao1171921108-cyber/Stash)"
 );
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(12);

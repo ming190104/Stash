@@ -11,10 +11,10 @@ use serde::Serialize;
 use tauri::State;
 
 /// 发布仓库（owner/repo）
-const REPO: &str = "zhao1171921108-cyber/VN-SHELF";
+const REPO: &str = "zhao1171921108-cyber/Stash";
 const API: &str = "https://api.github.com";
 /// 仓库还没有 Release / 接口异常时的兜底落点
-const RELEASES: &str = "https://github.com/zhao1171921108-cyber/VN-SHELF/releases";
+const RELEASES: &str = "https://github.com/zhao1171921108-cyber/Stash/releases";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
