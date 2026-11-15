@@ -113,7 +113,7 @@ export type ThemeName =
   | 'crimson'
   | 'daybreak';
 
-/** 冷启动动画：core = 核心启动（S-01，3.0s）/ warp = 流光跃迁（S-03，2.2s）/ off = 关闭 */
+/** 冷启动动画：core = 核心启动（S-01，5.0s）/ warp = 流光跃迁（S-03，5.0s）/ off = 关闭 */
 export type BootAnim = 'core' | 'warp' | 'off';
 
 /** 库体检（无 AI）：失效条目 / 重复项 / 未识别引擎 / 孤儿缓存 */

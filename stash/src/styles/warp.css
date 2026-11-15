@@ -1,9 +1,9 @@
 /* 核心启动（S-01 Core Boot）：冷启动与全屏切换共用同一套仪器元素。
    颜色全部取自主题令牌（--bg1 / --ink1 / --acc / --ink2 / --ink3），
    十套主题（含「白昼」亮色）自动换色；切换主题后下一次播放即生效。
-   时间轴以 3.0s 为基准，--k 由 splash.ts 按段落 / 速度 / 放慢系数写入：
-     冷启动 --k = (1 / speed) × 1.25，全屏切换 --k = (1.0s / 3.0s / speed) × 1.25。
-   收尾不靠这里的淡出关键帧硬切，splash.ts 会在 84% 处叠一段 340ms 透明度过渡。
+   时间轴以 3.0s 为撰写基准，--k 由 splash.ts 按实际时长 / 速度写入：
+     冷启动 1× = 5.0s（--k = 5/3），全屏切换 1× = 1.75s（--k = 1.75/3）。
+   收尾不靠这里的淡出关键帧硬切，splash.ts 会在运动末尾叠一段 340ms 透明度过渡。
    动画只动 transform / opacity（120fps 红线）。 */
 
 #warpSplash {
@@ -78,7 +78,8 @@
 }
 
 .wp-s1,
-.wp-s2 {
+.wp-s2,
+.wp-s3 {
   position: absolute;
   left: 0;
   right: 0;
@@ -94,6 +95,13 @@
   color: var(--acc);
   opacity: 0;
   animation: wpc-s2 calc(3s * var(--k)) linear both;
+}
+
+/* 末段确认：CORE LOCKED 之后接一句 LIBRARY READY，把 5s 的收束落在「可进入」上 */
+.wp-s3 {
+  color: var(--acc);
+  opacity: 0;
+  animation: wpc-s3 calc(3s * var(--k)) linear both;
 }
 
 /* ===== 核心总成 ===== */
@@ -307,6 +315,20 @@
   animation: wpc-pulse2 calc(1.15s * var(--k)) calc(1.08s * var(--k)) ease-out both;
 }
 
+/* 末段收束环：在 LIBRARY READY 出现前轻轻推一圈，避免 5s 的后半段完全静止 */
+.wp-settle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 320px;
+  height: 320px;
+  margin: -160px 0 0 -160px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--acc) 38%, transparent);
+  opacity: 0;
+  animation: wpc-settle calc(.9s * var(--k)) calc(2.1s * var(--k)) cubic-bezier(.2, .8, .2, 1) both;
+}
+
 /* 锁定菱形 + 核心光点 */
 .wp-hex {
   position: absolute;
@@ -317,7 +339,7 @@
   margin: -46px 0 0 -46px;
   border: 1px solid color-mix(in srgb, var(--ink1) 45%, transparent);
   opacity: 0;
-  animation: wpc-hex calc(.7s * var(--k)) calc(.95s * var(--k)) cubic-bezier(.2, .9, .2, 1) both;
+  animation: wpc-hex calc(1.35s * var(--k)) calc(.95s * var(--k)) cubic-bezier(.2, .9, .2, 1) both;
 }
 
 .wp-hex::before,
@@ -639,7 +661,7 @@
   background: var(--acc);
   transform: scaleX(0);
   transform-origin: 0 50%;
-  animation: wpc-prog calc(2.1s * var(--k)) calc(.35s * var(--k)) cubic-bezier(.3, .1, .2, 1) both;
+  animation: wpc-prog calc(2.3s * var(--k)) calc(.35s * var(--k)) cubic-bezier(.3, .1, .2, 1) both;
 }
 
 /* ===== 纹理与锁定闪光 ===== */
@@ -675,7 +697,9 @@
 #warpSplash:not(.boot) .wp-log,
 #warpSplash:not(.boot) .wp-prog,
 #warpSplash:not(.boot) .wp-scan,
-#warpSplash:not(.boot) .wp-meter {
+#warpSplash:not(.boot) .wp-meter,
+#warpSplash:not(.boot) .wp-s3,
+#warpSplash:not(.boot) .wp-settle {
   display: none;
 }
 
@@ -729,8 +753,14 @@
 
 @keyframes wpc-s2 {
   0%, 32% { opacity: 0; }
-  40%, 80% { opacity: 1; }
-  90%, 100% { opacity: 0; }
+  40%, 82% { opacity: 1; }
+  86%, 100% { opacity: 0; }
+}
+
+@keyframes wpc-s3 {
+  0%, 84% { opacity: 0; }
+  88%, 96% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 @keyframes wpc-spin {
@@ -777,10 +807,17 @@
   100% { opacity: 0; transform: scale(1.34); }
 }
 
+@keyframes wpc-settle {
+  0% { opacity: 0; transform: scale(.92); }
+  28% { opacity: .38; }
+  100% { opacity: 0; transform: scale(1.34); }
+}
+
 @keyframes wpc-hex {
   0% { opacity: 0; transform: rotate(28deg) scale(.55); }
-  60% { opacity: 1; }
-  100% { opacity: 1; transform: rotate(45deg) scale(1); }
+  28% { opacity: 1; }
+  58% { transform: rotate(45deg) scale(1); }
+  100% { opacity: 1; transform: rotate(49deg) scale(1); }
 }
 
 @keyframes wpc-dot {
@@ -911,6 +948,12 @@
   border-color: color-mix(in srgb, var(--ink1) 28%, transparent);
 }
 
+/* 第四道环不参与加速，只在末段慢慢收束，给 5s 的后半段一个落点 */
+.wv-rings i:nth-child(4) {
+  border-color: color-mix(in srgb, var(--acc) 42%, transparent);
+  animation: wv-settle calc(var(--wv-dur) * .34) cubic-bezier(.16, 1, .3, 1) calc(var(--wv-dur) * .66) both;
+}
+
 /* 刻度环：缓慢转动，闪前后可见 */
 .wv-ticks {
   position: absolute;
@@ -1017,7 +1060,8 @@
 }
 
 .wv-s1,
-.wv-s2 {
+.wv-s2,
+.wv-s3 {
   position: absolute;
   left: 0;
   right: 0;
@@ -1033,6 +1077,12 @@
 .wv-s2 {
   color: var(--acc);
   animation: wv-s2 var(--wv-dur) linear both;
+}
+
+/* 与核心启动共用同一句收束文案：跃迁到达后也要落到「库已就绪」 */
+.wv-s3 {
+  color: var(--acc);
+  animation: wv-s3 var(--wv-dur) linear both;
 }
 
 /* 字标：逐字立起 */
@@ -1061,6 +1111,22 @@
 .wv-word span:nth-child(3) { animation-delay: calc(var(--wv-dur) * .58); }
 .wv-word span:nth-child(4) { animation-delay: calc(var(--wv-dur) * .60); }
 .wv-word span:nth-child(5) { animation-delay: calc(var(--wv-dur) * .62); }
+
+/* 字标成型后的最后一记横向扫光：把白闪后的静态驻留切成两拍 */
+.wv-word::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 300px;
+  height: 1px;
+  margin: -.5px 0 0 -150px;
+  background: linear-gradient(90deg, transparent,
+    color-mix(in srgb, var(--acc) 88%, transparent), transparent);
+  opacity: 0;
+  transform: scaleX(.15);
+  animation: wv-wordsweep var(--wv-dur) cubic-bezier(.4, 0, .2, 1) both;
+}
 
 .wv-sub {
   position: absolute;
@@ -1178,8 +1244,14 @@
 
 @keyframes wv-s2 {
   0%, 46% { opacity: 0; }
-  54%, 80% { opacity: 1; }
-  88%, 100% { opacity: 0; }
+  54%, 82% { opacity: 1; }
+  86%, 100% { opacity: 0; }
+}
+
+@keyframes wv-s3 {
+  0%, 84% { opacity: 0; }
+  88%, 96% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 @keyframes wv-let {
@@ -1194,11 +1266,23 @@
 
 @keyframes wv-prog {
   0%, 18% { transform: scaleX(0); }
-  82%, 100% { transform: scaleX(1); }
+  86%, 100% { transform: scaleX(1); }
+}
+
+@keyframes wv-wordsweep {
+  0%, 74% { opacity: 0; transform: scaleX(.15); }
+  80% { opacity: .85; }
+  90%, 100% { opacity: 0; transform: scaleX(1); }
+}
+
+@keyframes wv-settle {
+  0% { opacity: 0; transform: scale(.9); }
+  30% { opacity: .34; }
+  100% { opacity: 0; transform: scale(1.8); }
 }
 
 @keyframes wv-out {
-  0%, 86% { opacity: 1; }
+  0%, 94% { opacity: 1; }
   100% { opacity: 0; }
 }
 

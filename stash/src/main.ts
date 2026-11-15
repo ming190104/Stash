@@ -15,7 +15,7 @@ import { toggleQuickMenu } from './quick';
 import { initDropImport } from './drop';
 import { toast, esc, errMsg, applyTheme, cachedTheme, applyLayout, cachedLayout, applyMotion, applyFontScale, applyAnimSpeed, applyBootAnim, applyFullscreenUI, stageScale } from './ui';
 import { applySoundSettings } from './sfx';
-import { initSplash, endSplash, hideBootCover } from './splash';
+import { initSplash, hideBootCover } from './splash';
 import type { LayoutName } from './types';
 
 /* ============ 时钟 ============ */
@@ -219,8 +219,7 @@ async function boot(): Promise<void> {
   addEventListener('resize', fitStage);
   fitStage();
 
-  // 库已渲染、窗口已适配：启动动画若还没播完就不再白等，直接进淡出段收尾
-  endSplash();
+  // 启动动画按 5.0s 完整播放；数据与首屏已在遮罩后就绪，跳过交给任意键 / 触摸
   await splash;
 
   // 静默更新检查放在首屏之后：不占启动关键路径，失败也绝不打扰

@@ -20,7 +20,7 @@ export function appearanceHTML(s: Settings): string {
       <div class="srow"><div class="lab"><b>启动与转场速度</b><span>启动跃迁与全屏切换的时长 · 不改变库内动效</span></div>
         <span class="mini" id="previewAnim">预览</span>
         ${segHTML('segAnimSpeed', [{ v: '1', label: '1×' }, { v: '1.5', label: '1.5×' }, { v: '2', label: '2×' }], String(normalizeAnimSpeed(s.animSpeed)))}</div>
-      <div class="srow"><div class="lab"><b>启动动画</b><span>核心启动 = 仪器自检 3.0s；流光跃迁 = 光丝穿梭 2.2s；关闭 = 直接进库 · 下次启动生效，全屏切换固定用核心压缩段</span></div>
+      <div class="srow"><div class="lab"><b>启动动画</b><span>核心启动 = 仪器自检 5.0s；流光跃迁 = 光丝穿梭 5.0s；关闭 = 直接进库 · 下次启动生效，全屏切换固定用核心压缩段</span></div>
         ${segHTML('segBootAnim', [{ v: 'core', label: '核心启动' }, { v: 'warp', label: '跃迁' }, { v: 'off', label: '关闭' }], normalizeBootAnim(s.bootAnim))}</div>
       <div class="srow"><div class="lab"><b>界面字号</b><span>只放大文字，版式 / 封面 / 轨道几何不变</span></div>
         ${segHTML('segFont', [{ v: '0.9', label: '小' }, { v: '1', label: '标准' }, { v: '1.12', label: '大' }, { v: '1.25', label: '特大' }], String(normalizeFontScale(s.fontScale)))}</div>

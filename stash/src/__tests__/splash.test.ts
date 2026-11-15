@@ -3,7 +3,7 @@
  *  否则同一按键的第二次投递会在动画播完后把刚进入的全屏又切回去。 */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { endSplash, initSplash, previewBootAnim, warpBusy, warpToggle } from '../splash';
+import { initSplash, previewBootAnim, warpBusy, warpToggle } from '../splash';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -25,7 +25,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('endSplash', () => {
+describe('initSplash', () => {
   it('设置页预览：核心 / 跃迁会挂出动画层，关闭档不播', () => {
     previewBootAnim('off');
     expect(document.querySelector('#warpSplash')).toBeNull();
@@ -33,41 +33,47 @@ describe('endSplash', () => {
     expect(document.querySelector('#warpSplash')).not.toBeNull();
   });
 
-  it('数据先于动画就绪时提前收尾，不再干等满 3s', async () => {
+  it('核心启动完整播放 5s：数据先就绪也不会提前收尾', async () => {
     let done = false;
     const boot = initSplash().then(() => {
       done = true;
     });
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(4500);
     expect(done).toBe(false);
 
-    endSplash();
-    // 先等满最短亮场 1.2s，再走 340ms 淡出
-    await vi.advanceTimersByTimeAsync(150);
-    expect(done).toBe(false);
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(600);
     await boot;
     expect(done).toBe(true);
   });
 
-  it('2× 时最短亮场仍保持 1.1s，不会一闪而过', async () => {
+  it('流光跃迁同样完整播放 5s', async () => {
+    localStorage.setItem('vnBootAnim', 'warp');
+    let done = false;
+    const boot = initSplash().then(() => {
+      done = true;
+    });
+    await vi.advanceTimersByTimeAsync(4500);
+    expect(done).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(600);
+    await boot;
+    expect(done).toBe(true);
+    localStorage.removeItem('vnBootAnim');
+  });
+
+  it('2× 时整段缩到 2.5s，而不是一闪而过', async () => {
     localStorage.setItem('vnAnimSpeed', '2');
     let done = false;
     const boot = initSplash().then(() => {
       done = true;
     });
-    await vi.advanceTimersByTimeAsync(1000);
-    endSplash();
-    await vi.advanceTimersByTimeAsync(50);
+    await vi.advanceTimersByTimeAsync(2000);
     expect(done).toBe(false);
-    await vi.advanceTimersByTimeAsync(500);
+
+    await vi.advanceTimersByTimeAsync(600);
     await boot;
     expect(done).toBe(true);
     localStorage.removeItem('vnAnimSpeed');
-  });
-
-  it('没有在播时是空操作', () => {
-    expect(() => endSplash()).not.toThrow();
   });
 });
 
