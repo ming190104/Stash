@@ -43,7 +43,8 @@ export function aboutHTML(): string {
       <span>版本 1.0.1 · 正式版</span>
       <span>Tauri v2 · WebView2 · Rust</span>
       <span>目标设备 · 掌机 1280×720 @120Hz / 桌面大屏等比放大（≤2×）</span>
-      <span>元数据 · Bangumi / 萌娘百科 / EGS / SteamGridDB + 本地 meta.json</span>
+      <span>元数据源 · Bangumi / 萌娘百科 / 批评空间（EGS）/ 鲲 Galgame</span>
+      <span>图片源 · SteamGridDB；本地 meta.json 可补原名、会社、标签、简介与通关进度</span>
     </div></div>
     <div class="spanel">
       <div class="srow"><div class="lab"><b>数据目录</b><span>库索引 / 设置 / 封面缓存<br/>%APPDATA%\\Stash</span></div>
