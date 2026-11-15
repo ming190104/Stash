@@ -1,0 +1,7 @@
+/* Stash 前端样式入口：按分节拆到 styles/，@import 顺序 = 原文件顺序（级联不变）。
+   结构与取值照搬 design/ui-mockup.html（像素级事实源）。 */
+@import './styles/tokens.css';
+@import './styles/screens.css';
+@import './styles/motion.css';
+@import './styles/ui.css';
+@import './styles/warp.css';

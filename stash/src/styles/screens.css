@@ -1,0 +1,91 @@
+html,body{height:100%}
+/* 流体舞台：逻辑尺寸由 fitStage 按窗口比例撑开（16:9 时仍是 1280×720），
+   等比缩放后正好铺满窗口——不再出现留边，也不需要「舞台外的背景层」。
+   横向多出来的宽给轨道 / 网格，纵向多出来的高给 hero，布局自身撑开。 */
+body{background:var(--bg1);font-family:var(--sans);color:var(--ink1);-webkit-font-smoothing:antialiased;user-select:none;overflow:hidden}
+#app{position:fixed;left:0;top:0;width:1280px;height:720px;transform-origin:0 0;
+  background:var(--bg0);overflow:hidden}
+
+/* ===== 环境氛围背景（当前选中作品的美术） ===== */
+.amb{position:absolute;inset:-70px;background-size:cover;filter:blur(54px) saturate(1.3) brightness(.5);opacity:0;transition:opacity .8s ease}
+.amb.show{opacity:1}
+.shade{position:absolute;inset:0;background:linear-gradient(180deg,color-mix(in srgb,var(--bg0) 60%,transparent) 0%,color-mix(in srgb,var(--bg0) 22%,transparent) 26%,color-mix(in srgb,var(--bg0) 50%,transparent) 62%,color-mix(in srgb,var(--bg0) 92%,transparent) 88%,var(--bg0) 100%);pointer-events:none}
+/* 详情屏背景：整屏铺满的原图（优先游戏内截图，16:9 不裁切），不模糊、不缩在中间；
+   左侧文字区横向压暗，右侧保留原图清晰度。 */
+.detailart{position:absolute;inset:0;background-position:center;background-repeat:no-repeat;background-size:cover;opacity:0;transition:opacity .45s ease;pointer-events:none}
+#app[data-screen="detail"] .detailart.show{opacity:1}
+/* 切屏首帧禁过渡：背景图与封面必须在第一帧就到位，否则会先看到一次暗场（黑闪） */
+#app.no-fade .detailart,
+#app.no-fade #kvArt{transition:none !important}
+/* 有真正的背景图（.has-bg）时把整屏封面 #kvArt 淡出：
+   它 z-index:1 盖在 .detailart 之上，不淡出的话背景永远是封面 */
+#app[data-screen="detail"].has-bg #kvArt{opacity:0;transition:opacity .45s ease}
+/* 背景图是原作品画面（可能很亮，比如白底宣传图）：压暗只做在左侧文字区，
+   右半屏留给画面；比封面上盖的那层整屏 scrim 轻得多 */
+#app[data-screen="detail"].has-bg .kv-scrim{opacity:.55;transition:opacity .45s ease}
+#app[data-screen="detail"].has-bg .shade{background:
+  linear-gradient(90deg,rgba(13,14,19,.94) 0%,rgba(13,14,19,.90) 26%,rgba(13,14,19,.80) 40%,rgba(13,14,19,.62) 52%,rgba(13,14,19,.52) 66%,rgba(13,14,19,.22) 74%,transparent 84%),
+  linear-gradient(180deg,rgba(13,14,19,.42) 0%,transparent 14%,rgba(13,14,19,.42) 52%,rgba(13,14,19,.86) 70%,rgba(13,14,19,.94) 100%)}
+/* 右侧操作列原来是压在封面上的半透明白底按钮；换成原作品画面后，
+   白底宣传图会把按钮冲淡，这里给它们一层深色衬底 */
+#app[data-screen="detail"].has-bg .dside .ghost{background:rgba(13,14,19,.80);border-color:rgba(255,255,255,.16)}
+#app[data-screen="detail"].has-bg .dside .ghost:hover{background:rgba(13,14,19,.90)}
+#app[data-screen="detail"] .amb{filter:blur(80px) saturate(.85) brightness(.16)}
+#app[data-screen="detail"] .shade{background:linear-gradient(90deg,color-mix(in srgb,var(--bg0) 92%,transparent) 0%,color-mix(in srgb,var(--bg0) 84%,transparent) 30%,color-mix(in srgb,var(--bg0) 46%,transparent) 56%,color-mix(in srgb,var(--bg0) 6%,transparent) 80%,transparent 100%),linear-gradient(180deg,color-mix(in srgb,var(--bg0) 52%,transparent) 0%,color-mix(in srgb,var(--bg0) 12%,transparent) 20%,transparent 62%,color-mix(in srgb,var(--bg0) 78%,transparent) 100%)}
+#grain{position:absolute;inset:0;z-index:60;pointer-events:none;opacity:.05;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E");background-size:180px}
+
+/* ===== 封面美术（占位 = 未匹配降级态的正式设计） ===== */
+.art{position:absolute;inset:0;overflow:hidden;border-radius:11px}
+.art::before{content:"";position:absolute;inset:0;background:
+  radial-gradient(16px 16px at 76% 16%,var(--s1) 35%,transparent 75%),
+  radial-gradient(9px 9px at 62% 27%,var(--s1) 30%,transparent 75%),
+  radial-gradient(22px 22px at 86% 44%,var(--s2) 22%,transparent 72%),
+  radial-gradient(11px 11px at 18% 60%,var(--s2) 28%,transparent 72%),
+  radial-gradient(7px 7px at 30% 40%,var(--s1) 26%,transparent 75%);
+  filter:blur(1.5px);opacity:.75}
+.art::after{content:"";position:absolute;inset:0;background:
+  linear-gradient(180deg,rgba(0,0,0,.22) 0%,transparent 26%),
+  linear-gradient(180deg,transparent 58%,rgba(0,0,0,.3) 100%),
+  radial-gradient(125% 100% at 50% 0%,transparent 62%,rgba(0,0,0,.18) 100%)}
+/* 真实封面图（增补）：thumb/cover 填满 .art，压住星光层；加载完成后 fade-in 防闪白 */
+.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1;opacity:0;transition:opacity .3s ease}
+.art img.ld{opacity:1}
+.vt{position:absolute;top:16px;right:13px;writing-mode:vertical-rl;font-family:var(--serif);font-size:calc(16px * var(--fs,1));font-weight:700;letter-spacing:5px;color:#fff;text-shadow:0 0 14px rgba(0,0,0,.35),0 1px 3px rgba(0,0,0,.5);z-index:2;max-height:calc(100% - 96px);overflow:hidden}
+.ro{position:absolute;left:12px;bottom:9px;font-size:calc(8px * var(--fs,1));letter-spacing:2.5px;font-weight:700;color:rgba(255,255,255,.92);text-shadow:0 1px 4px rgba(0,0,0,.65);z-index:2}
+/* 空封面兜底：居中的大字号首字 + 左上角引擎徽章（Game 没有年份字段，用引擎名代替平台徽章） */
+.ph-t{position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);font-family:var(--serif);font-size:calc(64px * var(--fs,1));font-weight:700;line-height:1;color:rgba(255,255,255,.26);text-shadow:0 2px 18px rgba(0,0,0,.28);z-index:1;pointer-events:none}
+.ph-y{position:absolute;left:12px;top:10px;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.28);font-size:calc(9px * var(--fs,1));letter-spacing:1.5px;color:rgba(255,255,255,.78);z-index:2;max-width:calc(100% - 70px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 有真实封面时不叠字（img 在前即足够， .vt/.ro 仍可用于降级态） */
+.art.has-img::before,.art.has-img::after{display:none}
+
+/* ===== 屏幕切换：同帧直切，不留任何过渡帧 =====
+   曾用过「新屏垫底 + 旧屏在上层淡出」，但旧屏在 .18s 里始终以递减的不透明度
+   盖在新屏上，观感就是「上一屏的画面残留」（库⇄网格的直切早就验证过这条路径最干净）。
+   现在四屏统一直切：旧屏同一帧摘掉 .on（visibility:hidden + opacity:0，无过渡），
+   新屏同一帧铺满。没有交叉溶解就没有重影；首次绘制的那一帧由下面的 .warm 预热消化。 */
+.screen{position:absolute;inset:0;opacity:0;pointer-events:none;visibility:hidden;z-index:2}
+.screen.on{opacity:1;pointer-events:auto;visibility:visible;z-index:1}
+/* 预热：opacity 必须大于 0 浏览器才会真的栅格化（0 与 visibility:hidden 都会被跳过）。
+   .001 肉眼不可见，挂两帧后摘掉，第一次切过去就不用现场绘制整屏（实测 24ms → 6ms）。
+   :not(.on) 保证预热期间如果用户真的切过来，.on 的 opacity:1 立刻生效。 */
+.screen.warm:not(.on){visibility:visible!important;opacity:.001!important;z-index:0!important;
+  pointer-events:none!important;transition:none!important}
+
+
+/* ===== 只读文件浏览器（第 5 屏） ===== */
+.fhead{position:absolute;top:0;left:40px;right:26px;height:56px;display:flex;align-items:center;justify-content:space-between;gap:20px;z-index:20}
+.fpath{position:absolute;top:56px;left:40px;right:26px;height:26px;display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:calc(11px * var(--fs,1));color:var(--ink2);z-index:10}
+.fpath-main{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+.fpath-hint{color:var(--ink3);flex:none;letter-spacing:.5px}
+.flist{position:absolute;top:86px;left:40px;right:26px;bottom:52px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;display:flex;flex-direction:column;gap:3px;padding:0 4px 12px 0}
+/* keybar 在真实视口 ≥1500 / ≥2300 时会变高（ui.css），列表底边同步让位 */
+@media (min-width:1500px){.flist{bottom:60px}}
+@media (min-width:2300px){.flist{bottom:68px}}
+.frow{display:grid;grid-template-columns:26px minmax(0,1fr) 86px 96px;align-items:center;gap:12px;height:38px;padding:0 14px;border-radius:9px;border:1px solid transparent;cursor:default}
+.frow.on{background:color-mix(in srgb,var(--acc) 12%,transparent);border-color:color-mix(in srgb,var(--acc) 42%,transparent);box-shadow:0 0 0 2px var(--focus-ring)}
+.fic{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;color:var(--ink2);background:color-mix(in srgb,var(--ink1) 6%,transparent)}
+.fic.dir{color:var(--acc2)}
+.fic svg{width:15px;height:15px}
+.fname{font-size:calc(12.5px * var(--fs,1));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmeta,.ftime{font-size:calc(10.5px * var(--fs,1));color:var(--ink3);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.fempty{display:flex;align-items:center;justify-content:center;padding:44px 0;color:var(--ink3);font-size:calc(12px * var(--fs,1))}

@@ -1,0 +1,162 @@
+/** 库状态纯逻辑：排序稳定性、隐藏条目、状态筛选 / 分面、智能集合与版本归并。 */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Game } from '../types';
+import {
+  state,
+  sortedGames,
+  gridList,
+  collectionMatch,
+  facetCount,
+  clearFacets,
+  lastPlayedId,
+  versionGroup,
+} from '../state';
+
+/** 最小可用 Game：按用例覆盖排序 / 筛选 / 集合相关字段 */
+function game(id: string, over: Partial<Game> = {}): Game {
+  return {
+    id, title: id, titleOriginal: null, romaji: null, dir: '', exe: '', engine: '', engineLabel: '',
+    engineEvidence: '', cover: null, thumb: null, shots: [], peProduct: null, peCompany: null,
+    developer: null, sizeGb: 0, lastPlayed: null, playCount: 0, playSeconds: 0, endings: [],
+    favorite: false, addedAt: 0, needsLocale: false, matched: true, launchArgs: [], bangumiId: null,
+    matchScore: null, pending: false, summary: null, tags: [], aliases: [], year: null,
+    progress: 0, ...over,
+  };
+}
+
+const ids = (list: Game[]): string[] => list.map((g) => g.id);
+
+beforeEach(() => {
+  state.games = [];
+  state.sortBy = 'lastPlayed';
+  state.gridFilter = 'all';
+  state.tagFilter = null;
+  state.devFilter = null;
+  state.yearFilter = null;
+  state.collection = null;
+  state.viewName = null;
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('排序与隐藏条目', () => {
+  it('最近游玩降序、隐藏条目不进入结果', () => {
+    state.games = [
+      game('a', { lastPlayed: 100 }),
+      game('b', { lastPlayed: 200 }),
+      game('c'),
+      game('h', { lastPlayed: 999, hidden: true }),
+    ];
+    expect(ids(sortedGames())).toEqual(['b', 'a', 'c']);
+  });
+
+  it('最近游玩相同时按入库时间降序（稳定兜底）', () => {
+    state.games = [game('old', { lastPlayed: 100, addedAt: 10 }), game('new', { lastPlayed: 100, addedAt: 20 })];
+    expect(ids(sortedGames())).toEqual(['new', 'old']);
+  });
+
+  it('名称 / 发售年 / 进度排序', () => {
+    state.games = [
+      game('b', { title: 'Beta', year: 2000, progress: 0.5 }),
+      game('a', { title: 'Alpha', year: 2020, progress: 1 }),
+      game('c', { title: 'Gamma', progress: 0.1 }),
+    ];
+    state.sortBy = 'title';
+    expect(ids(sortedGames())).toEqual(['a', 'b', 'c']);
+    state.sortBy = 'year';
+    expect(ids(sortedGames())).toEqual(['a', 'b', 'c']);
+    state.sortBy = 'progress';
+    expect(ids(sortedGames())).toEqual(['a', 'b', 'c']);
+  });
+
+  it('最近游玩徽标忽略隐藏条目', () => {
+    state.games = [game('a', { lastPlayed: 100 }), game('h', { lastPlayed: 500, hidden: true })];
+    expect(lastPlayedId()).toBe('a');
+  });
+
+  it('全部隐藏时按空库处理', () => {
+    state.games = [game('h', { hidden: true })];
+    expect(state.empty).toBe(true);
+    state.games.push(game('v'));
+    expect(state.empty).toBe(false);
+  });
+});
+
+describe('网格筛选与分面', () => {
+  it('状态筛选：playing / done / fav / new 且排除隐藏', () => {
+    state.games = [
+      game('playing', { progress: 0.4 }),
+      game('done', { progress: 1 }),
+      game('fresh', { progress: 0 }),
+      game('fav', { progress: 0.2, favorite: true }),
+      game('hid', { progress: 0.5, hidden: true }),
+    ];
+    state.gridFilter = 'playing';
+    expect(ids(gridList())).toEqual(['playing', 'fav']);
+    state.gridFilter = 'done';
+    expect(ids(gridList())).toEqual(['done']);
+    state.gridFilter = 'fav';
+    expect(ids(gridList())).toEqual(['fav']);
+    state.gridFilter = 'new';
+    expect(ids(gridList())).toEqual(['fresh']);
+  });
+
+  it('标签（含用户标签）/ 会社 / 年份分面与角标', () => {
+    state.games = [
+      game('a', { tags: ['和风'], developer: 'Key', year: 2016 }),
+      game('b', { userTags: ['和风'], developer: 'Leaf', year: 2012 }),
+      game('c', { tags: ['科幻'], developer: 'Key', year: 2016 }),
+    ];
+    state.tagFilter = '和风';
+    expect(ids(gridList())).toEqual(['a', 'b']);
+    state.tagFilter = null;
+    state.devFilter = 'Key';
+    expect(ids(gridList())).toEqual(['a', 'c']);
+    state.devFilter = null;
+    state.yearFilter = 2012;
+    expect(ids(gridList())).toEqual(['b']);
+    expect(facetCount()).toBe(1);
+    clearFacets();
+    expect(facetCount()).toBe(0);
+  });
+});
+
+describe('智能集合', () => {
+  it('未启动 / 短篇 / 同会社系列', () => {
+    const a = game('a', { lengthMinutes: 600, developer: 'Key' });
+    const b = game('b', { lastPlayed: 100, lengthMinutes: 601, developer: 'Key' });
+    const c = game('c', { lastPlayed: 100, developer: 'Leaf' });
+    state.games = [a, b, c];
+    expect(collectionMatch(a, 'unplayed')).toBe(true);
+    expect(collectionMatch(b, 'unplayed')).toBe(false);
+    expect(collectionMatch(a, 'short')).toBe(true);
+    expect(collectionMatch(b, 'short')).toBe(false);
+    expect(collectionMatch(c, 'short')).toBe(false);
+    expect(collectionMatch(a, 'series')).toBe(true);
+    expect(collectionMatch(c, 'series')).toBe(false);
+    expect(collectionMatch(a, null)).toBe(true);
+  });
+
+  it('最近入库按 30 天窗口判定（固定时钟，避免 flaky）', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-22T00:00:00Z'));
+    const now = Date.now() / 1000;
+    expect(collectionMatch(game('fresh', { addedAt: now - 29 * 86400 }), 'recent')).toBe(true);
+    expect(collectionMatch(game('old', { addedAt: now - 31 * 86400 }), 'recent')).toBe(false);
+  });
+});
+
+describe('版本归并', () => {
+  it('忽略大小写与分隔符，同一作品合并且不含自己', () => {
+    state.games = [game('v1', { title: 'CLANNAD' }), game('v2', { title: 'clannad' }), game('v3', { title: 'C-LANNAD' })];
+    expect(ids(versionGroup(state.games[0]))).toEqual(['v2', 'v3']);
+  });
+
+  it('隐藏的版本不参与归并（否则能从版本角标切进已隐藏的作品）', () => {
+    state.games = [game('v1', { title: 'CLANNAD' }), game('v2', { title: 'clannad' }), game('v3', { title: 'C-LANNAD', hidden: true })];
+    expect(ids(versionGroup(state.games[0]))).toEqual(['v2']);
+  });
+});

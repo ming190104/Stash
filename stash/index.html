@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Stash · 游戏库</title>
+<!-- 字体只用系统栈（--sans / --serif 见 app.css）：此前引 Google Fonts，
+     既要在每次启动时外连（离线 / 国内网络下必失败），也会被 CSP 拦下，
+     本应用是纯本地库，不该有远程依赖。 -->
+<script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+<div id="app">
+  <div class="amb" id="ambA"></div>
+  <div class="amb" id="ambB"></div>
+  <!-- 详情屏背景：清晰的完整原图（模糊 .amb 只负责补两侧留白） -->
+  <div class="detailart" id="detailArt"></div>
+  <div class="shade"></div>
+
+  <!-- ① 游戏库主屏 -->
+  <section class="screen" data-s="library">
+    <header class="topbar" data-tauri-drag-region>
+      <div class="tr">
+        <span class="tstat" id="gameCount">-- 部作品</span>
+        <span class="batt">
+          <svg width="22" height="11" viewBox="0 0 22 11"><rect x=".5" y=".5" width="18" height="10" rx="2.5" fill="none" stroke="rgba(255,255,255,.4)"/><rect x="2" y="2" width="12.5" height="7" rx="1.5" fill="rgba(255,255,255,.75)"/><rect x="19.5" y="3.5" width="1.5" height="4" rx=".75" fill="rgba(255,255,255,.4)"/></svg><span id="battPct">--%</span>
+        </span>
+        <span id="clock">--:--</span>
+        <button class="tbtn fs-hide" data-open="search" title="搜索 · 排序（/）">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/></svg>
+        </button>
+        <button class="tbtn fs-hide" data-go="settings" title="设置">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3"/></svg>
+        </button>
+        <!-- 无边框窗口的自绘窗口按钮（decorations:false 后没有系统标题栏） -->
+        <span class="winbtns">
+          <button class="tbtn" data-win="min" title="最小化">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8h8"/></svg>
+          </button>
+          <button class="tbtn winclose" data-win="close" title="关闭">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>
+          </button>
+        </span>
+      </div>
+    </header>
+
+    <div class="hero">
+      <div class="hero-art" id="heroArt"></div>
+      <div class="hero-info" id="heroInfo"></div>
+    </div>
+    <div class="wm" id="heroWm"></div>
+
+    <div class="rail-zone">
+      <div class="rail-vp"><div class="rail-track" id="railTrack"></div></div>
+    </div>
+
+    <!-- 布局皮肤（与主题正交）：list = 左列表 + 右大图；wall = 海报墙 -->
+    <div class="wall-zone" id="wallZone">
+      <div class="wall-grid" id="wallGrid"></div>
+    </div>
+    <div class="list-zone" id="listZone">
+      <div class="list-col" id="listRows"></div>
+      <div class="list-preview" id="listPreview"></div>
+    </div>
+
+    <!-- 三套布局共用的多选操作条（classic / list / wall 都在这一屏） -->
+    <div class="gselbar" id="lselBar" hidden>
+      <span class="gseln" id="lselN">已选 0 部</span>
+      <button class="mini" id="lselAct">批量操作…</button>
+      <button class="mini" id="lselExit">退出</button>
+    </div>
+
+    <footer class="keybar">
+      <span class="kg navkey"><span class="kk">←</span><span class="kk">→</span>切换</span>
+      <span class="kg listkey"><span class="kk">↑</span><span class="kk">↓</span>选择</span>
+      <span class="kg wallkey"><span class="kk">↑</span><span class="kk">↓</span>整排</span>
+      <span class="kg"><span class="kk acc">A</span>启动游戏</span>
+      <span class="kg"><span class="kk">Y</span>详情</span>
+      <span class="kg"><span class="kk">M</span>多选</span>
+      <span class="kg"><span class="kk">Q</span><span class="kk">E</span>网格视图</span>
+      <span class="kg"><span class="kk">?</span>快捷键</span>
+      <span class="kg"><span class="kk">☰</span>设置</span>
+    </footer>
+  </section>
+
+  <!-- ② 网格视图 -->
+  <section class="screen" data-s="grid">
+    <!-- 顶栏合并：标题 + 分类 chips + 计数/时钟/窗口按钮同一排（原来标题行在 60px 下方，
+         白占一条横向空隙，卡片整体上移 36px） -->
+    <div class="ghead" data-tauri-drag-region>
+      <h1 class="gh">游戏库<small>GRID VIEW</small></h1>
+      <div class="gbar">
+        <div class="fchips" id="fchips">
+          <span class="fchip on" data-filter="all">全部</span><span class="fchip" data-filter="playing">进行中</span><span class="fchip" data-filter="done">已通关</span><span class="fchip" data-filter="new">未开始</span><span class="fchip" data-filter="fav">★ 收藏</span><span class="fchip flt" id="fBtn" title="按标签 / 会社 / 年份筛选">筛选</span>
+          <span class="fchip" id="selBtn" title="多选（M / X）">多选</span>
+        </div>
+        <div class="tr">
+          <span class="tstat" id="gameCount2">-- 部作品</span><span id="clock2">--:--</span>
+          <span class="winbtns">
+            <button class="tbtn" data-win="min" title="最小化"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8h8"/></svg></button>
+            <button class="tbtn winclose" data-win="close" title="关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="gwrap" id="gridCards"></div>
+    <div class="gselbar" id="gselBar" hidden>
+      <span class="gseln" id="gselN">已选 0 部</span>
+      <button class="mini" id="selAct">批量操作…</button>
+      <button class="mini" id="selExit">退出</button>
+    </div>
+    <footer class="keybar">
+      <span class="kg"><span class="kk">←</span><span class="kk">↑</span><span class="kk">↓</span><span class="kk">→</span>移动</span>
+      <span class="kg"><span class="kk acc">A</span>详情</span>
+      <span class="kg"><span class="kk">M</span>多选</span>
+      <span class="kg"><span class="kk">F</span>筛选</span>
+      <span class="kg"><span class="kk">?</span>快捷键</span>
+      <span class="kg"><span class="kk">B</span>返回轨道</span>
+    </footer>
+  </section>
+
+  <!-- ③ 详情屏 -->
+  <section class="screen" data-s="detail">
+    <div class="kv" id="kvArt"></div>
+    <div class="kv-scrim"></div>
+    <button class="back" data-go="library"><span class="kk">B</span>返回游戏库</button>
+    <div class="dpanel">
+      <div class="dcover" id="dCover"></div>
+      <div class="dinfo" id="dInfo"></div>
+      <div class="dside" id="dSide"></div>
+    </div>
+    <footer class="keybar">
+      <span class="kg"><span class="kk">↑</span><span class="kk">↓</span>选择</span>
+      <span class="kg"><span class="kk">←</span><span class="kk">→</span>版本</span>
+      <span class="kg"><span class="kk acc">A</span>启动游戏</span>
+      <span class="kg"><span class="kk">Y</span>结局标记</span>
+      <span class="kg"><span class="kk">RB</span>收藏</span>
+      <span class="kg"><span class="kk">B</span>返回</span>
+    </footer>
+  </section>
+
+  <!-- ④ 设置屏 -->
+  <section class="screen" data-s="settings">
+    <header class="topbar" data-tauri-drag-region>
+      <div class="tr"><span class="tstat">本地游戏库</span><span id="clock3">--:--</span>
+        <span class="winbtns">
+          <button class="tbtn" data-win="min" title="最小化"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8h8"/></svg></button>
+          <button class="tbtn winclose" data-win="close" title="关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
+        </span>
+      </div>
+    </header>
+    <div class="set">
+      <nav class="snav" id="snav">
+        <button class="on"><span class="ic" style="background:#ff8e9e"></span>性能</button>
+        <button><span class="ic" style="background:#ffc28c"></span>外观</button>
+        <button><span class="ic" style="background:#b9a8ff"></span>键位</button>
+        <button><span class="ic" style="background:#ffd479"></span>启动</button>
+        <button><span class="ic" style="background:#8ec9ff"></span>网络</button>
+        <button><span class="ic" style="background:#7fe0c3"></span>库</button>
+        <button><span class="ic" style="background:#8ee6d8"></span>统计</button>
+        <button><span class="ic" style="background:#c59cff"></span>元数据</button>
+        <button><span class="ic" style="background:#9fe8b4"></span>关于</button>
+      </nav>
+      <div class="sbody" id="sbody"></div>
+    </div>
+    <footer class="keybar">
+      <span class="kg"><span class="kk">↑</span><span class="kk">↓</span>切换页签</span>
+      <span class="kg"><span class="kk">→</span>进入面板</span>
+      <span class="kg"><span class="kk">A</span>确认</span>
+      <span class="kg"><span class="kk">B</span>返回</span>
+    </footer>
+  </section>
+
+  <!-- ⑤ 只读文件浏览器（设置 · 库 → 浏览文件） -->
+  <section class="screen" data-s="files">
+    <header class="fhead" data-tauri-drag-region>
+      <h1 class="gh">文件<small>FILES · 只读</small></h1>
+      <div class="tr">
+        <span class="tstat" id="fsCount">-- 项</span>
+        <span class="winbtns">
+          <button class="tbtn" data-win="min" title="最小化"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8h8"/></svg></button>
+          <button class="tbtn winclose" data-win="close" title="关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
+        </span>
+      </div>
+    </header>
+    <div class="fpath" id="fsPath"></div>
+    <div class="flist" id="fsList"></div>
+    <footer class="keybar">
+      <span class="kg"><span class="kk">↑</span><span class="kk">↓</span>选择</span>
+      <span class="kg"><span class="kk acc">A</span>进入 / 入库</span>
+      <span class="kg"><span class="kk">B</span>返回</span>
+      <span class="kg"><span class="kk">X</span>入库</span>
+      <span class="kg"><span class="kk">G</span>整目录入库</span>
+    </footer>
+  </section>
+
+  <!-- ===== P0 状态层（与四屏并列，不进同屏兄弟遮挡扫描） ===== -->
+
+  <!-- 空态 / 筛选无结果 -->
+  <div class="state" id="emptyState"><div class="state-box" id="emptyBody"></div></div>
+
+  <!-- 加载 · 骨架态 -->
+  <div class="state" id="loadingState">
+    <div class="sk-wrap">
+      <div class="sk-hero">
+        <div class="sk" style="width:210px;height:280px;border-radius:13px"></div>
+        <div class="sk-lines">
+          <div class="sk" style="width:180px;height:26px"></div>
+          <div class="sk" style="width:120px;height:14px"></div>
+          <div class="sk" style="width:330px;height:15px"></div>
+          <div class="sk" style="width:280px;height:15px"></div>
+        </div>
+      </div>
+      <div class="sk-rail">
+        <div class="sk" style="width:150px;height:200px"></div><div class="sk" style="width:150px;height:200px"></div><div class="sk" style="width:150px;height:200px"></div><div class="sk" style="width:150px;height:200px"></div><div class="sk" style="width:150px;height:200px"></div><div class="sk" style="width:150px;height:200px"></div>
+      </div>
+      <div class="sk-cap" id="skCap">正在扫描目录 · 生成缩略图 3 / 42</div>
+    </div>
+  </div>
+
+  <!-- 失败 · 错误态 -->
+  <div class="state" id="errorState">
+    <div class="state-box">
+      <div class="state-mark" style="background:rgba(255,120,120,.15);box-shadow:none;border:1px solid rgba(255,120,120,.42);color:#ff9a9a;font-family:var(--sans);font-size:30px">!</div>
+      <div class="state-title">读取库失败</div>
+      <div class="state-sub">库文件读取失败。可重试，或打开设置检查数据目录。</div>
+      <div class="state-btns"><button class="cta" data-state="retry">重试</button><button class="ghost" data-state="pick">打开设置</button></div>
+    </div>
+  </div>
+
+  <!-- 搜索 · 排序面板 -->
+  <div class="state" id="searchPanel">
+    <div class="sp-box">
+      <div class="sp-field">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/></svg>
+        <input id="spInput" placeholder="搜索作品名 / 会社 / 标签 / 拼音首字母…"/>
+        <span class="kk">Esc</span>
+      </div>
+      <div>
+        <div class="sp-lab">排序</div>
+        <div class="seg" id="spSort"><b class="on">最近游玩</b><b>名称</b><b>发售年</b><b>通关进度</b></div>
+      </div>
+      <div>
+        <div class="sp-lab">结果</div>
+        <div class="sp-list" id="spList"></div>
+      </div>
+      <div class="flt-foot sp-foot">
+        <span class="kg"><span class="kk">↑↓</span>选择</span>
+        <span class="kg"><span class="kk">←→</span>排序</span>
+        <span class="kg"><span class="kk acc">A</span>打开</span>
+        <span class="kg"><span class="kk">B</span>关闭</span>
+        <span class="kg"><span class="kk">/</span>输入</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 筛选面板（集合 / 标签 / 会社 / 年份，P1 + P10 保存视图） -->
+  <div class="state" id="filterPanel">
+    <div class="flt-box">
+      <div class="flt-head">
+        <b>筛选</b>
+        <span class="flt-sub">集合 · 标签 · 会社 · 发售年 · 与上方状态筛选叠加</span>
+        <span class="mini" id="saveView" title="把当前筛选组合存成视图">保存视图</span>
+        <span class="kk">Esc</span>
+      </div>
+      <div class="flt-cols" id="fltCols"></div>
+      <div class="flt-foot">
+        <span class="kg"><span class="kk">↑</span><span class="kk">↓</span>选择</span>
+        <span class="kg"><span class="kk">←</span><span class="kk">→</span>换列</span>
+        <span class="kg"><span class="kk acc">A</span>应用</span>
+        <span class="kg"><span class="kk">S</span>保存视图</span>
+        <span class="kg"><span class="kk">B</span>关闭</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 结局 / 路线标记（详情页「结局 x/y · 管理」入口） -->
+  <div class="state" id="endPanel">
+    <div class="snap-box">
+      <div class="snap-head">
+        <b>结局 · 路线</b>
+        <span class="snap-sub" id="endTitle">—</span>
+        <span class="kk">Esc</span>
+      </div>
+      <div class="snap-list" id="endList"></div>
+      <div class="flt-foot">
+        <span class="kg"><span class="kk">↑</span><span class="kk">↓</span>选择</span>
+        <span class="kg"><span class="kk acc">A</span>达成 / 撤销</span>
+        <span class="kg"><span class="kk">Y</span>新增</span>
+        <span class="kg"><span class="kk">X</span>删除</span>
+        <span class="kg"><span class="kk">B</span>关闭</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 背景图候选墙（详情 · 更多操作 · 背景图）：上方 16:9 画面 + 下方文字，A / 点击即应用 -->
+  <div class="state" id="bgPanel">
+    <div class="bg-box">
+      <div class="flt-head">
+        <b>背景图</b>
+        <span class="flt-sub" id="bgTitle">—</span>
+        <span class="mini" id="bgPick" title="从本地选一张图（自动裁成 16:9）">指定图片…</span>
+        <span class="mini" id="bgAuto" title="删掉指定背景，回到实机截图 / 原作品画面">恢复自动</span>
+        <span class="kk">Esc</span>
+      </div>
+      <div class="bg-grid" id="bgGrid"></div>
+      <div class="flt-foot">
+        <span class="kg"><span class="kk">←</span><span class="kk">→</span><span class="kk">↑</span><span class="kk">↓</span>选择</span>
+        <span class="kg"><span class="kk acc">A</span>应用</span>
+        <span class="kg"><span class="kk">P</span><span class="kk pad">X</span>指定图片</span>
+        <span class="kg"><span class="kk">R</span><span class="kk pad">Y</span>恢复自动</span>
+        <span class="kg"><span class="kk">B</span>关闭</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 改绑条目（设置 · 元数据 / 待确认 / 未匹配）：候选卡片模态层，A 绑定 · X 取消匹配 -->
+  <div class="state" id="candPanel">
+    <div class="cand-box">
+      <div class="flt-head">
+        <b>改绑条目</b>
+        <span class="flt-sub" id="candTitle">—</span>
+        <span class="mini" id="candUnmatch">取消匹配</span>
+        <span class="kk">Esc</span>
+      </div>
+      <div class="cand-body">
+        <div class="cand-wall" id="candGrid"></div>
+        <aside class="cand-prev" id="candPrev"></aside>
+      </div>
+      <div class="flt-foot">
+        <span class="kg" id="candQueue"></span>
+        <span class="kg"><span class="kk">←</span><span class="kk">→</span><span class="kk">↑</span><span class="kk">↓</span>选择</span>
+        <span class="kg"><span class="kk acc">A</span>应用</span>
+        <span class="kg"><span class="kk">F</span>字段</span>
+        <span class="kg"><span class="kk">X</span>取消匹配</span>
+        <span class="kg"><span class="kk">B</span>关闭</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 截图查看器（详情页截图条点开）：← / → 切换，Esc / B 关闭 -->
+  <div class="state" id="shotPanel">
+    <div class="shotv">
+      <div class="shotv-head">
+        <b>截图</b>
+        <span class="shotv-cap" id="shotvCap">—</span>
+        <span class="kk">Esc</span>
+      </div>
+      <div class="shotv-img" id="shotvImg"></div>
+      <div class="flt-foot">
+        <span class="kg"><span class="kk">←</span><span class="kk">→</span>切换</span>
+        <span class="kg"><span class="kk acc">A</span>下一张</span>
+        <span class="kg" id="shotDel"><span class="kk">X</span><span id="shotDelTxt">删除这张</span></span>
+        <span class="kg"><span class="kk">B</span>关闭</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 快捷键总览（F1 / ?）：键位散落在各屏 keybar，这里给一页可查的总表 -->
+  <div class="state" id="helpPanel">
+    <div class="help-box">
+      <div class="flt-head">
+        <b>快捷键总览</b>
+        <span class="flt-sub">键盘 · 手柄 · 系统热键（游戏运行中也生效）</span>
+        <span class="kk">Esc</span>
+      </div>
+      <div class="help-grid">
+        <section>
+          <h4>通用</h4>
+          <div class="help-row"><span>搜索 · 排序</span><span class="hk"><b class="kk">/</b></span></div>
+          <div class="help-row"><span>快捷键总览（设置 · 关于）</span><span class="hk"><b class="kk">F1</b><b class="kk">?</b></span></div>
+          <div class="help-row"><span>库 ⇄ 网格（手柄：Start → 切换视图）</span><span class="hk"><b class="kk">Q</b><b class="kk">E</b></span></div>
+          <div class="help-row"><span>直切四屏</span><span class="hk"><b class="kk">1</b><b class="kk">2</b><b class="kk">3</b><b class="kk">4</b></span></div>
+          <div class="help-row"><span>设置（手柄：Start → 设置）</span><span class="hk"><b class="kk">4</b></span></div>
+          <div class="help-row"><span>快捷菜单</span><span class="hk"><b class="kk">☰</b><b class="kk">Start</b></span></div>
+          <div class="help-row"><span>手柄改键 / 恢复默认</span><span class="hk">设置 · 键位</span></div>
+          <div class="help-row"><span>返回上一层（浮层：Esc / 点暗底）</span><span class="hk"><b class="kk">Esc</b><b class="kk">B</b></span></div>
+        </section>
+        <section>
+          <h4>库屏</h4>
+          <div class="help-row"><span>切换作品（经典 / 列表）</span><span class="hk"><b class="kk">←</b><b class="kk">→</b><b class="kk">↑</b><b class="kk">↓</b></span></div>
+          <div class="help-row"><span>前后拨卡（经典）</span><span class="hk">鼠标滚轮</span></div>
+          <div class="help-row"><span>跳首 / 跳尾</span><span class="hk"><b class="kk">Home</b><b class="kk">End</b></span></div>
+          <div class="help-row"><span>翻一屏</span><span class="hk"><b class="kk">PgUp</b><b class="kk">PgDn</b></span></div>
+          <div class="help-row"><span>整排移动（海报墙）</span><span class="hk"><b class="kk">↑</b><b class="kk">↓</b></span></div>
+          <div class="help-row"><span>启动游戏</span><span class="hk"><b class="kk acc">A</b></span></div>
+          <div class="help-row"><span>详情</span><span class="hk"><b class="kk">Y</b></span></div>
+          <div class="help-row"><span>多选（库 / 网格）</span><span class="hk"><b class="kk">M</b><b class="kk">Select</b></span></div>
+          <div class="help-row"><span>批量操作（多选态）</span><span class="hk"><b class="kk">X</b></span></div>
+          <div class="help-row"><span>网格分类左右切换</span><span class="hk"><b class="kk">LB</b><b class="kk">RB</b></span></div>
+          <div class="help-row"><span>筛选（网格）</span><span class="hk"><b class="kk">F</b></span></div>
+        </section>
+        <section>
+          <h4>详情屏</h4>
+          <div class="help-row"><span>选择条目</span><span class="hk"><b class="kk">↑</b><b class="kk">↓</b></span></div>
+          <div class="help-row"><span>切换同名版本</span><span class="hk"><b class="kk">←</b><b class="kk">→</b></span></div>
+          <div class="help-row"><span>评分（焦点环选中星星后确认）</span><span class="hk"><b class="kk">↑</b><b class="kk">↓</b><b class="kk acc">A</b></span></div>
+          <div class="help-row"><span>启动 / 确认</span><span class="hk"><b class="kk acc">A</b></span></div>
+          <div class="help-row"><span>结局 · 路线</span><span class="hk"><b class="kk">Y</b></span></div>
+          <div class="help-row"><span>收藏</span><span class="hk"><b class="kk">R</b><b class="kk">RB</b></span></div>
+          <div class="help-row"><span>返回库</span><span class="hk"><b class="kk">B</b></span></div>
+        </section>
+        <section>
+          <h4>系统热键</h4>
+          <div class="help-row"><span>截图（游戏内亦可）</span><span class="hk" id="helpShotHk"><b class="kk">Ctrl</b><b class="kk">Alt</b><b class="kk">S</b></span></div>
+          <div class="help-row"><span>设置页签</span><span class="hk"><b class="kk">↑</b><b class="kk">↓</b><b class="kk">→</b></span></div>
+          <div class="help-row"><span>确认 / 返回</span><span class="hk"><b class="kk acc">A</b><b class="kk">B</b></span></div>
+          <div class="help-row"><span>结束游戏并回书架（长按 1.2 秒）</span><span class="hk"><b class="kk">Start</b><b class="kk">Select</b></span></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- 启动转场层（游戏运行中） -->
+  <div class="launch-layer" id="launchLayer">
+    <div class="ll-art" id="llArt"></div>
+    <div class="ll-title" id="llTitle"></div>
+    <div class="ll-status" id="llStatus">正在启动…</div>
+    <button class="ghost" id="llStop"><span class="k">X</span>结束游戏</button>
+  </div>
+
+  <div id="grain"></div>
+
+  <!-- FPS 信息面板（设置页可开关） -->
+  <div class="fpanel" id="fpanel">
+    <div class="fp-row">FPS <b id="fpNow">--</b></div>
+    <div class="fp-row">档位 <b id="fpMode">auto</b></div>
+    <div class="fp-row dim">1280×720</div>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+</div>
+</body>
+</html>

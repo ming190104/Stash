@@ -1,0 +1,36 @@
+{
+  "name": "stash",
+  "private": true,
+  "version": "1.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "smoke": "node scripts/smoke.cjs",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "verify:code": "eslint src && tsc --noEmit && vitest run --coverage && vite build",
+    "verify:rust": "cargo test --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "verify:design": "node ../design/check-docs.js && node ../design/check-wiring.js && node ../design/check-ipc.js && node ../design/check-overlap.js && node ../design/check-layout.js && node ../design/check-anim.js && node ../design/check-geometry.js",
+    "verify": "npm run verify:code && npm run verify:rust && npm run verify:design"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "tiny-pinyin": "^1.3.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2.1.0",
+    "@vitest/coverage-v8": "^5.0.5",
+    "eslint": "^10.13.0",
+    "happy-dom": "^21.0.4",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.72.0",
+    "vite": "^6.0.0",
+    "vitest": "^5.0.5"
+  }
+}

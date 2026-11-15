@@ -1,0 +1,56 @@
+[package]
+name = "stash"
+version = "1.0.1"
+description = "Stash - Galgame 本地库前端"
+authors = ["you"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "stash_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+walkdir = "2"
+pelite = "0.10"
+encoding_rs = "0.8"
+gilrs = { version = "0.11", default-features = false, features = ["xinput"] }
+dirs = "5"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+webp = "0.3"
+# Bangumi 元数据客户端（总案 7.3）：串行 1req/s + 指数退避 + 显式代理。
+# default-tls 在 reqwest 0.13 里由 rustls 实现（不再走系统 Schannel）；rustls 的 C 依赖由构建链提供。
+# 关掉 default-features 同时关掉 system-proxy：代理只在设置页显式填写才生效（总案 7.3）。
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "query", "default-tls"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Registry",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+panic = "abort"

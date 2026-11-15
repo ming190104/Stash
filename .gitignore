@@ -1,0 +1,48 @@
+# 构建产物与依赖：不纳入版本控制，避免仓库膨胀
+# 注意：这些目录在 stash/ 下，路径模式不能带前导 /（否则只匹配仓库根）
+node_modules/
+dist/
+coverage/
+demo-library/
+# 含 / 的模式会被锚定到 .gitignore 所在目录，深层路径必须带 **/
+**/src-tauri/target/
+**/src-tauri/gen/
+**/target/
+.cargo/
+
+# 本地量化模型与转换用虚拟环境（体积大，不入库）
+models/
+.venv-ov/
+
+# 交付包内的二进制与历史归档：产物可由 npm run tauri build 重新生成
+VN-Shelf-Final/release/
+VN-Shelf-Final/_archive/
+
+# 本机临时文件
+*.log
+Thumbs.db
+
+# 本地调试用真实游戏目录（数百 MB，不入库）
+test-games/
+
+# 内部协作笔记 / 代理记忆（不属于交付内容）
+.trae/
+.workbuddy/
+
+# 内部开发资料：需求总案 / 设计稿 / 校验脚本 / 交付快照，只在本地保留，不随仓库发布
+docs/
+design/
+VN-Shelf-Final/
+.github/
+stash/tools/
+stash/_metrics.cjs
+# 本机 crates.io 镜像配置（不同网络环境自行决定，不随仓库发布）
+stash/.cargo/
+# 本地打包产物
+stash/release/
+
+# 根目录临时预览图（截图产物，不属于源码）
+/*_preview.png
+
+# 运行时 sidecar：mihomo 58 MB，超出 GitHub 单文件建议上限，按 README「构建前置」自行下载
+stash/src-tauri/binaries/mihomo-*.exe

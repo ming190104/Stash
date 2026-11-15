@@ -1,0 +1,78 @@
+/* ===== 入场编排（首屏 stagger） ===== */
+@keyframes enterUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes enterLeft{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:translateX(0)}}
+@keyframes enterIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes enterRight{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:translateX(0)}}
+@keyframes wipeIn{from{opacity:0;transform:scaleX(0)}to{opacity:1;transform:scaleX(1)}}
+.boots{animation-duration:.5s;animation-timing-function:cubic-bezier(.16,1,.3,1);animation-fill-mode:both}
+.boots.up{animation-name:enterUp}
+.boots.left{animation-name:enterLeft}
+.boots.right{animation-name:enterRight}
+.boots.in{animation-name:enterIn}
+
+/* ===== 动效强度：柔和档（设置页可切） ===== */
+/* 窗口失焦 / 被游戏盖住时暂停无限动画：主窗在后台继续呼吸会白烧 GPU，
+   游戏全屏时更会和游戏抢帧（切回来自动恢复，不留状态）。
+   只点名真正在跑无限动画的元素：用 `*` 会让 idle / paused 的切换触发整棵 DOM
+   的样式重算，正好撞在切屏那一帧（实测多 6~10ms）。 */
+#app.paused .hero-art,#app.paused .hero-art.artin,#app.paused .hero-art .art img,
+#app.paused .art .glow,#app.paused .dcover .art img,#app.paused .card.focus .ring,
+#app.paused .card .sheen::before,#app.paused .boots,
+#app.idle .hero-art,#app.idle .hero-art.artin,#app.idle .hero-art .art img,
+#app.idle .art .glow,#app.idle .dcover .art img,#app.idle .card.focus .ring,
+#app.idle .card .sheen::before,#app.idle .boots{animation-play-state:paused!important}
+.motion-soft .boots{animation:none!important}
+.motion-soft .hero-info.enter>.row{animation:none!important}
+.motion-soft .hero-art.artin{animation:float 7s ease-in-out infinite alternate!important}
+.motion-soft .card .sheen{display:none}
+.motion-soft .card.focus{transform:translateY(-7px) scale(1.042)}
+.motion-soft .card.n1{transform:translateY(-2px) scale(1.014)}
+.motion-soft .card.n2{transform:none}
+.motion-soft .card:hover:not(.focus){transform:translateY(-2px) scale(1.006)}
+.motion-soft .rail-track{transition-duration:.24s}
+
+/* ===== 新增三套动效（P11）：呼吸光晕 / 阶梯涟漪 / 卷轴展开 =====
+   全部只动 transform / opacity（120fps 红线）；柔和动效档统一关闭。 */
+/* ① 呼吸光晕：封面极缓慢推近 + 强调色柔光同频明暗；只在高价值封面（Hero / 焦点卡 / 详情）运行 */
+@keyframes breath{from{transform:scale(1)}to{transform:scale(1.045)}}
+@keyframes glowBreath{from{opacity:.04}to{opacity:.15}}
+/* 性能：光晕不再用 mix-blend-mode:screen。混合模式会让整块封面每帧回读背景重混，
+   实测常态多耗 ~0.5s/10s 渲染进程 CPU；改用普通叠加 + 略提亮的渐变，观感几乎一致。 */
+.art .glow{position:absolute;inset:-12%;z-index:2;pointer-events:none;opacity:0;
+  background:radial-gradient(58% 46% at 50% 40%,color-mix(in srgb,var(--acc) 78%,transparent),transparent 72%)}
+.hero-art .art img,.dcover .art img{animation:breath 11s ease-in-out infinite alternate;transform-origin:50% 42%}
+.hero-art .art .glow,.dcover .art .glow{animation:glowBreath 11s ease-in-out infinite alternate}
+/* 焦点卡不跑呼吸：库屏一屏多张卡同时缩放会让合成器每帧重栅格化整屏（切屏卡顿主因之一）。
+   列表 / 网格 / 海报墙的选中态已由抬升 + 描边表达，Hero 与详情大图仍有呼吸。 */
+.motion-soft .hero-art .art img,.motion-soft .dcover .art img,.motion-soft .card.focus .art img{animation:none!important}
+.motion-soft .art .glow{animation:none!important}
+
+/* ② 阶梯涟漪：网格重建（进网格 / 换筛选）时格子依次入场；延迟由 data 里的 --d 给出 */
+@keyframes cascadeIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.gwrap.cascade .gcell{animation:cascadeIn .44s cubic-bezier(.16,1,.3,1) var(--d,0ms) both}
+.motion-soft .gwrap.cascade .gcell{animation:none!important}
+
+/* ③ 卷轴展开：详情页进入（或切版本）时，封面 / 信息行 / 元数据格 / 右侧按钮依次展开 */
+@keyframes unfoldIn{from{opacity:0;transform:translateY(10px) scaleY(.96)}to{opacity:1;transform:none}}
+@keyframes metaIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes unfoldSide{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+.dcover.unfold{animation:unfoldIn .5s cubic-bezier(.16,1,.3,1) both}
+.dinfo.unfold>*{animation:unfoldIn .42s cubic-bezier(.16,1,.3,1) both}
+.dinfo.unfold>*:nth-child(1){animation-delay:0ms}
+.dinfo.unfold>*:nth-child(2){animation-delay:30ms}
+.dinfo.unfold>*:nth-child(3){animation-delay:60ms}
+.dinfo.unfold>*:nth-child(4){animation-delay:90ms}
+.dinfo.unfold>*:nth-child(5){animation-delay:120ms}
+.d-meta.unfold>div{animation:metaIn .38s cubic-bezier(.16,1,.3,1) both;animation-delay:150ms}
+.d-meta.unfold>div:nth-child(2n){animation-delay:172ms}
+.d-meta.unfold>div:nth-child(3n){animation-delay:194ms}
+.d-meta.unfold>div:nth-child(4n){animation-delay:216ms}
+.dside.unfold button{animation:unfoldSide .4s cubic-bezier(.16,1,.3,1) both}
+.dside.unfold button:nth-child(1){animation-delay:80ms}
+.dside.unfold button:nth-child(2){animation-delay:112ms}
+.dside.unfold button:nth-child(3){animation-delay:144ms}
+.dside.unfold button:nth-child(4){animation-delay:176ms}
+.dside.unfold button:nth-child(5){animation-delay:208ms}
+.dside.unfold button:nth-child(6){animation-delay:240ms}
+.motion-soft .dcover.unfold,.motion-soft .dinfo.unfold>*,.motion-soft .d-meta.unfold>div,.motion-soft .dside.unfold button{animation:none!important}
+

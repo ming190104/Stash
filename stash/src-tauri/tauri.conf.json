@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Stash",
+  "version": "1.0.1",
+  "identifier": "com.stash.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Stash",
+        "width": 1280,
+        "height": 720,
+        "minWidth": 960,
+        "minHeight": 540,
+        "resizable": true,
+        "center": true,
+        "decorations": false,
+        "transparent": false,
+        "dragDropEnabled": true,
+        "backgroundColor": "#0D0E13"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420",
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "resources": {
+      "binaries/locale-emulator/*.dll": "locale-emulator/",
+      "binaries/locale-emulator/*.exe": "locale-emulator/",
+      "binaries/locale-emulator/*.xml": "locale-emulator/",
+      "binaries/locale-emulator/*.txt": "locale-emulator/",
+      "binaries/locale-emulator/Lang/*": "locale-emulator/Lang/"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico"
+    ]
+  }
+}
