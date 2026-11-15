@@ -1,0 +1,37 @@
+name: verify
+
+# 提交 / PR 都跑一遍完整校验：前端类型 / 单测 / 构建、Rust 单测 / clippy。
+# 与本地 `npm run verify` 同源，避免「本地过了 CI 又红」的两套标准。
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: stash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: stash/package-lock.json
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 前端类型 / 单测（覆盖率门槛）/ 构建
+        run: npm run verify:code
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: stash/src-tauri
+
+      - name: Rust 单测 / clippy
+        run: npm run verify:rust

@@ -33,7 +33,6 @@ test-games/
 docs/
 design/
 VN-Shelf-Final/
-.github/
 stash/tools/
 stash/_metrics.cjs
 # 本机 crates.io 镜像配置（不同网络环境自行决定，不随仓库发布）
@@ -44,6 +43,3 @@ release/
 
 # 根目录临时预览图（截图产物，不属于源码）
 /*_preview.png
-
-# 运行时 sidecar：mihomo 58 MB，超出 GitHub 单文件建议上限，按 README「构建前置」自行下载
-stash/src-tauri/binaries/mihomo-*.exe

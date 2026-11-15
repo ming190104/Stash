@@ -17,6 +17,22 @@ export default defineConfig({
     target: "chrome110",
     minify: "esbuild",
     sourcemap: false,
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // 核心状态层（nav / overlay / quick / 面板）刻意用动态 import 载入 screens/*，
+        // 以避免 nav ↔ screens 的静态环（见 src/overlay.ts 顶部导入规则）；
+        // 而 main.ts 又必须静态载入同一批屏幕，Rollup 因此必然提示「无法分包」。
+        // 该提示只关乎分包，不影响按需求值，这里只屏蔽这一种告警。
+        if (
+          warning.code === "PLUGIN_WARNING" &&
+          warning.plugin === "vite:reporter" &&
+          warning.message.includes("dynamic import will not move module into another chunk")
+        ) {
+          return;
+        }
+        warn(warning);
+      },
+    },
   },
   // 前端单测只覆盖逻辑与少量 DOM 骨架；覆盖率门槛放在 test:coverage，不拖慢日常 verify
   test: {
