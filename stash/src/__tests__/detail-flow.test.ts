@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-/** 详情屏交互链路（detail.ts）：渲染兜底、启动 / 收藏 / 截图 / 目录、
+/** 详情屏交互链路（detail.ts）：渲染兜底、启动 / 收藏 / 目录、
  *  评分 / 标签 / 备注 / 版本切换、更多操作菜单与导航键位。 */
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -31,7 +31,6 @@ const H = vi.hoisted(() => ({
   metaCandidates: vi.fn(async (_id: string, _n?: number) => [] as unknown[]),
   applyCandidate: vi.fn(async (_id: string, _s: string, _k: string) => undefined),
   unmatchGame: vi.fn(async (_id: string) => undefined),
-  captureScreenshot: vi.fn(async (_id: string) => 'D:\\shots\\shot1.png'),
   smartCover: vi.fn(async (_id: string) => 'D:\\c\\auto.png'),
   steamgridCover: vi.fn(async (_id: string) => 'D:\\c\\sgdb.png'),
   getLibrary: vi.fn(async (): Promise<unknown[]> => []),
@@ -61,7 +60,6 @@ vi.mock('../ipc', async (importOriginal) => {
     metaCandidates: H.metaCandidates,
     applyCandidate: H.applyCandidate,
     unmatchGame: H.unmatchGame,
-    captureScreenshot: H.captureScreenshot,
     smartCover: H.smartCover,
     steamgridCover: H.steamgridCover,
     getLibrary: H.getLibrary,
@@ -188,7 +186,6 @@ describe('详情渲染', () => {
     const side = document.getElementById('dSide')!;
     expect(side.querySelector('#dPlay')).not.toBeNull();
     expect(side.querySelector('#dFav')!.textContent).toContain('★ 已收藏');
-    expect(side.querySelector('#dShots')!.textContent).toContain('截图');
     expect(side.classList.contains('unfold')).toBe(true);
     expect(document.querySelector('#dPlay')!.classList.contains('focus')).toBe(true);
   });
@@ -223,16 +220,6 @@ describe('右侧按钮', () => {
     document.getElementById('dFav')!.click();
     expect(state.games[0].favorite).toBe(true);
     await vi.waitFor(() => expect(H.setFavorite).toHaveBeenCalledWith('a', true));
-  });
-
-  it('截图：没有截图时提示热键，有截图打开查看器', async () => {
-    await renderOne();
-    document.getElementById('dShots')!.click();
-    expect(lastToast()).toContain('还没有截图');
-
-    await renderOne({ shots: ['D:\\s\\1.png'] });
-    document.getElementById('dShots')!.click();
-    expect(document.getElementById('shotPanel')!.classList.contains('show')).toBe(true);
   });
 
   it('打开目录失败转提示', async () => {
@@ -310,7 +297,7 @@ describe('更多操作菜单', () => {
     await renderDetail();
     await openDetailMenu('a');
     expect(document.getElementById('qmenu')!.classList.contains('show')).toBe(true);
-    for (const k of ['args', 'iso', 'title', 'cover', 'bg', 'tag', 'notes', 'shot', 'match', 'remove']) {
+    for (const k of ['args', 'iso', 'title', 'cover', 'bg', 'tag', 'notes', 'match', 'remove']) {
       expect(menuBtn(k), k).not.toBeNull();
     }
     expect(menuBtn('args')!.querySelector('span')!.textContent).toBe('1 项');

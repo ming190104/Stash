@@ -1,5 +1,4 @@
-/** 键位映射页签：手柄信息 + 按键测试 + 手柄键位表（改键 / 恢复默认）+ 手感 + A/B 互换 + 手柄映射鼠标。
- *  游戏内截图也走手柄键位（默认 Select），不再注册系统级键盘热键。 */
+/** 键位映射页签：手柄信息 + 按键测试 + 手柄键位表（改键 / 恢复默认）+ 手感 + A/B 互换 + 手柄映射鼠标。 */
 import type { PadMap, Settings } from '../../types';
 import { state } from '../../state';
 import { esc } from '../../ui';

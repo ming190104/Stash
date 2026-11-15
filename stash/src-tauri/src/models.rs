@@ -107,7 +107,7 @@ pub struct Game {
     pub cover: Option<String>,
     /// 轨道档缩略图（255×340 WebP）路径，后台生成，可能尚未就绪
     pub thumb: Option<String>,
-    /// 剧照截图路径（详情页截图条）
+    /// 作品目录实机图路径（背景候选与本地背景用）
     pub shots: Vec<String>,
     /// PE 资源中的产品名
     pub pe_product: Option<String>,
@@ -310,9 +310,6 @@ pub struct PadMap {
     pub r: String,
     /// 分类左（默认 lb）
     pub lb: String,
-    /// 截图（默认 select）：游戏运行时直接由输入线程抓图，
-    /// 背键若被系统识别为 LT/RT / Mode / Select，可在设置里绑到这一行
-    pub shot: String,
 }
 
 impl Default for PadMap {
@@ -325,7 +322,6 @@ impl Default for PadMap {
             y: "north".into(),
             r: "rb".into(),
             lb: "lb".into(),
-            shot: "select".into(),
         }
     }
 }
@@ -793,16 +789,15 @@ mod tests {
         assert_eq!(back.sessions[0].seconds, 600);
     }
 
-    /// 旧设置的 padMap 没有 shot：新增动作必须补默认值，不能让整份设置解析失败
+    /// 旧设置的 padMap 可能还带已下线的 shot：忽略它，其余映射保持不变
     #[test]
-    fn pad_map_tolerates_missing_shot() {
+    fn pad_map_ignores_legacy_shot() {
         let json = r#"{
             "accept": "east", "back": "south", "menu": "start",
-            "x": "west", "y": "north", "r": "rb", "lb": "lb"
+            "x": "west", "y": "north", "r": "rb", "lb": "lb", "shot": "select"
         }"#;
         let m: PadMap = serde_json::from_str(json).unwrap();
         assert_eq!(m.accept, "east", "已有映射保持不变");
-        assert_eq!(m.shot, "select", "缺失的截图键取默认 select");
     }
 
     /// 手改 / 外来设置越界时必须收敛，否则 fontScale=99 会把整套版式撑坏

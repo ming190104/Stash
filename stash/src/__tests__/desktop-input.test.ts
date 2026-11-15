@@ -22,7 +22,6 @@ vi.mock('../ipc', () => ({
   stopGame: vi.fn(async () => undefined),
   setFavorite: vi.fn(async () => undefined),
   detailBackground: vi.fn(async () => null),
-  deleteShot: vi.fn(async () => [] as string[]),
   updateEndings: vi.fn(async () => 0),
   updateSettings: vi.fn(async () => undefined),
 }));

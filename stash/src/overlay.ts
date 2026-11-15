@@ -1,5 +1,5 @@
 /** P0 状态层统一出口：层状态机 + 按键守卫 + 接线。
- *  各面板各自成模块（search / filter / empty / shots / endings），
+ *  各面板各自成模块（search / filter / empty / endings），
  *  这里只做单例路由与对外导出，调用方（nav / screens）不必知道层被拆到了哪里。
  *
  *  导入规则（唯一定义，其它核心模块沿用）：nav / overlay / quick 及其面板模块
@@ -22,7 +22,6 @@ import { promptShown, dismissPrompt, submitPrompt } from './prompt';
 import { openSearch, searchFieldKey, searchKey, scheduleSearchRender, applySort } from './search';
 import { openFilter, saveCurrentView, syncFilterChip, filterKey } from './filter';
 import { showEmpty } from './empty';
-import { shotsKey } from './shots';
 import { bgKey } from './bgpanel';
 import { candKey } from './candpanel';
 import { endingsKey } from './endings';
@@ -41,12 +40,10 @@ export {
   searchShown,
   filterShown,
   endShown,
-  shotShown,
 } from './layers';
 export { openSearch, searchList, renderSearch, pushSearchHistory } from './search';
 export { openFilter, renderFilter, syncFilterChip, saveCurrentView } from './filter';
 export { filterDesc, showEmpty } from './empty';
-export { openShots } from './shots';
 export { openEndings } from './endings';
 
 /** 返回 true 表示已消费该按键（底层屏幕不再响应）。
@@ -129,7 +126,6 @@ export function handleOverlayKey(e: KeyboardEvent): boolean {
   }
 
   if (document.getElementById('endPanel')?.classList.contains('show')) return endingsKey(e);
-  if (document.getElementById('shotPanel')?.classList.contains('show')) return shotsKey(e);
   if (document.getElementById('bgPanel')?.classList.contains('show')) return bgKey(e);
   if (document.getElementById('candPanel')?.classList.contains('show')) return candKey(e);
   if (filterShown()) return filterKey(e);
@@ -176,7 +172,7 @@ export function initOverlay(): void {
 
   // 鼠标习惯：点面板外的暗底 = 关闭（面板是铺满的 .state，内容在 .sp-box / .flt-box 里，
   // 所以只有 target 恰好是面板自身时才算点了空白）。键盘 / 手柄仍走 Esc / B。
-  for (const id of ['searchPanel', 'filterPanel', 'endPanel', 'shotPanel', 'helpPanel']) {
+  for (const id of ['searchPanel', 'filterPanel', 'endPanel', 'helpPanel']) {
     const panel = document.getElementById(id);
     panel?.addEventListener('click', (e) => {
       if (e.target === panel) hideStates();

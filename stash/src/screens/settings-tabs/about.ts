@@ -55,7 +55,7 @@ export function aboutHTML(): string {
         <span class="mini" data-act="diagnostics">导出</span></div>
       <div class="srow"><div class="lab"><b>检查更新</b><span id="updTip">从 GitHub 读取最新 Release（当前 1.0.3）</span></div>
         <span class="mini" id="updBtn">检查</span></div>
-      <div class="srow"><div class="lab"><b>快捷键总览</b><span>手柄键位（含截图，默认 Select）都在「键位」页签里改</span></div>
+      <div class="srow"><div class="lab"><b>快捷键总览</b><span>手柄键位都在「键位」页签里改</span></div>
         <span class="mini" id="openHelpBtn">查看</span></div>
     </div>
     <div class="spanel" id="logBox">

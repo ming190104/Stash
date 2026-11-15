@@ -214,8 +214,6 @@ export interface PadMap {
   r: string;
   /** 分类左（默认 lb） */
   lb: string;
-  /** 截图（默认 select）；背键若被识别为 lt / rt / mode，可绑到这一行 */
-  shot: string;
 }
 
 /** 手柄手感：与 Rust 端 models::PadTuning 一一对应（范围也在后端再夹一次）。 */

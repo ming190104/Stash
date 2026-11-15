@@ -45,17 +45,13 @@ describe('设置页签路由', () => {
     for (let i = 0; i < TABS.length; i++) await openTab(i);
   });
 
-  it('键位映射：手柄键位表在这里，系统热键行已下线', async () => {
+  it('键位映射：手柄键位表在这里', async () => {
     await openTab(2);
     expect(body().querySelector('#padMapRows')).not.toBeNull();
-    expect(body().querySelectorAll('#padMapRows .pmrow').length).toBe(8);
+    expect(body().querySelectorAll('#padMapRows .pmrow').length).toBe(7);
     expect(body().querySelector('#padReset')).not.toBeNull();
     expect(body().querySelector('#tgAbSwap')).not.toBeNull();
     expect(body().querySelector('#tgPadMouse')).not.toBeNull();
-    // 系统热键（Ctrl+Alt+S）已下线：截图只走手柄键位（默认 Select）
-    expect(body().querySelector('#pickShotHk')).toBeNull();
-    expect(body().querySelector('#keysShotHk')).toBeNull();
-    expect(body().textContent).not.toContain('系统热键');
 
     await openTab(0);
     expect(body().querySelector('#padMapRows')).toBeNull();
@@ -72,16 +68,6 @@ describe('设置页签路由', () => {
       expect(focused?.classList.contains('pmrow')).toBe(true);
       expect(focused?.dataset.pad).toBe('accept');
     });
-  });
-
-  it('截图只剩手柄键位：键位表里保留可改键的截图行', async () => {
-    await openTab(2);
-    const rows = Array.from(body().querySelectorAll<HTMLElement>('#padMapRows .pmrow'));
-    const shot = rows.find((r) => r.dataset.pad === 'shot');
-    expect(shot).toBeTruthy();
-    expect(shot!.textContent).toContain('截图');
-    // 键帽按当前手柄类型显示字形（Xbox 默认：Select = ⧉），不再显示英文键名
-    expect(shot!.querySelector('.pmkey')?.textContent).toBe('⧉');
   });
 
   it('库页签不含演示库 / 测试入口', async () => {

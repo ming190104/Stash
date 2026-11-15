@@ -11,7 +11,6 @@ export const PAD_DEFAULT: PadMap = {
   y: 'north',
   r: 'rb',
   lb: 'lb',
-  shot: 'select',
 };
 
 /** 物理键名 → 键帽文字（未知值显示 —，不静默当成 A）。

@@ -11,7 +11,6 @@ const H = vi.hoisted(() => ({
   toast: vi.fn(),
   promptShown: vi.fn(() => false),
   stopGame: vi.fn(async (_id: string) => undefined),
-  captureScreenshot: vi.fn(async (_id: string) => 'D:\\shots\\a.png'),
   getSettings: vi.fn(async () => ({ fullscreen: false })),
   setFullscreen: vi.fn(async (_on: boolean) => undefined),
   updateSettings: vi.fn(async (_s: unknown) => undefined),
@@ -32,7 +31,6 @@ vi.mock('../ipc', async (importOriginal) => {
   return {
     ...actual,
     stopGame: H.stopGame,
-    captureScreenshot: H.captureScreenshot,
     getSettings: H.getSettings,
     setFullscreen: H.setFullscreen,
     updateSettings: H.updateSettings,
@@ -87,11 +85,10 @@ describe('条目构建与执行', () => {
     expect(quickShown()).toBe(false);
   });
 
-  it('运行中：出现结束 / 截屏；结束后走 stopGame', async () => {
+  it('运行中：出现结束入口，结束后走 stopGame', async () => {
     state.running = 'a';
     await toggleQuickMenu();
     expect(item('stop')).not.toBeNull();
-    expect(item('shot')).not.toBeNull();
 
     item('stop')!.click();
     await vi.waitFor(() => expect(H.stopGame).toHaveBeenCalledWith('a'));

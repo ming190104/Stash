@@ -25,13 +25,16 @@ pub fn set_map(m: crate::models::PadMap) {
 }
 
 fn current_map() -> crate::models::PadMap {
-    PAD_MAP.lock().ok().and_then(|g| g.clone()).unwrap_or_default()
+    PAD_MAP
+        .lock()
+        .ok()
+        .and_then(|g| g.clone())
+        .unwrap_or_default()
 }
 
 /// 手柄手感（死区 / 重复率 / 鼠标速度）。与键位表一样每帧读一次：
 /// 设置页改完即时生效，不需要重启手柄线程。
-static PAD_TUNING: std::sync::Mutex<Option<crate::models::PadTuning>> =
-    std::sync::Mutex::new(None);
+static PAD_TUNING: std::sync::Mutex<Option<crate::models::PadTuning>> = std::sync::Mutex::new(None);
 
 pub fn set_tuning(t: crate::models::PadTuning) {
     if let Ok(mut g) = PAD_TUNING.lock() {
@@ -121,9 +124,14 @@ pub fn pad_status() -> PadStatus {
 /// 名称 → 布局。Windows 上 DualSense 也常显示为 "Wireless Controller"。
 fn pad_kind(name: &str) -> &'static str {
     let n = name.to_ascii_lowercase();
-    if ["dualsense", "dualshock", "playstation", "wireless controller"]
-        .iter()
-        .any(|k| n.contains(k))
+    if [
+        "dualsense",
+        "dualshock",
+        "playstation",
+        "wireless controller",
+    ]
+    .iter()
+    .any(|k| n.contains(k))
         || n == "ps4"
         || n == "ps5"
     {
@@ -162,7 +170,9 @@ pub enum Dir {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "intent", rename_all = "camelCase")]
 pub enum NavIntent {
-    Move { dir: Dir },
+    Move {
+        dir: Dir,
+    },
     Accept,
     Back,
     Menu,
@@ -202,7 +212,12 @@ struct MoveRepeater {
 
 impl MoveRepeater {
     fn new() -> Self {
-        Self { held: None, since: Instant::now(), last: Instant::now(), fast: false }
+        Self {
+            held: None,
+            since: Instant::now(),
+            last: Instant::now(),
+            fast: false,
+        }
     }
 
     /// 输入当前按住的方向（None = 无）。`repeat` 是设置里的重复间隔；
@@ -230,7 +245,11 @@ impl MoveRepeater {
             (Some(prev), Some(_)) => {
                 // 持续按住：锁存方向，到点重复
                 let fast = Duration::from_millis((repeat.as_millis() as u64 * 3 / 4).max(30));
-                let interval = if stick_mag > 0.85 || self.fast { fast } else { repeat };
+                let interval = if stick_mag > 0.85 || self.fast {
+                    fast
+                } else {
+                    repeat
+                };
                 if self.since.elapsed() >= REPEAT_DELAY && self.last.elapsed() >= interval {
                     self.last = Instant::now();
                     self.fast = stick_mag > 0.85;
@@ -256,7 +275,10 @@ struct StickGate {
 
 impl StickGate {
     fn new() -> Self {
-        Self { active: false, dir: Dir::Right }
+        Self {
+            active: false,
+            dir: Dir::Right,
+        }
     }
 
     /// `deadzone` / `hysteresis` 来自设置：进入阈值与释放阈值分开，避免边缘抖动。
@@ -266,7 +288,11 @@ impl StickGate {
             if mag >= deadzone {
                 self.active = true;
                 self.dir = if x.abs() > y.abs() {
-                    if x < 0.0 { Dir::Left } else { Dir::Right }
+                    if x < 0.0 {
+                        Dir::Left
+                    } else {
+                        Dir::Right
+                    }
                 } else if y < 0.0 {
                     Dir::Up
                 } else {
@@ -286,7 +312,11 @@ impl StickGate {
             let (ax, ay) = (x.abs(), y.abs());
             if (ax - ay).abs() > hysteresis {
                 let next = if ax > ay {
-                    if x < 0.0 { Dir::Left } else { Dir::Right }
+                    if x < 0.0 {
+                        Dir::Left
+                    } else {
+                        Dir::Right
+                    }
                 } else if y < 0.0 {
                     Dir::Up
                 } else {
@@ -318,8 +348,7 @@ mod mouse {
     const WHEEL_DELTA: i32 = 120;
 
     /// 最近一次 SendInput 是否被系统拒绝（UIPI）。主循环取走后提示前端一次。
-    pub static REJECTED: std::sync::atomic::AtomicBool =
-        std::sync::atomic::AtomicBool::new(false);
+    pub static REJECTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
     pub fn take_rejected() -> bool {
         REJECTED.swap(false, std::sync::atomic::Ordering::Relaxed)
@@ -336,7 +365,11 @@ mod mouse {
 
     impl State {
         pub fn new() -> Self {
-            Self { a: false, b: false, next_wheel: Instant::now() }
+            Self {
+                a: false,
+                b: false,
+                next_wheel: Instant::now(),
+            }
         }
     }
 
@@ -384,22 +417,40 @@ mod mouse {
 
         let a = super::pressed_named(pad, &map.accept);
         if a != st.a {
-            send(if a { MOUSEEVENTF_LEFTDOWN } else { MOUSEEVENTF_LEFTUP }, 0, 0, 0);
+            send(
+                if a {
+                    MOUSEEVENTF_LEFTDOWN
+                } else {
+                    MOUSEEVENTF_LEFTUP
+                },
+                0,
+                0,
+                0,
+            );
             st.a = a;
         }
         let b = super::pressed_named(pad, &map.back);
         if b != st.b {
-            send(if b { MOUSEEVENTF_RIGHTDOWN } else { MOUSEEVENTF_RIGHTUP }, 0, 0, 0);
+            send(
+                if b {
+                    MOUSEEVENTF_RIGHTDOWN
+                } else {
+                    MOUSEEVENTF_RIGHTUP
+                },
+                0,
+                0,
+                0,
+            );
             st.b = b;
         }
 
         let ry = pad.axis_data(Axis::RightStickY).map_or(0.0, |d| d.value());
         // 肩键在 XInput 后端是 Button::LeftTrigger / RightTrigger（旧的 *2 是扳机轴，
         // 永远读不到按下），走 pressed_named 才能真的滚轮。
-        // 但 pressed_named 把 lb/lt、rb/rt 当成同一组：截图 / 菜单若映射到 lt（背键常见），
-        // 按一下会「截图 + 滚轮」一起触发 —— 肩键被占用时就别再当滚轮
+        // 但 pressed_named 把 lb/lt、rb/rt 当成同一组：菜单若映射到 lt（背键常见），
+        // 按一下会同时触发菜单与滚轮——肩键被菜单占用时就别再当滚轮
         let shoulder_taken = |k: &str| matches!(k, "lb" | "lt" | "rb" | "rt");
-        let wheel = !shoulder_taken(&map.shot) && !shoulder_taken(&map.menu);
+        let wheel = !shoulder_taken(&map.menu);
         let lb = wheel && super::pressed_named(pad, "lb");
         let rb = wheel && super::pressed_named(pad, "rb");
         let now = Instant::now();
@@ -473,48 +524,6 @@ mod mouse {
     pub fn release_all() {}
 }
 
-/// 手柄「截图」键：游戏运行中直接由输入线程抓图——主窗口被游戏盖住时 WebView 被挂起，
-/// 前端既收不到键盘事件也触发不了截图，只能在这里轮询手柄边沿。
-/// 没有运行中的游戏就静默忽略：在桌面上按一下不该把桌面拍进 shots/。
-/// 同一时刻只允许一张截图在飞：连按 Select 不该堆出一串线程和 PowerShell。
-static SHOT_BUSY: AtomicBool = AtomicBool::new(false);
-
-/// 截图占用凭证：拿到即独占，Drop 时自动释放（含 panic / 提前 return）。
-pub(crate) struct ScreenshotPermit<'a> {
-    busy: &'a AtomicBool,
-}
-
-impl<'a> ScreenshotPermit<'a> {
-    pub(crate) fn acquire(busy: &'a AtomicBool) -> Option<Self> {
-        busy.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .ok()
-            .map(|_| Self { busy })
-    }
-}
-
-impl Drop for ScreenshotPermit<'_> {
-    fn drop(&mut self) {
-        self.busy.store(false, Ordering::Release);
-    }
-}
-
-fn trigger_screenshot(app: &AppHandle) {
-    let Some(id) = crate::launcher::running_id() else { return };
-    let Some(permit) = ScreenshotPermit::acquire(&SHOT_BUSY) else {
-        tracing::debug!("pad screenshot: 上一张仍在处理，忽略本次触发");
-        return;
-    };
-    let app = app.clone();
-    std::thread::spawn(move || {
-        let _permit = permit;
-        let store = crate::store::Store::open();
-        match crate::media::capture_screenshot_sync(&app, &store, &id) {
-            Ok(p) => tracing::info!("pad screenshot: {p}"),
-            Err(e) => tracing::warn!("pad screenshot failed: {}", e.message),
-        }
-    });
-}
-
 /// 长按 Start+Select：结束前台游戏、把主窗口叫回前台，再通知前端回书架。
 /// 游戏运行时会独占屏幕且主窗口可能被最小化，纯手柄用户没有别的出口。
 fn pad_home(app: &AppHandle) {
@@ -544,16 +553,14 @@ pub fn spawn(app: AppHandle) {
         let mut repeat = MoveRepeater::new();
         let mut stick = StickGate::new();
         let mut btn_prev = [false; 7]; // accept / back / menu / X / Y / RB / LB
-        // 物理键上一帧状态：设置页「改键捕获」靠 pad://button 原始事件，
-        // 不依赖当前映射，否则改键时按下的键会先触发语义动作。
-        // 顺序与 raw_names 一致：south/east/west/north/start/select/mode/lb/rb/lt/rt
+                                       // 物理键上一帧状态：设置页「改键捕获」靠 pad://button 原始事件，
+                                       // 不依赖当前映射，否则改键时按下的键会先触发语义动作。
+                                       // 顺序与 raw_names 一致：south/east/west/north/start/select/mode/lb/rb/lt/rt
         let mut raw_prev = [false; 11];
         let mut mouse_state = mouse::State::new();
         let mut last_pad: Option<gilrs::GamepadId> = None;
         // 上一帧是否处于鼠标模式：进出切换要预置按键表，避免「仍按住的键」被当成新按下
         let mut mouse_mode_prev = false;
-        // 截图键的边沿（与 btn_prev 分开：鼠标模式下也要生效）
-        let mut shot_prev = false;
         // Start+Select 长按计时：进入鼠标模式也要检测，否则游戏中退不出去
         let mut chord_since: Option<Instant> = None;
         let mut chord_fired = false;
@@ -622,8 +629,12 @@ pub fn spawn(app: AppHandle) {
             if let Some(id) = pad_id {
                 let pad = gilrs.gamepad(id);
                 // Start+Select 长按：必须在鼠标模式分支之前判定，游戏抢走手柄时也能退出
-                let chord = pad.button_data(Button::Start).is_some_and(|d| d.is_pressed())
-                    && pad.button_data(Button::Select).is_some_and(|d| d.is_pressed());
+                let chord = pad
+                    .button_data(Button::Start)
+                    .is_some_and(|d| d.is_pressed())
+                    && pad
+                        .button_data(Button::Select)
+                        .is_some_and(|d| d.is_pressed());
                 if chord {
                     if chord_since.is_none() {
                         chord_since = Some(Instant::now());
@@ -654,15 +665,6 @@ pub fn spawn(app: AppHandle) {
                     if changed {
                         let _ = app.emit("pad://status", serde_json::json!(pad_status()));
                     }
-                }
-                // 截图键：游戏运行中由输入线程直接抓图（主窗口被游戏盖住时 JS 侧收不到键盘），
-                // 鼠标模式下也保留——否则同时开「手柄当鼠标」就按不出来了
-                let shot_down = pressed_named(&pad, &current_map().shot);
-                if shot_down && !shot_prev {
-                    shot_prev = true;
-                    trigger_screenshot(&app);
-                } else if !shot_down {
-                    shot_prev = false;
                 }
                 // 游戏运行且用户开了「手柄映射鼠标」：这条线程改做鼠标注入，
                 // 不再发 NavIntent，也不保留按键边沿（回到库界面时不会误触发）
@@ -777,7 +779,6 @@ pub fn spawn(app: AppHandle) {
                 // 会立刻注入一次「凭空左键」，在游戏里误点/误推进。
                 mouse::release(&mut mouse_state);
                 mouse_mode_prev = false;
-                shot_prev = false;
                 btn_prev = [false; 7];
                 raw_prev = [false; 11];
                 std::thread::sleep(Duration::from_millis(200));
@@ -800,26 +801,33 @@ mod tests {
         assert_eq!(r.update(None, 0.0, ms), None);
     }
 
-    #[test]
-    fn screenshot_permit_coalesces_and_releases() {
-        let busy = AtomicBool::new(false);
-        let first = ScreenshotPermit::acquire(&busy).unwrap();
-        assert!(ScreenshotPermit::acquire(&busy).is_none(), "截图进行中必须合并重复触发");
-        drop(first);
-        assert!(ScreenshotPermit::acquire(&busy).is_some(), "结束后必须允许下一次截图");
-    }
-
     /// 摇杆不回中直接滚到另一个方向也必须换向；斜推（两轴接近）保持当前方向不抖。
     /// 约定与调用方一致：y 为正 = 向下（gilrs 的 Y 向上为正，调用处已取反）。
     #[test]
     fn stick_switches_direction_while_tilted() {
         let mut g = StickGate::new();
-        assert_eq!(g.update(0.9, 0.0, 0.28, 0.16), Some(Dir::Right), "推右立即导航");
-        assert_eq!(g.update(0.2, 0.9, 0.28, 0.16), Some(Dir::Down), "滚到下方必须换向");
-        assert_eq!(g.update(0.2, -0.9, 0.28, 0.16), Some(Dir::Up), "再滚到上方必须换向");
+        assert_eq!(
+            g.update(0.9, 0.0, 0.28, 0.16),
+            Some(Dir::Right),
+            "推右立即导航"
+        );
+        assert_eq!(
+            g.update(0.2, 0.9, 0.28, 0.16),
+            Some(Dir::Down),
+            "滚到下方必须换向"
+        );
+        assert_eq!(
+            g.update(0.2, -0.9, 0.28, 0.16),
+            Some(Dir::Up),
+            "再滚到上方必须换向"
+        );
         assert_eq!(g.update(0.7, -0.8, 0.28, 0.16), Some(Dir::Up), "斜推不换向");
         assert_eq!(g.update(0.05, 0.0, 0.28, 0.16), None, "回中释放");
-        assert_eq!(g.update(0.0, 0.9, 0.28, 0.16), Some(Dir::Down), "重新推下立即触发");
+        assert_eq!(
+            g.update(0.0, 0.9, 0.28, 0.16),
+            Some(Dir::Down),
+            "重新推下立即触发"
+        );
     }
 
     /// 死区来自设置：0.38 时 0.30 不该触发，0.18 时同一输入应触发

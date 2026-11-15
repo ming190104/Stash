@@ -62,10 +62,6 @@ export function mountSkeleton(): void {
       </div>
       <div id="filterPanel" class="state"><div id="fltCols"></div><button id="saveView"></button></div>
       <div id="endPanel" class="state"><div id="endTitle"></div><div id="endList"></div></div>
-      <div id="shotPanel" class="state">
-        <div id="shotvImg"></div><div id="shotvCap"></div>
-        <button id="shotDel"><span id="shotDelTxt"></span></button>
-      </div>
       <div id="bgPanel" class="state">
         <div id="bgTitle"></div><div id="bgGrid"></div>
         <button id="bgPick"></button><button id="bgAuto"></button>

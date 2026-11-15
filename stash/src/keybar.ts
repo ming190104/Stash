@@ -21,9 +21,6 @@ function key(a: keyof PadMap): string {
   return padGlyph(mapOf()[a], state.padKind);
 }
 
-/** 截图只对运行中的游戏有意义：没在跑就不提示，免得按了没反应 */
-const shotHint = (): string => (state.running ? KG(KK(key('shot')), '截图') : '');
-
 /** 多选入口固定为物理 Select（不参与改键映射），多选态下再提示 X 批量 */
 const multiHint = (): string =>
   state.gridMulti
@@ -39,7 +36,6 @@ function padBars(): Record<string, string> {
       KG(KK(key('y')), '详情'),
       multiHint(),
       KG(KK(key('menu')), '快捷菜单'),
-      shotHint(),
     ].join(''),
     grid: [
       KG(KK('✚'), '移动'),
@@ -56,7 +52,6 @@ function padBars(): Record<string, string> {
       KG(KK(key('menu')), '快捷菜单'),
       KG(KK(key('y')), '结局标记'),
       KG(KK(key('r')), '收藏'),
-      shotHint(),
       KG(KK(key('back')), '返回'),
     ].join(''),
     settings: [

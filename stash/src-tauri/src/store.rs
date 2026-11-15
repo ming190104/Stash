@@ -348,7 +348,7 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
             Some(p) => {
                 updated += 1;
                 // Bangumi / 萌娘百科 / EGS 写入的字段（中文名 / 简介 / 标签 / 年份 / 封面）
-                // 必须原样保留：合并只负责「目录事实」（exe / 引擎 / 大小 / 截图）。
+                // 必须原样保留：合并只负责「目录事实」（exe / 引擎 / 大小 / 本地实机图）。
                 // 萌娘百科命中不会写 bangumi_id，只写 match_score / meta_source——漏掉它的话，
                 // 一次合并就把联网匹配到的简介 / 封面全部回退，且没有 id 可以 resume。
                 let remote_ids = p.bangumi_id.is_some();

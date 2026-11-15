@@ -1,4 +1,4 @@
-/** 详情屏：全屏 KV + 信息面板（mockup buildDetail 迁移；截图改右侧按钮进查看器）。 */
+/** 详情屏：全屏 KV + 信息面板（mockup buildDetail 迁移）。 */
 
 import type { Game, NavIntent } from '../types';
 import {
@@ -23,7 +23,6 @@ import {
   setRating,
   removeGame,
   unmatchGame,
-  captureScreenshot,
 } from '../ipc';
 import { state, gameById, setScreen, versionGroup } from '../state';
 import { registerHandler } from '../nav';
@@ -32,9 +31,9 @@ import { artHTML, hydrateArts } from './art';
 import { clearHTML, setRawHTML } from '../html';
 import { toggleFav, refreshLibrary } from './library';
 import { paintDetailArt, forgetDetailBg, prepareDetailBg } from './detail-bg';
-import { anyState, openShots, openEndings } from '../overlay';
+import { anyState, openEndings } from '../overlay';
 import { promptConfirm, promptInput } from '../prompt';
-import { openMenu, close, type MenuItem } from '../quick';
+import { openMenu, type MenuItem } from '../quick';
 import { openCandPanel } from '../candpanel';
 import { openBgPanel, BG_PICK, BG_AUTO } from '../bgpanel';
 
@@ -192,13 +191,11 @@ export async function renderDetail(): Promise<void> {
     </div>`,
   );
 
-  // 截图收进右侧按钮：三张缩略图会挤占 KV 画面，点按钮再进全屏查看器
   setRawHTML(
     side,
     `
     <button class="cta" id="dPlay"><span class="k">A</span>启动游戏</button>
     <button class="ghost" id="dFav"><span class="k">RB</span>${g.favorite ? '★ 已收藏' : '☆ 加入收藏'}</button>
-    <button class="ghost" id="dShots">${g.shots.length ? `截图 · ${g.shots.length} 张` : '截图'}</button>
     <button class="ghost" id="dOpen">打开游戏目录</button>
     <button class="ghost" id="dMore">更多操作…</button>`,
   );
@@ -230,15 +227,6 @@ export async function renderDetail(): Promise<void> {
     // 三处视图同步（轨道卡 / 网格卡 / 详情按钮）由 toggleFav 统一重建
     // 落盘：favorite 属于游玩记录字段，由 setFavorite 单独写库（失败会回滚内存标志）
     toggleFav(g.id);
-  });
-  side.querySelector('#dShots')?.addEventListener('click', () => {
-    press('#dShots');
-    if (!g.shots.length) {
-      toast('还没有截图 · 游戏内按手柄「截图」键（键位页可改，默认 Select）');
-      return;
-    }
-    // 从最新一张开始（shots 数组按时间正序，末尾是最新）
-    openShots(g.id, g.shots, g.shots.length - 1);
   });
   side.querySelector('#dOpen')?.addEventListener('click', () => {
     press('#dOpen');
@@ -419,19 +407,6 @@ export async function openDetailMenu(id: string): Promise<void> {
     },
     { key: 'tag', label: '添加标签…', run: () => addUserTag(g) },
     { key: 'notes', label: '编辑备注…', hint: g.notes ? '已有' : '', run: () => editNotes(g) },
-    {
-      key: 'shot',
-      label: '截屏',
-      hint: '抓主屏',
-      run: async () => {
-        // 菜单是应用内浮层：先收起并等过渡结束，避免把它一起拍进 PNG
-        close();
-        await new Promise((r) => window.setTimeout(r, 260));
-        await captureScreenshot(id);
-        await afterChange();
-        toast('已截图到 shots/');
-      },
-    },
     {
       key: 'match',
       label: '元数据匹配…',

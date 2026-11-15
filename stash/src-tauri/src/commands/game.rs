@@ -27,7 +27,7 @@ pub fn stop_game(id: String) -> Result<(), AppError> {
     launcher::stop(&id)
 }
 
-/// 当前运行中的游戏（启动后对账 / 截图热键用；没在运行则 None）
+/// 当前运行中的游戏（启动后对账用；没在运行则 None）
 #[tauri::command]
 pub fn running_game(store: State<'_, Store>) -> Option<Game> {
     let id = launcher::running_id()?;

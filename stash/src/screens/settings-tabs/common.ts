@@ -28,7 +28,6 @@ const PAD_ACTIONS: { k: keyof PadMap; label: string }[] = [
   { k: 'accept', label: '确认 / 启动' },
   { k: 'back', label: '返回' },
   { k: 'menu', label: '快捷菜单' },
-  { k: 'shot', label: '截图' },
   { k: 'x', label: '多选 / 批量' },
   { k: 'y', label: '详情 / 结局 / 筛选' },
   { k: 'r', label: '收藏 / 分类右' },

@@ -20,9 +20,11 @@ pub mod input;
 pub mod iso;
 pub mod kungal;
 pub mod launcher;
-pub mod steam;
 pub mod log;
+pub mod maintenance;
+pub mod media;
 pub mod meta2;
+pub mod metadata;
 pub mod models;
 pub mod moegirl;
 pub mod net;
@@ -31,14 +33,12 @@ pub mod power;
 pub mod scanner;
 pub mod screen;
 pub mod single;
+pub mod steam;
 pub mod store;
 pub mod tagzh;
 pub mod thumb;
 pub mod win;
 pub mod winkey;
-pub mod maintenance;
-pub mod media;
-pub mod metadata;
 
 use commands::{fs, game, library, records, settings as settings_cmd, update};
 use models::{AppError, ErrCode, Game, PadMap};
@@ -59,7 +59,9 @@ pub(crate) fn boot_ms() -> f64 {
 /// 一起搬过去：主题、布局、弱者提示等 localStorage 偏好不因改名丢失。
 /// 新目录已存在说明已经迁移过（或用户从没跑过旧版），直接跳过。
 fn migrate_webview_dir() {
-    let Some(base) = dirs::data_local_dir() else { return };
+    let Some(base) = dirs::data_local_dir() else {
+        return;
+    };
     let old = base.join("com.vnshelf.desktop");
     let new = base.join("com.stash.desktop");
     if new.exists() || !old.exists() {
@@ -75,8 +77,12 @@ fn migrate_webview_dir() {
 /// 直接放到桌面显示器上只是屏幕中间一小块。启动时按主显示器逻辑尺寸放大到 16:9，
 /// 上限 1920×1080；窗口仍可自由缩放 / 全屏，界面本身由前端 `stageScale` 等比跟随。
 fn fit_window_for_display(app: &AppHandle) {
-    let Some(w) = app.get_webview_window("main") else { return };
-    let Ok(Some(m)) = w.current_monitor() else { return };
+    let Some(w) = app.get_webview_window("main") else {
+        return;
+    };
+    let Ok(Some(m)) = w.current_monitor() else {
+        return;
+    };
     let sf = m.scale_factor();
     if sf <= 0.0 {
         return;
@@ -193,7 +199,6 @@ pub fn run() {
                 tauri::async_runtime::spawn_blocking(move || normalize_existing_bg(&st));
             }
 
-
             input::spawn(app.handle().clone());
             tracing::info!("启动：窗口与后台任务就绪 {:.0} ms", boot_ms());
             tracing::info!("stash started");
@@ -247,7 +252,7 @@ pub fn run() {
             maintenance::clean_storage,
             maintenance::export_data,
             maintenance::import_data,
-            // 媒体：封面 / 背景 / 截图 / ISO
+            // 媒体：封面 / 背景 / ISO
             media::mount_iso,
             media::unmount_iso,
             media::set_game_cover,
@@ -258,8 +263,6 @@ pub fn run() {
             media::clear_game_background,
             media::background_candidates,
             media::use_background_candidate,
-            media::capture_screenshot,
-            media::delete_shot,
             // 元数据
             metadata::test_network,
             metadata::probe_sources,
@@ -350,7 +353,7 @@ fn localize_library_tags(store: &Store) {
 }
 
 /// asset 协议白名单：`tauri.conf.json` 里的 scope 已收紧为空，凡是前端要显示的本地图片
-/// 都必须先登记，否则 `asset.localhost` 直接 403。这里只登记封面、缩略图与截图目录，
+/// 都必须先登记，否则 `asset.localhost` 直接 403。这里只登记封面、缩略图与实机图目录，
 /// 不给整个磁盘开口子。
 /// 已登记过的 asset 路径。`Option` 是为了在 `static` 里延迟建表
 /// （`HashSet::new()` 在该 MSRV 下不是 const fn）
@@ -382,7 +385,7 @@ pub(crate) fn allow_asset(app: &AppHandle, path: &str, recursive: bool) {
         scope.allow_file(path)
     };
     match res {
-        // 只有登记成功才记入去重表：登记失败（截图目录还没建 / scope 写入失败）时
+        // 只有登记成功才记入去重表：登记失败（实机图目录还没建 / scope 写入失败）时
         // 若照样记下，这张图会一直被跳过、永久 403，重启前再也显示不出来
         Ok(()) => {
             ASSET_SEEN
@@ -409,7 +412,7 @@ fn allow_library_assets(app: &AppHandle, games: &[Game]) {
                 allow_asset(app, c, false);
             }
         }
-        // 详情页截图在 <游戏目录>/shots 下；目录可能还没建，建了才有意义
+        // 背景候选的本地实机图在 <游戏目录>/shots 下；目录可能还没建，建了才有意义
         let shots = std::path::Path::new(&g.dir).join("shots");
         if shots.is_dir() {
             allow_asset(app, &shots.to_string_lossy(), true);
@@ -449,7 +452,9 @@ where
 /// 删除 dir 下以 prefix 开头、但保留 keep 所指文件的孤儿清理入口
 /// （封面换扩展名 / 换来源后，旧文件不会被任何字段再引用）。
 pub(crate) fn prune_prefixed(dir: &std::path::Path, prefix: &str, keep: Option<&std::path::Path>) {
-    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return;
+    };
     for e in rd.flatten() {
         let p = e.path();
         let hit = p
@@ -475,52 +480,10 @@ mod tests {
     use crate::maintenance::{
         cache_owner, clean_storage_sync, prune_missing_games_sync, rebind_import_ids,
     };
-    use crate::media::{keep_recent_shots, shot_is_deletable};
     use crate::metadata::{
         apply_moegirl, is_auto_cover, needs_match, singleton_hint, stale_auto_match,
     };
     use std::path::PathBuf;
-
-    /// 截图条只有 3 位：新截图必须挤掉最旧的一张，否则永远排在 slice(0,3) 之外
-    #[test]
-    fn keep_recent_shots_keeps_newest() {
-        let mut shots = vec![
-            "01.jpg".to_string(),
-            "02.jpg".to_string(),
-            "03.jpg".to_string(),
-        ];
-        keep_recent_shots(&mut shots);
-        assert_eq!(shots.len(), 3, "刚好 3 张不裁剪");
-        shots.push("capture-4.png".to_string());
-        keep_recent_shots(&mut shots);
-        assert_eq!(shots, vec!["02.jpg", "03.jpg", "capture-4.png"]);
-    }
-
-    /// 删除截图只认作品目录下的 shots / screenshots / screenshot 直接子文件：
-    /// 作品根下的图、`..` 绕出去的路径、别人的 shots 目录一律拒绝
-    #[test]
-    fn shot_delete_target_is_confined() {
-        let root = std::env::temp_dir().join(format!("stash-shot-del-{}", std::process::id()));
-        let shots = root.join("shots");
-        std::fs::create_dir_all(&shots).unwrap();
-        std::fs::write(shots.join("capture-1.png"), b"x").unwrap();
-        std::fs::write(root.join("cover.jpg"), b"x").unwrap();
-        let dir = root.to_string_lossy().to_string();
-
-        assert!(shot_is_deletable(&dir, &shots.join("capture-1.png")));
-        // 文件已被手动删掉也允许：这条路径正是用来清库里的失效记录的
-        assert!(shot_is_deletable(&dir, &shots.join("gone.png")));
-        assert!(!shot_is_deletable(&dir, &root.join("cover.jpg")), "作品根下的图不归截图管");
-        assert!(!shot_is_deletable(&dir, &shots.join("..").join("cover.jpg")), "`..` 必须绕不出去");
-
-        let other = root.join("other");
-        std::fs::create_dir_all(other.join("shots")).unwrap();
-        assert!(
-            !shot_is_deletable(&other.to_string_lossy(), &shots.join("capture-1.png")),
-            "不能跨作品删"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
 
     /// 取消匹配必须回到目录里的 meta.json，并清掉 meta_manual
     /// （否则以后的自动匹配会以为「用户手改过」，永远不再补简介 / 标签 / 年份）
@@ -562,7 +525,10 @@ mod tests {
         assert_eq!(g.meta_score, None);
         assert_eq!(g.meta_score_count, None);
         assert_eq!(g.length_minutes, None);
-        assert!(!g.meta_manual, "必须清掉手改标记，否则以后自动匹配不再补字段");
+        assert!(
+            !g.meta_manual,
+            "必须清掉手改标记，否则以后自动匹配不再补字段"
+        );
 
         // 没有 meta.json：字段回到空，而不是继续显示联网内容
         std::fs::remove_file(root.join("meta.json")).unwrap();
@@ -577,20 +543,38 @@ mod tests {
     #[test]
     fn cache_owner_only_claims_known_names() {
         assert_eq!(cache_owner("abc123.webp", true).as_deref(), Some("abc123"));
-        assert_eq!(cache_owner("abc123@lg.webp", true).as_deref(), Some("abc123"));
+        assert_eq!(
+            cache_owner("abc123@lg.webp", true).as_deref(),
+            Some("abc123")
+        );
         assert_eq!(cache_owner("readme.txt", true), None);
-        assert_eq!(cache_owner("abc123_src.jpg", false).as_deref(), Some("abc123"));
-        assert_eq!(cache_owner("abc123_custom.png", false).as_deref(), Some("abc123"));
+        assert_eq!(
+            cache_owner("abc123_src.jpg", false).as_deref(),
+            Some("abc123")
+        );
+        assert_eq!(
+            cache_owner("abc123_custom.png", false).as_deref(),
+            Some("abc123")
+        );
         // 智能选封面的产物也要能认出来：否则删作品后它会永远留在 covers/
-        assert_eq!(cache_owner("abc123_auto.png", false).as_deref(), Some("abc123"));
+        assert_eq!(
+            cache_owner("abc123_auto.png", false).as_deref(),
+            Some("abc123")
+        );
         // 详情页背景图同理
-        assert_eq!(cache_owner("abc123_bg.jpg", false).as_deref(), Some("abc123"));
+        assert_eq!(
+            cache_owner("abc123_bg.jpg", false).as_deref(),
+            Some("abc123")
+        );
         assert_eq!(cache_owner("abc123.jpg", false), None, "原图不归体检清理");
         // 候选条目封面属于「条目」而不是「作品」：不能算孤儿，也不该被清理删掉
         assert_eq!(cache_owner("cand-14379.webp", true), None);
         assert_eq!(cache_owner("cand-14379.webp", false), None);
         // 背景候选缩略图（bg-<id>-<hash>.webp）同理：由 thumb::prune_bg 自管
-        assert_eq!(cache_owner("bg-0123456789abcdef-0123456789abcdef.webp", true), None);
+        assert_eq!(
+            cache_owner("bg-0123456789abcdef-0123456789abcdef.webp", true),
+            None
+        );
     }
 
     /// 低分重匹配只清机器写的绑定；人工绑定（100 分）与未绑定都不动
@@ -600,7 +584,10 @@ mod tests {
         assert!(!stale_auto_match(false, Some(30)));
         assert!(stale_auto_match(true, None), "无分数视为历史机器结果");
         assert!(stale_auto_match(true, Some(60)));
-        assert!(!stale_auto_match(true, Some(100)), "人工绑定不能被低分重匹配清掉");
+        assert!(
+            !stale_auto_match(true, Some(100)),
+            "人工绑定不能被低分重匹配清掉"
+        );
     }
 
     /// 全量匹配的跳过规则：正式绑定与已确认的萌娘百科命中不重搜；待确认 / 强制重匹配要跑
@@ -618,7 +605,10 @@ mod tests {
             match_score: Some(82), // 萌娘百科命中：只有分数、没有条目 id
             ..Default::default()
         };
-        assert!(!needs_match(&m, false), "已确认的萌娘百科命中不重搜（否则每轮重下封面）");
+        assert!(
+            !needs_match(&m, false),
+            "已确认的萌娘百科命中不重搜（否则每轮重下封面）"
+        );
         m.pending = true;
         assert!(needs_match(&m, false), "待确认的仍要重试");
     }
@@ -789,7 +779,9 @@ mod tests {
 
     /// 演示库路径（相对 Cargo.toml 的上一级）
     fn demo_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("demo-library")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("demo-library")
     }
 
     /// 演示库按「手动添加」的方式逐部探测：每个子目录取第一个 exe 当主程序。
@@ -831,7 +823,11 @@ mod tests {
 
         // ① 真实探测
         let detected = demo_detect(&demo);
-        assert!(detected.len() >= 10, "演示库应探测到 ≥10 部，实际 {}", detected.len());
+        assert!(
+            detected.len() >= 10,
+            "演示库应探测到 ≥10 部，实际 {}",
+            detected.len()
+        );
 
         // ①b 本地 meta.json 必须真正读进来（BOM 回归：曾因 UTF-8 BOM 全部解析失败）
         let with_dev = detected.iter().filter(|d| d.developer.is_some()).count();

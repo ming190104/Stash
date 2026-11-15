@@ -572,7 +572,7 @@ export function initLibrary(): void {
   const handleGameExited = (id: string, code: number): void => {
     stopExitPoll();
     state.running = null;
-    refreshPadHints(); // 游戏退出后「截图」提示收回
+    refreshPadHints();
     hideLaunchLayer();
     // 游戏内快捷窗是另一个窗口，可能改过全屏：回库屏时同步窗口按钮的显隐
     void getSettings()
@@ -592,7 +592,7 @@ export function initLibrary(): void {
 
   void onEvent<string>('game://started', async (id) => {
     state.running = id;
-    refreshPadHints(); // 运行中才有「截图」，底栏跟着出现
+    refreshPadHints();
     sfx.launch(); // 真正起来了才给启动音（点击时的确认音已经响过）
     const g = state.games.find((x) => x.id === id);
     if (!g) return;

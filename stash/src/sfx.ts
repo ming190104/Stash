@@ -1,4 +1,4 @@
-/** 交互音效：方向移动 / 确认 / 返回 / 开关 / 报错 / 启动 / 截图。
+/** 交互音效：方向移动 / 确认 / 返回 / 开关 / 报错 / 启动。
  *  全部用 WebAudio 现场合成，不打包任何音频文件（安装包体积与离线可用性都不受影响）。
  *  - 首次交互时才创建 AudioContext：浏览器自动播放策略要求一次用户手势；
  *  - 总音量跟随设置（`sound.enabled` / `sound.gain`），关闭后既有节点立即静音；
@@ -59,26 +59,6 @@ function tone(
   o.stop(t0 + dur + 0.03);
 }
 
-/** 噪声簇（截图快门）：带通滤过的白噪声，衰减到 0 */
-function burst(dur: number, vol: number, freq: number): void {
-  const c = ac();
-  if (!c || !master) return;
-  const n = Math.max(1, Math.floor(c.sampleRate * dur));
-  const buf = c.createBuffer(1, n, c.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 2;
-  const src = c.createBufferSource();
-  src.buffer = buf;
-  const bp = c.createBiquadFilter();
-  bp.type = 'bandpass';
-  bp.frequency.value = freq;
-  bp.Q.value = 0.9;
-  const g = c.createGain();
-  g.gain.value = vol;
-  src.connect(bp).connect(g).connect(master);
-  src.start();
-}
-
 export const sfx = {
   /** 方向移动 / 摇杆导航（长按重复时 55ms 内只响一次） */
   move(): void {
@@ -112,10 +92,5 @@ export const sfx = {
   /** 启动游戏：三音上行 */
   launch(): void {
     [523, 659, 784].forEach((f, i) => tone(f, 0.09, 'sine', 0.1, { delay: i * 0.06 }));
-  },
-  /** 截图成功：快门噪声 + 一点高频确认音 */
-  shot(): void {
-    burst(0.06, 0.16, 2400);
-    tone(1200, 0.03, 'square', 0.05);
   },
 };

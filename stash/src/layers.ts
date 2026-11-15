@@ -1,5 +1,5 @@
 /** 状态层核心：层清单、可见性判定、单例开关与通用加载态。
- *  具体面板（搜索 / 筛选 / 截图 / 结局 / 空态）各自独立成模块，
+ *  具体面板（搜索 / 筛选 / 结局 / 空态）各自独立成模块，
  *  这里只保留被多模块共享的“层是否打开”与隐藏逻辑，避免互相 import 成环。 */
 
 import { dismissPrompt } from './prompt';
@@ -11,7 +11,6 @@ const LAYERS = [
   'searchPanel',
   'filterPanel',
   'endPanel',
-  'shotPanel', // 截图查看器：计入 anyState，左右切换不会穿透到详情屏去换版本
   'bgPanel', // 背景候选卡片墙：方向键在卡片间移动，不许穿透到详情屏
   'candPanel', // 改绑条目候选墙：A 绑定 / X 取消匹配，同样不穿透到设置页
   'helpPanel', // 快捷键总览（F1 / ?）：打开时底层屏幕与快捷键一律不响应
@@ -91,10 +90,6 @@ export function filterShown(): boolean {
 
 export function endShown(): boolean {
   return document.getElementById('endPanel')?.classList.contains('show') ?? false;
-}
-
-export function shotShown(): boolean {
-  return document.getElementById('shotPanel')?.classList.contains('show') ?? false;
 }
 
 export function bgShown(): boolean {

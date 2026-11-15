@@ -1,20 +1,24 @@
-﻿//! 媒体命令：封面（手动 / 智能 / SteamGridDB）、详情页背景、截图与 ISO 挂载。
+//! 媒体命令：封面（手动 / 智能 / SteamGridDB）、详情页背景与 ISO 挂载。
 //!
 //! 共同点：都要解码图片或等网络（几秒级），命令层一律 spawn_blocking；
 //! 产物统一落在 covers/ 下并按 id 前缀做孤儿清理。
 use crate::metadata::{fetch_cover, keywords};
 use crate::models::{AppError, ErrCode, Game};
 use crate::store::Store;
-use crate::{bgimg, coverpick, iso, meta2, net, screen, thumb};
-use tauri::{AppHandle, State};
+use crate::{bgimg, coverpick, iso, meta2, net, thumb};
+use tauri::State;
 
 /// 设置/清除用户封面（选择文件后复制进 covers/，避免源文件移动后失效）。
 /// `async`：复制 + 生成两档缩略图（解码 + 缩放）是典型的重活，不能占主线程。
 #[tauri::command]
-pub async fn set_game_cover(store: State<'_, Store>, id: String, path: Option<String>) -> Result<(), AppError> {
+pub async fn set_game_cover(
+    store: State<'_, Store>,
+    id: String,
+    path: Option<String>,
+) -> Result<(), AppError> {
     let st = store.inner().clone();
     // 仅声明 async 只是离开主线程，仍会占住 tokio worker（解码 4K 图可达数秒）：
-    // 与 smart_cover / capture_screenshot 一致，整段放阻塞线程
+    // 与 smart_cover 一致，整段放阻塞线程
     tauri::async_runtime::spawn_blocking(move || set_game_cover_sync(&st, &id, path))
         .await
         .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
@@ -33,7 +37,10 @@ pub fn set_game_cover_sync(store: &Store, id: &str, path: Option<String>) -> Res
             .map(|e| e.to_lowercase())
             .unwrap_or_else(|| "jpg".into());
         if !["jpg", "jpeg", "png", "webp", "bmp"].contains(&ext.as_str()) {
-            return Err(AppError::new(ErrCode::ConfigInvalid, "仅支持 jpg / png / webp / bmp"));
+            return Err(AppError::new(
+                ErrCode::ConfigInvalid,
+                "仅支持 jpg / png / webp / bmp",
+            ));
         }
         let dst = store.covers_dir().join(format!("{id}_custom.{ext}"));
         std::fs::copy(&src, &dst)?;
@@ -47,8 +54,8 @@ pub fn set_game_cover_sync(store: &Store, id: &str, path: Option<String>) -> Res
         // 手动封面会顶掉之前的「智能选封面」产物，留着就是孤儿
         crate::prune_prefixed(&store.covers_dir(), &format!("{id}_auto."), None);
         let dst_s = dst.to_string_lossy().to_string();
-        let thumb = thumb::ensure(store, &dst_s, id, false)
-            .map(|t| t.to_string_lossy().to_string());
+        let thumb =
+            thumb::ensure(store, &dst_s, id, false).map(|t| t.to_string_lossy().to_string());
         crate::mutate_game(store, id, |g| {
             g.cover = Some(dst_s.clone());
             g.cover_override = Some(dst_s.clone());
@@ -103,7 +110,11 @@ pub fn smart_cover_sync(store: &Store, id: &str) -> Result<SmartCoverOut, AppErr
     let too_big = image::image_dimensions(&src)
         .map(|(w, h)| w as u64 * h as u64 > 80_000_000)
         .unwrap_or(false);
-    let dst = match if too_big { None } else { image::open(&src).ok() } {
+    let dst = match if too_big {
+        None
+    } else {
+        image::open(&src).ok()
+    } {
         Some(img) => match coverpick::crop_bounds(&img) {
             Some((x, y, w, h)) => {
                 let out = store.covers_dir().join(format!("{id}_auto.png"));
@@ -133,12 +144,15 @@ pub fn smart_cover_sync(store: &Store, id: &str) -> Result<SmartCoverOut, AppErr
         .write(true)
         .open(&dst)
         .and_then(|f| f.set_modified(std::time::SystemTime::now()));
-    crate::prune_prefixed(&store.covers_dir(), &format!("{id}_auto."), Some(dst.as_path()));
+    crate::prune_prefixed(
+        &store.covers_dir(),
+        &format!("{id}_auto."),
+        Some(dst.as_path()),
+    );
     // 上一张是手动封面时也一并清掉：它已不被 cover_override 引用，留着就是孤儿
     crate::prune_custom_covers(&store.covers_dir(), id, Some(dst.as_path()));
     let dst_s = dst.to_string_lossy().to_string();
-    let thumb = thumb::ensure(store, &dst_s, id, false)
-        .map(|t| t.to_string_lossy().to_string());
+    let thumb = thumb::ensure(store, &dst_s, id, false).map(|t| t.to_string_lossy().to_string());
     crate::mutate_game(store, id, |g| {
         g.cover = Some(dst_s.clone());
         g.cover_override = Some(dst_s.clone());
@@ -171,7 +185,10 @@ pub fn steamgrid_cover_sync(store: &Store, id: &str) -> Result<String, AppError>
         .filter(|k| !k.is_empty())
         .is_none()
     {
-        return Err(AppError::new(ErrCode::ConfigInvalid, "先在设置 · 网络里填 SteamGridDB API Key"));
+        return Err(AppError::new(
+            ErrCode::ConfigInvalid,
+            "先在设置 · 网络里填 SteamGridDB API Key",
+        ));
     }
     let g = store
         .load_library()
@@ -184,8 +201,12 @@ pub fn steamgrid_cover_sync(store: &Store, id: &str) -> Result<String, AppError>
         .filter(|t| !t.trim().is_empty())
         .unwrap_or(&g.title)
         .to_string();
-    let url = meta2::sgdb_cover(&settings, &kw)?
-        .ok_or_else(|| AppError::new(ErrCode::NotFound, format!("SteamGridDB 没找到《{kw}》的封面")))?;
+    let url = meta2::sgdb_cover(&settings, &kw)?.ok_or_else(|| {
+        AppError::new(
+            ErrCode::NotFound,
+            format!("SteamGridDB 没找到《{kw}》的封面"),
+        )
+    })?;
     let (cover, thumb) = fetch_cover(store, id, Some(&url));
     let cover = cover.ok_or_else(|| AppError::new(ErrCode::NetworkOffline, "封面下载失败"))?;
     crate::mutate_game(store, id, |g| {
@@ -297,9 +318,11 @@ pub fn fetch_background(store: &Store, id: &str) -> Result<Option<String>, AppEr
     let pick = cands
         .into_iter()
         .max_by_key(|(area, rank, _)| (*area, *rank))
-        // 目录里只有 `capture-*` 整屏图（桌面 + 窗口）时才拿它兜底
+        // 目录里只有旧版本留下的 `capture-*` 整屏图时才拿它兜底
         .or_else(|| local_shot_cand(&g, true).map(|(p, a)| (a, 0, BgSource::File(p))));
-    let Some((_, _, src)) = pick else { return Ok(None) };
+    let Some((_, _, src)) = pick else {
+        return Ok(None);
+    };
 
     let written = match &src {
         BgSource::Url(url) => match net::fetch_image(&settings, url, "背景图") {
@@ -344,7 +367,7 @@ pub fn sgdb_hero_cand(settings: &crate::models::Settings, g: &Game) -> Option<(S
     None
 }
 
-/// 作品目录里自带的实机图（`capture-*` 是本应用截的整屏图，默认不参与竞争）
+/// 作品目录里自带的实机图（旧版本留下的 `capture-*` 整屏图默认不参与竞争）
 pub fn local_shot_cand(g: &Game, include_capture: bool) -> Option<(std::path::PathBuf, u64)> {
     let is_capture = |p: &String| {
         std::path::Path::new(p)
@@ -390,12 +413,8 @@ pub async fn set_game_background(
         let dir = st.covers_dir();
         std::fs::create_dir_all(&dir)?;
         let dst = dir.join(format!("{id}_bg.jpg"));
-        bgimg::write_from_file(src_path, &dst).map_err(|e| {
-            AppError::new(
-                ErrCode::ConfigInvalid,
-                format!("背景图处理失败：{e}"),
-            )
-        })?;
+        bgimg::write_from_file(src_path, &dst)
+            .map_err(|e| AppError::new(ErrCode::ConfigInvalid, format!("背景图处理失败：{e}")))?;
         crate::prune_prefixed(&dir, &format!("{id}_bg."), Some(dst.as_path()));
         Ok(dst.to_string_lossy().to_string())
     })
@@ -403,7 +422,7 @@ pub async fn set_game_background(
     .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
 }
 
-/// 删掉背景图，详情页回到「实机截图 → 封面」的自动选择
+/// 删掉背景图，详情页重新自动选择背景
 #[tauri::command]
 pub fn clear_game_background(store: State<'_, Store>, id: String) -> Result<(), AppError> {
     crate::check_id(&id)?;
@@ -535,12 +554,8 @@ pub fn background_candidates_sync(
             for (cand, src) in chunk.iter_mut() {
                 scope.spawn(move || {
                     cand.thumb = match src {
-                        BgSource::File(p) => thumb::bg_thumb_file(
-                            store,
-                            id,
-                            &p.to_string_lossy(),
-                        )
-                        .map(|t| t.to_string_lossy().to_string()),
+                        BgSource::File(p) => thumb::bg_thumb_file(store, id, &p.to_string_lossy())
+                            .map(|t| t.to_string_lossy().to_string()),
                         BgSource::Url(u) => {
                             if let Some(t) = thumb::bg_thumb_cached(store, id, u) {
                                 Some(t.to_string_lossy().to_string())
@@ -549,7 +564,11 @@ pub fn background_candidates_sync(
                                     Ok((bytes, _)) => thumb::bg_thumb_bytes(store, id, u, &bytes)
                                         .map(|t| t.to_string_lossy().to_string()),
                                     Err(e) => {
-                                        tracing::debug!("背景候选图跳过《{}》：{}", cand.label, e.message);
+                                        tracing::debug!(
+                                            "背景候选图跳过《{}》：{}",
+                                            cand.label,
+                                            e.message
+                                        );
                                         None
                                     }
                                 }
@@ -611,7 +630,8 @@ pub fn use_background_candidate_sync(
             .map(|(_, s)| s.clone())
     };
     // 只认刚才 candidate 列表登记过的键：不把前端传来的任意路径 / 地址当图源
-    let src = src.ok_or_else(|| AppError::new(ErrCode::NotFound, "背景候选已过期，请重新打开选择器"))?;
+    let src =
+        src.ok_or_else(|| AppError::new(ErrCode::NotFound, "背景候选已过期，请重新打开选择器"))?;
     let dir = store.covers_dir();
     std::fs::create_dir_all(&dir)?;
     let dst = dir.join(format!("{id}_bg.jpg"));
@@ -626,119 +646,6 @@ pub fn use_background_candidate_sync(
     .map_err(|e| AppError::new(ErrCode::ConfigInvalid, format!("背景图处理失败：{e}")))?;
     crate::prune_prefixed(&dir, &format!("{id}_bg."), Some(dst.as_path()));
     Ok(dst.to_string_lossy().to_string())
-}
-
-/* ============ M8 截图 ============ */
-
-/// 抓主屏到 `<游戏目录>/shots/`，并登记进库。
-/// `async`：抓屏 + 写 PNG + 重扫截图目录都可能耗时，不能占主线程。
-#[tauri::command]
-pub async fn capture_screenshot(app: AppHandle, store: State<'_, Store>, id: String) -> Result<String, AppError> {
-    let st = store.inner().clone();
-    // PowerShell 截屏 1~3 秒 + 写 PNG：不能占着 tokio worker
-    tauri::async_runtime::spawn_blocking(move || capture_screenshot_sync(&app, &st, &id))
-        .await
-        .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
-}
-
-/// 抓图并登记（命令层与手柄「截图」键共用：后者在主窗口被游戏盖住时直接调用）。
-pub(crate) fn capture_screenshot_sync(
-    app: &AppHandle,
-    store: &Store,
-    id: &str,
-) -> Result<String, AppError> {
-    crate::check_id(id)?;
-    let g = store
-        .load_library()
-        .into_iter()
-        .find(|g| g.id == id)
-        .ok_or_else(|| AppError::new(ErrCode::NotFound, "游戏不在库中"))?;
-    let out = screen::capture(app, &g.dir)?;
-    let s = out.to_string_lossy().to_string();
-    // shots 目录可能是刚建出来的：asset 白名单是空的，新目录必须现登记
-    if let Some(dir) = out.parent() {
-        crate::allow_asset(app, &dir.to_string_lossy(), true);
-    }
-    crate::mutate_game(store, id, |g| {
-        if !g.shots.contains(&s) {
-            g.shots.push(s.clone());
-        }
-        // 详情页只有 3 个截图位且取前 3 张：不裁剪的话，新截图排第 4 位永远不可见
-        // （scanner::find_shots 也是同样的「最近 3 张」口径）
-        keep_recent_shots(&mut g.shots);
-        Ok(())
-    })?;
-    Ok(s)
-}
-
-/// 截图条只留最近 3 张，与 scanner::find_shots 保持一致。
-pub fn keep_recent_shots(shots: &mut Vec<String>) {
-    if shots.len() > 3 {
-        let extra = shots.len() - 3;
-        shots.drain(0..extra);
-    }
-}
-
-/// 可删除的截图范围：作品目录下的 `shots / screenshots / screenshot` 直接子文件。
-/// 用 canonicalize 比对父目录，`..` 与符号链接都绕不出去（删除是不可逆操作，边界必须硬）。
-/// 不要求文件仍然存在：手动删过文件后，库里那条失效记录也要能通过同一入口清掉。
-pub fn shot_is_deletable(game_dir: &str, path: &std::path::Path) -> bool {
-    let Some(parent) = path.parent().and_then(|d| d.canonicalize().ok()) else {
-        return false;
-    };
-    ["shots", "screenshots", "screenshot"].iter().any(|sub| {
-        std::path::Path::new(game_dir)
-            .join(sub)
-            .canonicalize()
-            .map(|d| d == parent)
-            .unwrap_or(false)
-    })
-}
-
-/// 删除一张截图：文件删掉、路径从库里摘掉，返回剩余列表给详情页刷新。
-/// 文件已被手动删过（NotFound）不算失败：顺手把失效记录清掉正是这里要解决的事。
-/// `async`：canonicalize 与删除都落在游戏目录（移动盘 / 网络盘上可能秒级阻塞），
-/// 不能占主线程。
-#[tauri::command]
-pub async fn delete_shot(
-    store: State<'_, Store>,
-    id: String,
-    path: String,
-) -> Result<Vec<String>, AppError> {
-    let st = store.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || delete_shot_sync(&st, &id, &path))
-        .await
-        .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
-}
-
-pub fn delete_shot_sync(store: &Store, id: &str, path: &str) -> Result<Vec<String>, AppError> {
-    crate::check_id(id)?;
-    let games = store.load_library();
-    let g = games
-        .iter()
-        .find(|g| g.id == id)
-        .ok_or_else(|| AppError::new(ErrCode::NotFound, "游戏不在库中"))?;
-    if !shot_is_deletable(&g.dir, std::path::Path::new(path)) {
-        return Err(AppError::new(
-            ErrCode::ConfigInvalid,
-            "只能删除作品 shots 目录下的截图",
-        ));
-    }
-    match std::fs::remove_file(path) {
-        Ok(()) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(AppError::new(ErrCode::IoError, format!("删除截图失败：{e}"))),
-    }
-    crate::mutate_game(store, id, |g| {
-        g.shots.retain(|s| s != path);
-        Ok(())
-    })?;
-    Ok(store
-        .load_library()
-        .into_iter()
-        .find(|g| g.id == id)
-        .map(|g| g.shots)
-        .unwrap_or_default())
 }
 
 /// 挂载 ISO / 虚拟光驱（P4 B11）：返回盘符给详情页展示。
@@ -795,7 +702,7 @@ mod tests {
         store.save_library(&[g]).unwrap();
     }
 
-    /// 候选列表 = 本地截图（按有效面积降序）+ 16:9 缩略图；选中后落成 1080p 背景，
+    /// 候选列表 = 目录实机图（按有效面积降序）+ 16:9 缩略图；选中后落成 1080p 背景，
     /// 再次打开时多出一张「当前背景」卡片
     #[test]
     fn candidates_list_local_shots_and_apply_writes_bg() {
@@ -805,10 +712,13 @@ mod tests {
         save_game(&store, vec![small, large]);
 
         let list = background_candidates_sync(&store, ID, false).unwrap();
-        assert_eq!(list.len(), 2, "在线元数据默认关闭：只应返回本地截图");
+        assert_eq!(list.len(), 2, "在线元数据默认关闭：只应返回目录实机图");
         assert_eq!(list[0].width, 1920, "大图排在前面");
         assert_eq!(list[0].source, "local");
-        assert!(list[0].thumb.as_ref().is_some_and(|t| std::path::Path::new(t).is_file()));
+        assert!(list[0]
+            .thumb
+            .as_ref()
+            .is_some_and(|t| std::path::Path::new(t).is_file()));
         assert!(!list[0].current);
 
         let out = use_background_candidate_sync(&store, ID, &list[1].key).unwrap();
@@ -820,19 +730,26 @@ mod tests {
         );
 
         let again = background_candidates_sync(&store, ID, false).unwrap();
-        assert!(again.iter().any(|c| c.current), "已有背景时要出现「当前背景」卡片");
+        assert!(
+            again.iter().any(|c| c.current),
+            "已有背景时要出现「当前背景」卡片"
+        );
         // 「当前背景」直接返回现有文件，不重新编码
-        assert_eq!(use_background_candidate_sync(&store, ID, "current").unwrap(), out);
+        assert_eq!(
+            use_background_candidate_sync(&store, ID, "current").unwrap(),
+            out
+        );
         // 未登记的 key 一律拒绝：不能把前端传来的任意值当图源
         assert!(use_background_candidate_sync(&store, ID, "local-9").is_err());
     }
 
-    /// 没有截图也没有缓存时返回空列表（面板显示空态，而不是报错）
+    /// 没有目录实机图也没有缓存时返回空列表（面板显示空态，而不是报错）
     #[test]
     fn candidates_empty_without_local_or_network() {
         let store = temp_store("empty");
         save_game(&store, vec![]);
-        assert!(background_candidates_sync(&store, ID, false).unwrap().is_empty());
+        assert!(background_candidates_sync(&store, ID, false)
+            .unwrap()
+            .is_empty());
     }
 }
-

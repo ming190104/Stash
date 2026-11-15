@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
-/** 状态层（overlay）DOM 行为：单例互斥、搜索 / 筛选 / 截图 / 结局的按键守卫与异步回填。 */
+/** 状态层（overlay）DOM 行为：单例互斥、搜索 / 筛选 / 结局的按键守卫与异步回填。 */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { game, key, mountSkeleton, resetState } from './dom-skeleton';
-import { asset, deleteShot, updateEndings } from '../ipc';
+import { updateEndings } from '../ipc';
 import {
   anyState,
   emptyShown,
@@ -16,11 +16,9 @@ import {
   openFilter,
   openHelp,
   openSearch,
-  openShots,
   renderSearch,
   searchList,
   searchShown,
-  shotShown,
   showEmpty,
   showLoading,
   showState,
@@ -29,8 +27,6 @@ import { state } from '../state';
 import { renderGrid, setFilter } from '../screens/grid';
 
 vi.mock('../ipc', () => ({
-  asset: vi.fn(async (p: string) => p),
-  deleteShot: vi.fn(async () => [] as string[]),
   updateEndings: vi.fn(async () => 0),
   updateSettings: vi.fn(async () => undefined),
 }));
@@ -48,8 +44,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mountSkeleton();
   resetState();
-  vi.mocked(asset).mockImplementation(async (p: string) => `asset://${p}`);
-  vi.mocked(deleteShot).mockResolvedValue([]);
   vi.mocked(updateEndings).mockResolvedValue(0);
 });
 
@@ -182,53 +176,6 @@ describe('筛选面板', () => {
     const esc = key('Escape');
     expect(handleOverlayKey(esc)).toBe(true);
     expect(filterShown()).toBe(false);
-  });
-});
-
-describe('截图查看器', () => {
-  it('左右切换、删除需二次确认，删空后自动关层', async () => {
-    openShots('g', ['a.png', 'b.png'], 0);
-    expect(shotShown()).toBe(true);
-    const img = el('shotvImg');
-    await vi.waitFor(() => expect(img.style.backgroundImage).toContain('a.png'));
-    expect(handleOverlayKey(key('ArrowRight'))).toBe(true);
-    expect(el('shotvCap').textContent).toBe('2 / 2');
-    await vi.waitFor(() => expect(img.style.backgroundImage).toContain('b.png'));
-    expect(handleOverlayKey(key('KeyX'))).toBe(true);
-    expect(el('shotDel').classList.contains('arm')).toBe(true);
-    expect(el('shotDelTxt').textContent).toBe('再按一次删除');
-    expect(deleteShot).not.toHaveBeenCalled();
-    expect(handleOverlayKey(key('KeyX'))).toBe(true);
-    await vi.waitFor(() => expect(deleteShot).toHaveBeenCalledWith('g', 'b.png'));
-    expect(shotShown()).toBe(false);
-  });
-
-  it('删除等待期间切换作品，旧响应不改写新作品也不关闭新面板', async () => {
-    state.games = [game('a', { shots: ['a.png'] }), game('b', { shots: ['b.png'] })];
-    let finishDelete!: (left: string[]) => void;
-    vi.mocked(deleteShot).mockImplementationOnce(
-      () => new Promise<string[]>((resolve) => { finishDelete = resolve; }),
-    );
-    openShots('a', ['a.png']);
-    handleOverlayKey(key('KeyX'));
-    handleOverlayKey(key('KeyX'));
-    await vi.waitFor(() => expect(deleteShot).toHaveBeenCalledWith('a', 'a.png'));
-
-    openShots('b', ['b.png']);
-    finishDelete([]);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(state.games[1].shots).toEqual(['b.png']);
-    expect(shotShown()).toBe(true);
-    expect(el('shotvCap').textContent).toBe('');
-  });
-
-  it('Esc / B 关闭查看器，单张时 A 不做任何事', () => {
-    openShots('g', ['only.png']);
-    expect(handleOverlayKey(key('Enter'))).toBe(true);
-    expect(el('shotvCap').textContent).toBe('');
-    expect(handleOverlayKey(key('KeyB'))).toBe(true);
-    expect(shotShown()).toBe(false);
   });
 });
 

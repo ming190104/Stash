@@ -262,10 +262,9 @@ export function init(): void {
     .then(rememberPad)
     .catch(() => {});
   // Select：库 / 网格切换多选（手柄没有 M 键，X 留给「对当前对象的主操作」）。
-  // 运行中 Select 归截图，且鼠标模式下 Rust 不再发原始按键事件，这里再挡一次双保险。
   void onEvent<{ button: string }>('pad://button', (ev) => {
     if (ev.button !== 'select') return;
-    if (state.running || anyState() || quickShown()) return;
+    if (anyState() || quickShown()) return;
     const cur = curScreen();
     if (cur !== 'library' && cur !== 'grid') return;
     setMulti(!state.gridMulti);

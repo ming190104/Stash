@@ -152,7 +152,7 @@ async function boot(): Promise<void> {
   setInterval(tick, 20000);
   void initBattery();
 
-  // 重启 / 崩溃重开时与 Rust 对账「哪部在运行」：否则截图热键会误报没有运行中的游戏
+  // 重启 / 崩溃重开时与 Rust 对账「哪部在运行」，恢复前端运行态
   if (TAURI) {
     runningGame()
       .then((g) => {

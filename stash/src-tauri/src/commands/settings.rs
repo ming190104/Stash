@@ -34,7 +34,7 @@ pub async fn update_settings(store: State<'_, Store>, settings: Settings) -> Res
             "south", "east", "west", "north", "start", "select", "mode", "lb", "rb", "lt", "rt",
         ];
         let m = &settings.pad_map;
-        for v in [&m.accept, &m.back, &m.menu, &m.x, &m.y, &m.r, &m.lb, &m.shot] {
+        for v in [&m.accept, &m.back, &m.menu, &m.x, &m.y, &m.r, &m.lb] {
             if !valid.contains(&v.as_str()) {
                 return Err(AppError::new(
                     ErrCode::ConfigInvalid,

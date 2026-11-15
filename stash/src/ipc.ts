@@ -379,17 +379,6 @@ export async function pickImageFile(): Promise<string | null> {
   return typeof p === 'string' ? p : null;
 }
 
-/* ============ M8 截图 ============ */
-
-export async function captureScreenshot(id: string): Promise<string> {
-  return TAURI ? inv<string>('capture_screenshot', { id }) : '';
-}
-
-/** 删除一张截图（只允许作品 shots 目录下的文件），返回剩余列表 */
-export async function deleteShot(id: string, path: string): Promise<string[]> {
-  return TAURI ? inv<string[]>('delete_shot', { id, path }) : [];
-}
-
 /** 启动窗口内（转区接管最长 8 秒）重复按键：前端直接拦下，避免后端 AlreadyRunning 弹错误提示。
  *  但后端若因转区接管等原因长时间不返回，这把锁不能永久卡死——超时后放行。 */
 const LAUNCH_TIMEOUT_MS = 20_000;
@@ -561,7 +550,7 @@ export async function onEvent<T>(name: string, cb: (payload: T) => void): Promis
 
 /* ============ END / 路线标记（P2） ============ */
 
-/** 当前运行中的游戏（启动后对账 / 截图热键用；没有则 null） */
+/** 当前运行中的游戏（启动后对账用；没有则 null） */
 export async function runningGame(): Promise<Game | null> {
   if (!TAURI) return null;
   return inv<Game | null>('running_game');

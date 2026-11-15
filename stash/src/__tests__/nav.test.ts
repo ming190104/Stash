@@ -17,7 +17,6 @@ vi.mock('../ipc', () => ({
   onEvent: vi.fn(async () => () => {}),
   padStatus: vi.fn(async () => ({ connected: false, name: '' })),
   asset: vi.fn(async (p: string) => p),
-  deleteShot: vi.fn(async () => [] as string[]),
   updateEndings: vi.fn(async () => 0),
   updateSettings: vi.fn(async () => undefined),
 }));

@@ -1,4 +1,4 @@
-//! 手动添加 exe / 扫描库根时的目录信息采集（引擎识别、封面、截图、meta.json、体积）。
+//! 手动添加 exe / 扫描库根时的目录信息采集（引擎识别、封面、本地实机图、meta.json、体积）。
 //!
 //! 手动添加按指定目录 + exe 组装一条记录；库根扫描先用 `find_games` 轻量发现
 //! 候选（只找目录与主 exe），用户确认后再调 `detect_manual` 做完整探测。
@@ -263,7 +263,7 @@ fn find_cover(dir: &Path) -> Option<String> {
     best.map(|(_, _, p)| p)
 }
 
-/// 收集游戏目录下的剧照截图（详情页截图条用）：shots/ 或 screenshot/ 子目录，
+/// 收集游戏目录下的实机图（背景候选与本地背景用）：shots/ 或 screenshot/ 子目录，
 /// 按文件名排序，最多 3 张。
 fn find_shots(dir: &Path) -> Vec<String> {
     const SHOT_DIRS: &[&str] = &["shots", "screenshots", "screenshot"];
@@ -288,8 +288,8 @@ fn find_shots(dir: &Path) -> Vec<String> {
             continue;
         }
         files.sort();
-        // capture-<毫秒时间戳> 的字典序就是时间序：截图条要最新的三张，
-        // 保留最旧三张的话「截屏成功」提示与界面永远对不上（旧图仍留在磁盘上）
+        // capture-<毫秒时间戳> 的字典序就是时间序：只保留最新三张作为背景素材，
+        // 避免旧图长期占用候选位。
         if files.len() > 3 {
             files.drain(..files.len() - 3);
         }
@@ -416,7 +416,7 @@ mod tests {
         assert!(m.tags.is_empty(), "超限文件应整份丢弃，而不是解析半截");
     }
 
-    /// 截图条只展示最新三张：capture-<ts> 字典序即时间序，旧图不能再占坑
+    /// 本地实机图只保留最新三张：capture-<ts> 字典序即时间序，旧图不再占用背景候选位
     #[test]
     fn find_shots_keeps_newest_three() {
         let dir = std::env::temp_dir().join(format!("stash-shots-{}", std::process::id()));

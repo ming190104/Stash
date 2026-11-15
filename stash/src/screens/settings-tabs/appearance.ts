@@ -23,7 +23,7 @@ export function appearanceHTML(s: Settings): string {
       <div class="srow"><div class="lab"><b>界面字号</b><span>只放大文字，版式 / 封面 / 轨道几何不变</span></div>
         ${segHTML('segFont', [{ v: '0.9', label: '小' }, { v: '1', label: '标准' }, { v: '1.12', label: '大' }, { v: '1.25', label: '特大' }], String(normalizeFontScale(s.fontScale)))}</div>
       <div class="srow"><div class="lab"><b>竖排原文名</b><span>封面与背景水印显示日文原名</span></div><button class="tg${state.verticalTitle ? ' on' : ''}" id="tgVt"></button></div>
-      <div class="srow"><div class="lab"><b>交互音效</b><span>移动 / 确认 / 返回 / 开关 / 截图 / 启动游戏的提示音 · 全部本地合成，不打包音频文件</span></div><button class="tg${s.sound.enabled ? ' on' : ''}" id="tgSound"></button></div>
+      <div class="srow"><div class="lab"><b>交互音效</b><span>移动 / 确认 / 返回 / 开关 / 启动游戏的提示音 · 全部本地合成，不打包音频文件</span></div><button class="tg${s.sound.enabled ? ' on' : ''}" id="tgSound"></button></div>
       <div class="srow"><div class="lab"><b>音效音量</b><span>只影响本应用的提示音，与系统音量独立</span></div>
         ${segHTML('segSound', [{ v: '0.35', label: '小' }, { v: '0.6', label: '中' }, { v: '0.85', label: '大' }], String(s.sound.gain))}</div>
     </div>`;

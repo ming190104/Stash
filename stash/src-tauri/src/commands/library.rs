@@ -33,7 +33,7 @@ pub async fn get_library(app: AppHandle, store: State<'_, Store>) -> Result<Vec<
                 }
             }
         }
-        // asset 协议白名单是空的（不再 `**`），每次把当前要显示的封面 / 截图登记进去
+        // asset 协议白名单是空的（不再 `**`），每次把当前要显示的封面 / 本地实机图登记进去
         crate::allow_library_assets(&app, &games);
         games
     })

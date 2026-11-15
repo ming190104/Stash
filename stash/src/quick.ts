@@ -12,7 +12,6 @@ import {
   getSettings,
   updateSettings,
   setFullscreen,
-  captureScreenshot,
   TAURI,
 } from './ipc';
 
@@ -70,25 +69,6 @@ function buildItems(): Item[] {
       hint: 'X',
       run: async () => {
         await stopGame(state.running!);
-      },
-    });
-    items.push({
-      key: 'shot',
-      label: '截一张图',
-      hint: '存到 shots/',
-      keepOpen: true,
-      run: async () => {
-        // 先收起菜单再截：这是应用内浮层，不关会被一起拍进 PNG
-        close();
-        await new Promise((r) => window.setTimeout(r, 260));
-        // 这 260ms 里游戏可能自然退出（state.running 被事件清空），别再拿 null 去打后端
-        const id = state.running;
-        if (!id) {
-          toast('游戏已结束，未截图');
-          return;
-        }
-        const p = await captureScreenshot(id);
-        toast(`已截图 · ${p.split(/[\\/]/).pop() ?? p}`);
       },
     });
   }
@@ -196,7 +176,7 @@ let idx = 0;
 let parent: (() => void) | null = null;
 /** 构建菜单是同步的：长按 Start 时防止并发重复构建 */
 let opening = false;
-/** 执行中是异步的（截图 / 全屏 / 随机）：长按 A 不能连续触发同一个动作 */
+/** 执行中是异步的（全屏 / 随机）：长按 A 不能连续触发同一个动作 */
 let busy = false;
 
 function paint(): void {
