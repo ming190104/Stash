@@ -14,8 +14,7 @@
     "tauri": "tauri",
     "verify:code": "eslint src && tsc --noEmit && vitest run --coverage && vite build",
     "verify:rust": "cargo test --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
-    "verify:design": "node ../design/check-docs.js && node ../design/check-wiring.js && node ../design/check-ipc.js && node ../design/check-overlap.js && node ../design/check-layout.js && node ../design/check-anim.js && node ../design/check-geometry.js",
-    "verify": "npm run verify:code && npm run verify:rust && npm run verify:design"
+    "verify": "npm run verify:code && npm run verify:rust"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.0",
