@@ -148,7 +148,7 @@ export interface Settings {
   motion: number;
   /** 界面字号缩放：0.9 小 / 1 标准 / 1.12 大 / 1.25 特大（只放大文字，不动版式） */
   fontScale?: number;
-  /** 启动与全屏转场速度：0.5 慢 / 1 标准 / 1.5 快 / 2 很快（只缩放转场时长） */
+  /** 启动与全屏转场速度：1 标准 / 1.5 快 / 2 很快（只缩放转场时长） */
   animSpeed?: number;
   /** 冷启动动画：core 核心启动 / warp 流光跃迁 / off 关闭（全屏切换固定用核心压缩段） */
   bootAnim?: BootAnim;

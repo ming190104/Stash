@@ -1,10 +1,11 @@
 /** 冷启动动画（设置 · 外观 → 启动动画）：
  *    core = S-01 核心启动 3.0s（默认）/ warp = S-03 流光跃迁 2.2s / off = 关闭。
- *  全屏切换固定用核心压缩段 1.0s（「全屏模式切换动画」），进入 / 退出都播。
+ *  全屏切换固定用核心压缩段（基准 1.0s，「全屏模式切换动画」），进入 / 退出都播。
  *  两套视觉都只用 transform / opacity，颜色全部走主题令牌（十套主题含白昼自动适配）；
  *  换边发生在锁定闪光那一刻，藏在遮罩下完成。 */
 
-import { cachedAnimSpeed, cachedBootAnim, cachedFullscreen } from './ui';
+import { cachedAnimSpeed, cachedBootAnim } from './ui';
+import type { BootAnim } from './types';
 
 /** 核心启动整段基准时长（CSS 时间轴按 3.0s 写死） */
 const CORE_MS = 3000;
@@ -14,6 +15,21 @@ const SWAP_MS = 1000;
 const WARP_MS = 2200;
 /** 冷启动最短亮场：数据再快也先立住 1.2s 再进淡出 */
 const MIN_BOOT_MS = 1200;
+/** 高速档的最短亮场下限：倍率再高也不能一闪而过 */
+const MIN_BOOT_FLOOR_MS = 1100;
+/** 整体运动再放慢一档：用户反馈「动画本身太快」，把 CSS 时间轴统一拉长 25% */
+const CALM = 1.25;
+/** 收尾淡出时长：不再硬跳到末帧，而是在顶层叠一段透明度过渡 */
+const FADE_MS = 340;
+/** 淡出在运动时间轴的哪个位置接棒：要早于两套 CSS 自身的淡出关键帧（核心 94% / 跃迁 86%），
+ *  否则会在 CSS 已经淡下去之后又跳回不透明，反而出现「闪一下」。 */
+const FADE_AT = 0.84;
+
+/** 最短亮场按时长倍率换算：高速档降到 1.1s 封底，慢速档延长。
+ *  冷启动与全屏切换共用这一套，两个动画的快慢节奏保持一致。 */
+function bootMinMs(speed: number): number {
+  return Math.max(MIN_BOOT_FLOOR_MS, Math.round(MIN_BOOT_MS / speed));
+}
 const STREAKS = 56;
 const TRAILS = 20;
 
@@ -27,11 +43,19 @@ let pending = 0;
 /** 冷启动转场提前收尾的钩子（null = 没在播 / 已经收尾） */
 let earlyEnd: (() => void) | null = null;
 
-/** 数据与首屏先于动画就绪时提前收尾：把整段根动画跳到淡出起点，
- *  内部元素定格当作收尾帧，剩余 6%（核心）/ 14%（跃迁）仍按原关键帧淡出。
+/** 数据与首屏先于动画就绪时提前收尾：等最短亮场走完，再用一段透明度过渡平滑淡出。
  *  没在播、已播完、或设置里关了启动动画时都是空操作。 */
 export function endSplash(): void {
   earlyEnd?.();
+}
+
+/** 首帧遮罩（index.html 内联样式）：WebView 白底 / 样式未生效的那一下由它盖住。
+ *  启动动画层已挂上（或明确不播）后调用，淡出再移除，避免遮挡界面。 */
+export function hideBootCover(): void {
+  const cover = document.getElementById('bootCover');
+  if (!cover) return;
+  cover.classList.add('gone');
+  setTimeout(() => cover.remove(), 260);
 }
 
 export function warpBusy(): boolean {
@@ -98,7 +122,7 @@ function buildCore(el: HTMLDivElement): void {
   hud.appendChild(span('wp-meter wp-mr', ''));
   hud.append(
     span('wp-t1', 'STASH // LIBRARY CORE'),
-    span('wp-t2', 'BOOT 1.0.1'),
+    span('wp-t2', 'BOOT 1.0.3'),
     span('wp-t3', 'NODES 128'),
     span('wp-t4', '31.23N / 121.47E')
   );
@@ -238,56 +262,74 @@ function ensure(k: 'core' | 'warp'): HTMLDivElement | null {
   return el;
 }
 
-/** 起播并等待：boot=true 允许任意键 / 触摸跳过；onFlash 在锁定闪光峰值触发（用于换边） */
-function run(el: HTMLDivElement, dur: number, boot: boolean, onFlash?: () => void): Promise<void> {
+/** 起播并等待：boot=true 允许任意键 / 触摸跳过；onFlash 在锁定闪光峰值触发（用于换边）。
+ *  motionMs 是运动时间轴的实际长度（已含速度倍率与 CALM），淡出与白闪都按它对齐；
+ *  minMs 为最短亮场：数据再快也先让启动画面立住，再进入淡出。 */
+function run(el: HTMLDivElement, motionMs: number, boot: boolean, onFlash?: () => void, minMs = MIN_BOOT_MS): Promise<void> {
   el.classList.remove('on');
   void el.offsetWidth; // 强制重排：display:none 会取消动画，重新显示即从头播
   el.classList.add('on');
 
   return new Promise<void>((resolve) => {
     let done = false;
+    let ending = false;
+    let fadeAnim: Animation | null = null;
+    let timer = 0;
+
     const finish = (): void => {
       if (done) return;
       done = true;
       earlyEnd = null;
       el.classList.remove('on');
       clearTimeout(timer);
+      fadeAnim?.cancel();
+      fadeAnim = null;
       removeEventListener('keydown', skip, true);
       removeEventListener('pointerdown', skip, true);
       resolve();
     };
     const skip = (): void => finish();
-    let timer = window.setTimeout(finish, dur);
+
+    /** 收尾：不再把根动画硬跳到末尾淡出帧，而是在顶层叠一段透明度过渡，
+     *  下层运动照原速跑完，观感是整体渐渐隐去，而不是画面突然切走。 */
+    const smoothEnd = (): void => {
+      if (done || ending) return;
+      clearTimeout(timer);
+      if (typeof el.animate !== 'function') {
+        finish();
+        return;
+      }
+      ending = true;
+      fadeAnim = el.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: FADE_MS,
+        easing: 'cubic-bezier(.4, 0, .2, 1)',
+        fill: 'forwards',
+      });
+      // 取消时 finished 会以 AbortError 拒绝：这里先接住，避免变成未处理拒绝
+      fadeAnim.finished?.catch(() => undefined);
+      timer = window.setTimeout(finish, FADE_MS);
+    };
+
+    // 自然收尾：在 CSS 自身淡出关键帧之前接棒，避免两段淡出叠在一起
+    timer = window.setTimeout(smoothEnd, Math.round(motionMs * FADE_AT));
 
     if (boot) {
       // 冷启动允许任意键 / 触摸跳过；全屏切换不做跳过，避免换边被掐断
       addEventListener('keydown', skip, true);
       addEventListener('pointerdown', skip, true);
       const started = performance.now();
-      const jump = (): void => {
-        // 只跳根元素的整段动画：内部元素定格正好当成收尾帧，之后的淡出仍由原关键帧完成
-        const root = el.getAnimations?.()[0];
-        const full = Number(root?.effect?.getComputedTiming().duration ?? 0);
-        if (!root || !Number.isFinite(full) || full <= 0) {
-          finish();
-          return;
-        }
-        // 淡出起点与 CSS 关键帧一致：wpc-out 94% / wv-out 86%
-        const fadeAt = el.classList.contains('mode-core') ? 0.94 : 0.86;
-        root.currentTime = full * fadeAt;
-        clearTimeout(timer);
-        timer = window.setTimeout(finish, Math.max(120, Math.round(full * (1 - fadeAt))));
-      };
       earlyEnd = () => {
-        // 保底亮 1.2s：数据再快也先让启动画面立住，之后才进淡出
-        const wait = Math.max(0, MIN_BOOT_MS - (performance.now() - started));
-        clearTimeout(timer);
-        if (wait > 0) timer = window.setTimeout(jump, wait);
-        else jump();
         earlyEnd = null;
+        if (done || ending) return;
+        // 最短亮场按速度倍率缩放：数据再快也要先立住，再慢慢淡出
+        const wait = Math.max(0, minMs - (performance.now() - started));
+        clearTimeout(timer);
+        if (wait > 0) timer = window.setTimeout(smoothEnd, wait);
+        else smoothEnd();
       };
     }
-    if (onFlash) setTimeout(onFlash, Math.round(dur * 0.365));
+    // 锁定闪光在 CSS 时间轴的 36.5%（核心 1.02s + 0.14 × 0.55s），换边要压在它正下方
+    if (onFlash) setTimeout(onFlash, Math.round(motionMs * 0.365));
   });
 }
 
@@ -295,29 +337,45 @@ function run(el: HTMLDivElement, dur: number, boot: boolean, onFlash?: () => voi
 function playCore(boot: boolean, onFlash?: () => void): Promise<void> {
   const el = ensure('core');
   // 速度倍率只缩放这两段转场；改设置时已写入缓存，冷启动 / 切换都读同一份
-  const dur = Math.round((boot ? CORE_MS : SWAP_MS) / cachedAnimSpeed());
+  const speed = cachedAnimSpeed();
+  // 冷启动与全屏切换共用同一最短亮场，切换不再只有启动的一半时长
+  const minMs = bootMinMs(speed);
+  // 先按倍率取基准段，再做 200ms 补偿（高倍率下整段会比亮场还短），最后乘 CALM 放慢运动
+  const base = boot ? CORE_MS / speed : SWAP_MS / speed;
+  const motion = Math.round(Math.max(minMs + 200, base) * CALM);
   if (!el) {
     onFlash?.();
     return Promise.resolve();
   }
-  el.style.setProperty('--k', String(dur / CORE_MS));
+  el.style.setProperty('--k', String(motion / CORE_MS));
   // boot 决定用整段排版还是压缩排版（压缩段去掉遥测 / 日志 / 网格 / 进度）
   el.classList.toggle('boot', boot);
-  return run(el, dur, boot, onFlash);
+  return run(el, motion, boot, onFlash, minMs);
 }
 
 /** 播一次流光跃迁（只用于冷启动）。 */
 function playWarp(): Promise<void> {
   const el = ensure('warp');
-  const dur = Math.round(WARP_MS / cachedAnimSpeed());
+  const speed = cachedAnimSpeed();
+  const minMs = bootMinMs(speed);
+  const motion = Math.round(Math.max(minMs + 200, WARP_MS / speed) * CALM);
   if (!el) return Promise.resolve();
-  el.style.setProperty('--wv-dur', `${dur}ms`);
-  return run(el, dur, true);
+  el.style.setProperty('--wv-dur', `${motion}ms`);
+  return run(el, motion, true, undefined, minMs);
 }
 
-/** 冷启动：按设置的档位播；仅全屏模式播，窗口模式直接进库。 */
+/** 设置页切换档位时立即预览一次：否则改完要等下次启动才看得到，像「改了没反应」。
+ *  预览同样按当前速度倍率播放；关闭档不播。 */
+export function previewBootAnim(mode: BootAnim): void {
+  if (reduced() || mode === 'off' || warpBusy()) return;
+  if (mode === 'warp') void playWarp();
+  else void playCore(false);
+}
+
+/** 冷启动：按设置的档位播，窗口 / 全屏都播；系统「减少动态效果」时跳过。
+ *  之前只在全屏模式播，导致窗口模式下改「启动与转场速度」完全无感。 */
 export async function initSplash(): Promise<void> {
-  if (reduced() || !cachedFullscreen()) return;
+  if (reduced()) return;
   const mode = cachedBootAnim();
   if (mode === 'off') return;
   await (mode === 'warp' ? playWarp() : playCore(true));

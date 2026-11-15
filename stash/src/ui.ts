@@ -58,9 +58,9 @@ export function applyLayout(name: string | undefined, cache = true): void {
 }
 
 /** 启动 / 全屏转场速度：只缩放这两处的时长，不碰库内动效。 */
+/** 转场速度档位只有 1× / 1.5× / 2×；旧数据里的 0.5× 回落到 1× */
 export function normalizeAnimSpeed(v: number | undefined): number {
-  if (!Number.isFinite(v)) return 1;
-  return Math.min(2, Math.max(0.5, v as number));
+  return v === 1.5 || v === 2 ? v : 1;
 }
 
 /** 冷启动动画档位：core 核心启动 / warp 流光跃迁 / off 关闭 */

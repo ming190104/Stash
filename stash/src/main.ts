@@ -14,7 +14,7 @@ import { initOverlay, applyStateParam, hideStates } from './overlay';
 import { initDropImport } from './drop';
 import { toast, esc, errMsg, applyTheme, cachedTheme, applyLayout, cachedLayout, applyMotion, applyFontScale, applyAnimSpeed, applyBootAnim, applyFullscreenUI, stageScale } from './ui';
 import { applySoundSettings } from './sfx';
-import { initSplash, endSplash } from './splash';
+import { initSplash, endSplash, hideBootCover } from './splash';
 import type { LayoutName } from './types';
 
 /* ============ 时钟 ============ */
@@ -106,6 +106,8 @@ async function boot(): Promise<void> {
   applyLayout(qLayout ?? cachedLayout(), !qLayout);
   // 冷启动跃迁：先起播（此时主题已就位，颜色一致），数据并行加载
   const splash = initSplash();
+  // 启动动画层已在 DOM 里（或明确不播）：撤掉 index.html 的首帧遮罩
+  hideBootCover();
   // 数据
   state.settings = await getSettings();
   state.games = await getLibrary();

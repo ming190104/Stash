@@ -2,7 +2,8 @@
 
 import type { LayoutName, ThemeName } from '../../../types';
 import { state } from '../../../state';
-import { toast, esc, applyTheme, applyLayout, applyMotion, applyFontScale, normalizeFontScale, applyAnimSpeed, applyBootAnim } from '../../../ui';
+import { toast, esc, applyTheme, applyLayout, applyMotion, applyFontScale, normalizeFontScale, applyAnimSpeed, applyBootAnim, normalizeBootAnim } from '../../../ui';
+import { previewBootAnim } from '../../../splash';
 import { applySoundSettings, sfx } from '../../../sfx';
 import { openMenu } from '../../../quick';
 import { renderRail } from '../../library';
@@ -64,7 +65,16 @@ export function wireAppearance(body: HTMLElement): void {
       toast(`启动与转场速度 · ${v}×`);
     });
   });
-  // 冷启动动画：写缓存供下次启动在设置读盘前选中同一档 + 落盘；本次启动已播过的不重播
+  // 速度预览：按当前档位立即播一段，改完马上能看出快慢（不用等下次启动）
+  body.querySelector('#previewAnim')?.addEventListener('click', () => {
+    const mode = normalizeBootAnim(state.settings?.bootAnim);
+    if (mode === 'off') {
+      toast('启动动画已关闭，先选「核心启动」或「跃迁」再预览');
+      return;
+    }
+    previewBootAnim(mode);
+  });
+  // 冷启动动画：写缓存供下次启动在设置读盘前选中同一档 + 落盘；切档立即预览一次
   body.querySelectorAll('#segBootAnim b').forEach((b) => {
     b.addEventListener('click', () => {
       const v = applyBootAnim((b as HTMLElement).dataset.v);
@@ -73,7 +83,8 @@ export function wireAppearance(body: HTMLElement): void {
         state.settings.bootAnim = v;
         persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
       }
-      toast(`启动动画 · ${v === 'core' ? '核心启动' : v === 'warp' ? '流光跃迁' : '关闭'}`);
+      previewBootAnim(v);
+      toast(`启动动画 · ${v === 'core' ? '核心启动' : v === 'warp' ? '流光跃迁' : '关闭'} · 下次启动生效`);
     });
   });
   // 界面字号：写 --fs 根变量（app.css 全部 font-size 乘它）+ 落盘，版式不动

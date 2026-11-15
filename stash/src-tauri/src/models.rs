@@ -392,7 +392,7 @@ pub struct Settings {
     /// 界面字号缩放：0.9 小 / 1 标准 / 1.12 大 / 1.25 特大（只放大文字，不动版式）
     #[serde(default = "default_font_scale")]
     pub font_scale: f64,
-    /// 启动与全屏转场速度：0.5 慢 / 1 标准 / 1.5 快 / 2 很快（只缩放转场时长）
+    /// 启动与全屏转场速度：1 标准 / 1.5 快 / 2 很快（只缩放转场时长）
     #[serde(default = "default_anim_speed")]
     pub anim_speed: f64,
     /// 冷启动动画：core 核心启动 / warp 流光跃迁 / off 关闭（全屏切换固定用核心压缩段）
@@ -555,7 +555,7 @@ impl Settings {
         if !self.anim_speed.is_finite() {
             self.anim_speed = 1.0;
         }
-        self.anim_speed = self.anim_speed.clamp(0.5, 2.0);
+        self.anim_speed = self.anim_speed.clamp(1.0, 2.0);
         // 启动动画只认三档，旧文件 / 手改的未知值按核心启动兜底
         if !matches!(self.boot_anim.as_str(), "core" | "warp" | "off") {
             self.boot_anim = "core".into();
