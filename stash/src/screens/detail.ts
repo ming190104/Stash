@@ -25,6 +25,7 @@ import {
   unmatchGame,
 } from '../ipc';
 import { state, gameById, setScreen, versionGroup } from '../state';
+import { PAD_DEFAULT, padGlyph } from '../padmap';
 import { registerHandler } from '../nav';
 import { toast, esc, fmtRelative, fmtDuration, press, ringEls, ringFocus, ringClear, ringActivate, cnFirst, clickable } from '../ui';
 import { artHTML, hydrateArts } from './art';
@@ -191,11 +192,15 @@ export async function renderDetail(): Promise<void> {
     </div>`,
   );
 
+  // 侧栏键帽跟随当前手柄映射：AB 互换 / 改键后不能还写着旧的 A / RB
+  const padMap = state.settings?.padMap ?? PAD_DEFAULT;
+  const acceptKey = padGlyph(padMap.accept, state.padKind);
+  const favKey = padGlyph(padMap.r, state.padKind);
   setRawHTML(
     side,
     `
-    <button class="cta" id="dPlay"><span class="k">A</span>启动游戏</button>
-    <button class="ghost" id="dFav"><span class="k">RB</span>${g.favorite ? '★ 已收藏' : '☆ 加入收藏'}</button>
+    <button class="cta" id="dPlay"><span class="k">${esc(acceptKey)}</span>启动游戏</button>
+    <button class="ghost" id="dFav"><span class="k">${esc(favKey)}</span>${g.favorite ? '★ 已收藏' : '☆ 加入收藏'}</button>
     <button class="ghost" id="dOpen">打开游戏目录</button>
     <button class="ghost" id="dMore">更多操作…</button>`,
   );
@@ -417,6 +422,7 @@ export async function openDetailMenu(id: string): Promise<void> {
     {
       key: 'remove',
       label: '移出库…',
+      danger: true,
       hint: '›',
       keepOpen: true,
       run: () => openRemoveMenu(id),
@@ -644,6 +650,9 @@ export function initDetail(): void {
     if (state.screen !== 'detail' || anyState()) return;
     if (e.code === 'KeyY') {
       document.getElementById('dEnds')?.click();
+      // 只消费这一次 Y：面板打开后 nav / overlay 还会收到同一个事件，
+      // 它们看到 endPanel 已开就会把 Y 当「新增结局」，凭空多一条 END。
+      e.stopImmediatePropagation();
       e.preventDefault();
     }
     if (e.code === 'KeyR') {

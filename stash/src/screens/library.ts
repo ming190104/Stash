@@ -279,8 +279,10 @@ export function updateCount(): void {
   const t = `${state.games.length} 部作品`;
   const a = document.getElementById('gameCount');
   const b = document.getElementById('gameCount2');
+  const w = document.getElementById('wallCount');
   if (a) a.textContent = t;
   if (b) b.textContent = t;
+  if (w) w.textContent = t;
 }
 
 /** 库数据整体刷新（启动 / 添加作品 / 游戏退出后） */

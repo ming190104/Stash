@@ -11,7 +11,7 @@
   --acc-ink:#ffb9c1;
   --ink1:#f4f1ea;
   --ink2:rgba(244,241,234,.66);
-  --ink3:rgba(244,241,234,.38);
+  --ink3:rgba(244,241,234,.55);
   --acc:#ff9aa6;
   --acc2:#ffc28c;
   --accg:linear-gradient(135deg,var(--acc),var(--acc2));
@@ -30,21 +30,21 @@
 html[data-theme="oled"]{
   --bg0:#000; --bg1:#000;
   --glass:rgba(8,8,10,.72); --gline:rgba(255,255,255,.12);
-  --ink1:#f6f4ef; --ink2:rgba(246,244,239,.72); --ink3:rgba(246,244,239,.45);
+  --ink1:#f6f4ef; --ink2:rgba(246,244,239,.72); --ink3:rgba(246,244,239,.56);
 }
 html[data-theme="sakura"]{
   --bg0:#170f18; --bg1:#0a060b;
   --acc:#ffb3c8; --acc2:#ffd0a8; --acc-ink:#ffd0e0; --acc-on:#3a1420;
   --accg:linear-gradient(135deg,#ff9dbb,#ffc79a);
   --glass:rgba(37,22,36,.6); --gline:rgba(255,190,215,.16);
-  --ink1:#f9eef3; --ink2:rgba(249,238,243,.7); --ink3:rgba(249,238,243,.42);
+  --ink1:#f9eef3; --ink2:rgba(249,238,243,.7); --ink3:rgba(249,238,243,.55);
 }
 html[data-theme="frost"]{
   --bg0:#0b1218; --bg1:#04080b;
   --acc:#8fd6ff; --acc2:#a8f0d8; --acc-ink:#bfe9ff; --acc-on:#08222b;
   --accg:linear-gradient(135deg,#7cc9ff,#9fe9d4);
   --glass:rgba(13,28,36,.6); --gline:rgba(160,220,255,.14);
-  --ink1:#eaf4f7; --ink2:rgba(234,244,247,.7); --ink3:rgba(234,244,247,.44);
+  --ink1:#eaf4f7; --ink2:rgba(234,244,247,.7); --ink3:rgba(234,244,247,.55);
 }
 html[data-theme="contrast"]{
   --bg0:#000; --bg1:#000;
@@ -59,28 +59,28 @@ html[data-theme="amber"]{
   --acc:#e8b264; --acc2:#ffd79a; --acc-ink:#ffdca8; --acc-on:#2a1a08;
   --accg:linear-gradient(135deg,#e0a24e,#ffcf8a);
   --glass:rgba(24,18,12,.62); --gline:rgba(255,214,160,.14);
-  --ink1:#f7efe1; --ink2:rgba(247,239,225,.68); --ink3:rgba(247,239,225,.4);
+  --ink1:#f7efe1; --ink2:rgba(247,239,225,.68); --ink3:rgba(247,239,225,.52);
 }
 html[data-theme="iris"]{
   --bg0:#100f1e; --bg1:#06050d;
   --acc:#b6a4ff; --acc2:#8ee6d8; --acc-ink:#d8ccff; --acc-on:#241443;
   --accg:linear-gradient(135deg,#a78bfa,#7ee0d3);
   --glass:rgba(20,18,36,.62); --gline:rgba(190,175,255,.16);
-  --ink1:#f2effc; --ink2:rgba(242,239,252,.7); --ink3:rgba(242,239,252,.42);
+  --ink1:#f2effc; --ink2:rgba(242,239,252,.7); --ink3:rgba(242,239,252,.55);
 }
 html[data-theme="moss"]{
   --bg0:#0a1410; --bg1:#040907;
   --acc:#9fd8a8; --acc2:#dbe6a3; --acc-ink:#c6ecc9; --acc-on:#122a18;
   --accg:linear-gradient(135deg,#86cf96,#d3e08e);
   --glass:rgba(12,26,20,.62); --gline:rgba(170,225,185,.14);
-  --ink1:#eef6ee; --ink2:rgba(238,246,238,.68); --ink3:rgba(238,246,238,.4);
+  --ink1:#eef6ee; --ink2:rgba(238,246,238,.68); --ink3:rgba(238,246,238,.52);
 }
 html[data-theme="crimson"]{
   --bg0:#170a0b; --bg1:#080304;
   --acc:#ff6b5e; --acc2:#ffb27a; --acc-ink:#ffb3a6; --acc-on:#2b0b08;
   --accg:linear-gradient(135deg,#ff5a4d,#ffab6b);
   --glass:rgba(28,12,14,.64); --gline:rgba(255,160,140,.16);
-  --ink1:#fbeeea; --ink2:rgba(251,238,234,.68); --ink3:rgba(251,238,234,.4);
+  --ink1:#fbeeea; --ink2:rgba(251,238,234,.68); --ink3:rgba(251,238,234,.52);
 }
 /* 白昼：唯一亮色主题。底色纸白、文字墨黑；玻璃面用「墨色低透明度」而不是白色，
    否则按钮 / 胶囊 / 输入框会在浅底上消失（见下方 daybreak 覆盖段） */

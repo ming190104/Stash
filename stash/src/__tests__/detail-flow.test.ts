@@ -441,10 +441,12 @@ describe('导航与快捷键', () => {
     expect(state.detailId).toBe('b');
   });
 
-  it('Y / R 分别触发结局与收藏按钮', async () => {
+  it('Y 打开结局面板但不会同一次事件里新增 END；R 收藏', async () => {
     await setup();
     window.dispatchEvent(key('KeyY'));
     await vi.waitFor(() => expect(document.getElementById('endPanel')!.classList.contains('show')).toBe(true));
+    // 回归：打开面板的那一次 Y 不能被 overlay 再解释成「新增」，否则每次看结局都多一条假记录
+    expect(state.games[0].endings.map((e) => e.name)).toEqual(['END1']);
     hideStates();
     window.dispatchEvent(key('KeyR'));
     await vi.waitFor(() => expect(H.setFavorite).toHaveBeenCalledWith('a', true));

@@ -77,7 +77,7 @@ body{background:var(--bg1);font-family:var(--sans);color:var(--ink1);-webkit-fon
 .fpath{position:absolute;top:56px;left:40px;right:26px;height:26px;display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:calc(11px * var(--fs,1));color:var(--ink2);z-index:10}
 .fpath-main{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
 .fpath-hint{color:var(--ink3);flex:none;letter-spacing:.5px}
-.flist{position:absolute;top:86px;left:40px;right:26px;bottom:52px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;display:flex;flex-direction:column;gap:3px;padding:0 4px 12px 0}
+.flist{position:absolute;top:86px;left:40px;right:26px;bottom:52px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;display:flex;flex-direction:column;gap:3px;padding:0 4px 26px 0}
 /* keybar 在真实视口 ≥1500 / ≥2300 时会变高（ui.css），列表底边同步让位 */
 @media (min-width:1500px){.flist{bottom:60px}}
 @media (min-width:2300px){.flist{bottom:68px}}

@@ -1,13 +1,11 @@
-/** 性能页签接线：帧率 / 排序 / FPS 面板 / 全屏 / 60Hz。
- *  手柄键位映射（含 A-B 互换 / 映射鼠标）已移到「键位」页签。 */
+/** 性能页签接线：帧率 / FPS 面板 / 全屏 / 60Hz。
+ *  排序已移到「外观」页签；手柄键位映射（含 A-B 互换 / 映射鼠标）在「键位」页签。 */
 
-import type { FpsMode, SortMode } from '../../../types';
+import type { FpsMode } from '../../../types';
 import { state } from '../../../state';
 import { toast, esc, applyFullscreenUI } from '../../../ui';
 import { setFullscreen, setPower60 } from '../../../ipc';
 import { togglePanel } from '../../../fps';
-import { renderRail } from '../../library';
-import { renderGrid } from '../../grid';
 import { persist } from '../persist';
 import { warpToggle, warpBusy } from '../../../splash';
 
@@ -23,21 +21,6 @@ export function wirePerf(body: HTMLElement): void {
           .catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
       }
       body.querySelectorAll('#segFps b').forEach((x) => x.classList.toggle('on', x === b));
-    });
-  });
-  // 排序（落盘：总案 10.2 的 settings.sort，重启后仍生效）
-  body.querySelectorAll('#segSort b').forEach((b) => {
-    b.addEventListener('click', () => {
-      state.sortBy = (b as HTMLElement).dataset.v as SortMode;
-      state.focus = 0;
-      body.querySelectorAll('#segSort b').forEach((x) => x.classList.toggle('on', x === b));
-      renderRail();
-      renderGrid();
-      if (state.settings) {
-        state.settings.sort = state.sortBy;
-        persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
-      }
-      toast('已重新排序');
     });
   });
   // FPS 面板开关

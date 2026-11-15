@@ -320,6 +320,8 @@ function onNav(n: NavIntent): void {
 export function initFiles(): void {
   if (inited) return;
   inited = true;
+  // 鼠标用户的返回路径：底栏 B 只是提示，不可点
+  document.getElementById('fsBack')?.addEventListener('click', () => exit());
   registerHandler('files', onNav);
 
   window.addEventListener('keydown', (e) => {

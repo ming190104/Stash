@@ -78,7 +78,9 @@ export async function addGameByExe(exe: string, title: string): Promise<boolean>
     const g = await addGame(exe, t);
     await refreshLibrary();
     hideStates();
-    toast(`已添加《${esc(g.title)}》`);
+    // 首部作品入库时给一次「下一步」：在线元数据默认关闭，否则用户会以为封面 / 会社为空是坏了
+    const first = state.games.length === 1 && !!state.settings && !state.settings.network.metadataEnabled;
+    toast(`已添加《${esc(g.title)}》${first ? ' · 需要封面 / 简介可在设置 · 元数据开启在线匹配' : ''}`);
     return true;
   } catch (e) {
     const msg = String((e as { message?: string })?.message ?? e);

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-/** 设置九页签的路由表：性能 / 外观 / 键位 / 启动 / 网络 / 库 / 统计 / 元数据 / 关于。
+/** 设置八页签的路由表：性能 / 外观 / 键位 / 启动 / 网络 / 库与统计 / 元数据 / 关于。
  *  页签索引被 syncBootState / loadLogIssues / 改键捕获共用，
  *  增删页签时最容易错的正是这张映射表，所以逐页断标题 + 关键控件。 */
 
@@ -9,7 +9,7 @@ import { initSettings } from '../screens/settings';
 import { dispatchNav } from '../nav';
 import { setScreen } from '../state';
 
-const TABS = ['性能', '外观', '键位映射', '启动', '网络', '库', '统计', '元数据', '关于'];
+const TABS = ['性能', '外观', '键位映射', '启动', '网络', '库与统计', '元数据', '关于'];
 
 const navBtns = (): HTMLButtonElement[] => [...document.querySelectorAll<HTMLButtonElement>('#snav button')];
 const body = (): HTMLElement => document.getElementById('sbody')!;
@@ -40,8 +40,8 @@ beforeEach(() => {
 });
 
 describe('设置页签路由', () => {
-  it('九页签顺序固定，逐页都能渲染出对应标题', async () => {
-    expect(navBtns().length).toBe(9);
+  it('八页签顺序固定，逐页都能渲染出对应标题', async () => {
+    expect(navBtns().length).toBe(8);
     for (let i = 0; i < TABS.length; i++) await openTab(i);
   });
 
@@ -81,9 +81,9 @@ describe('设置页签路由', () => {
     expect(body().querySelector('#tgBoot')).not.toBeNull();
     await openTab(4);
     expect(body().querySelector('#tgNet')).not.toBeNull();
-    await openTab(7);
+    await openTab(6);
     expect(body().querySelector('[data-act="match"]')).not.toBeNull();
-    await openTab(8);
+    await openTab(7);
     expect(body().querySelector('#logBox')).not.toBeNull();
   });
 });

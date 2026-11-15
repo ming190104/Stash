@@ -107,6 +107,12 @@ describe('搜索 · 排序', () => {
     expect(el('spList').textContent).toContain('没有匹配');
   });
 
+  it('搜索结果全量渲染，不再截断到 9 条', () => {
+    state.games = Array.from({ length: 12 }, (_, i) => game(`g${i}`, { title: `Game ${i}` }));
+    openSearch();
+    expect(document.querySelectorAll('#spList .sp-item').length).toBe(12);
+  });
+
   it('焦点在搜索框：Esc 关闭、Enter 选中候选并写入历史', () => {
     openSearch();
     const inp = el('spInput') as HTMLInputElement;

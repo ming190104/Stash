@@ -108,6 +108,11 @@ export function renderSearch(): void {
   if (!box) return;
   const list = searchList();
   const hist = state.query.trim() ? [] : readHistory();
+  // 结果数量与 A 键语义都跟着结果变化：空结果时 A 不再是「打开」，而是「清除搜索」
+  const count = document.getElementById('spCount');
+  if (count) count.textContent = state.query.trim() ? `${list.length} 部命中` : `全部 ${list.length} 部`;
+  const action = document.getElementById('spAHint');
+  if (action) action.textContent = list.length ? '打开' : '清除';
   const histHtml = hist.length
     ? `<div class="sp-hist">${hist
         .map((q) => `<span class="sp-hchip" data-q="${esc(q)}">${esc(q)}</span>`)
@@ -115,17 +120,17 @@ export function renderSearch(): void {
     : '';
   const listHtml = list.length
     ? list
-        .slice(0, 9)
         .map(
-          (g) => `
-    <div class="sp-item" data-id="${esc(g.id)}">
+          (g, i) => `
+    <div class="sp-item${i === 0 ? ' on' : ''}" data-id="${esc(g.id)}">
       <div class="sp-th" style="background:${placeholderArt(g.id).bg}"></div>
       <div class="sp-tx"><div class="sp-nm">${esc(g.title)}</div><div class="sp-mt">${esc([g.developer, g.year].filter(Boolean).join(' · ')) || esc(g.engineLabel)}</div></div>
     </div>`,
         )
         .join('')
-    : `<div class="sp-empty">没有匹配「${esc(state.query)}」的作品 · 试试会社名 / 标签 / 日文假名</div>`;
+    : `<div class="sp-empty"><span>没有匹配「${esc(state.query)}」的作品 · 试试会社名 / 标签 / 日文假名</span><button class="mini" id="spClear">清除搜索</button></div>`;
   setRawHTML(box, histHtml + listHtml);
+  box.querySelector('#spClear')?.addEventListener('click', clearQuery);
   box.querySelectorAll<HTMLElement>('.sp-item').forEach((el) => {
     el.addEventListener('click', () => {
       pushSearchHistory(state.query);
@@ -215,7 +220,25 @@ function activateResult(): void {
   // 防抖窗口内直接回车：先让候选列表跟上最新输入，否则会点到上一次的结果
   flushSearchRender();
   const el = document.querySelector<HTMLElement>('#spList .sp-item.on') ?? document.querySelector<HTMLElement>('#spList .sp-item');
-  el?.click();
+  // 没有候选时 A / Enter 不再空转：与面板上的「清除搜索」同义
+  if (el) el.click();
+  else document.getElementById('spClear')?.click();
+}
+
+/** 清空关键词并聚焦输入框：搜索无结果时的唯一下一步 */
+function clearQuery(): void {
+  state.query = '';
+  const inp = document.getElementById('spInput') as HTMLInputElement | null;
+  if (inp) {
+    inp.value = '';
+    inp.focus();
+  }
+  renderSearch();
+}
+
+/** 只在确实有候选时记历史：搜「zzzz」没结果不该污染历史词 */
+function rememberQuery(): void {
+  if (document.querySelector('#spList .sp-item')) pushSearchHistory(state.query);
 }
 
 /** 焦点在搜索框：Esc / Enter / ↑↓ 交给候选列表，其余按键一律不触发全局快捷键 */
@@ -224,7 +247,7 @@ export function searchFieldKey(e: KeyboardEvent): boolean {
     hideStates();
     e.preventDefault();
   } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
-    pushSearchHistory(state.query);
+    rememberQuery();
     activateResult();
     e.preventDefault();
   } else if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
@@ -238,7 +261,7 @@ export function searchFieldKey(e: KeyboardEvent): boolean {
 export function searchKey(e: KeyboardEvent): boolean {
   // 搜索框失焦时 Enter / A 仍必须能选中候选，否则手柄在搜索面板按 A 毫无反应。
   if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyA') {
-    pushSearchHistory(state.query);
+    rememberQuery();
     activateResult();
     e.preventDefault();
     return true;

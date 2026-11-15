@@ -190,7 +190,7 @@ function paint(): void {
           it.danger ? html` data-danger="1"` : ''
         }>${
           it.thumb ? html`<img class="qthumb" src="${it.thumb}" alt="" loading="lazy"/>` : ''
-        }<b>${it.label}</b>${it.hint ? html`<span>${it.hint}</span>` : ''}</button>`,
+        }<b>${it.label}</b>${it.hint ? html`<span class="kk qhint">${it.hint}</span>` : ''}</button>`,
     )}`,
   );
   list.querySelectorAll<HTMLElement>('.qitem').forEach((b) => {

@@ -107,7 +107,7 @@ async function cdpTarget() {
     key('Digit4'); await sleep(450);
     out.tabs = n('#snav button');
     // 设置 · 元数据 → 改绑：候选模态层立即出现（不再埋在页签最底部）
-    document.querySelectorAll('#snav button')[7]?.click(); await sleep(600);
+    document.querySelectorAll('#snav button')[6]?.click(); await sleep(600);
     const rebind = q('#matchedList [data-rebind]');
     out.rebindBtn = !!rebind;
     rebind?.click(); await sleep(500);
@@ -148,7 +148,7 @@ async function cdpTarget() {
   expect(checks.search, '搜索面板未打开');
   expect(checks.filter, '筛选面板未打开');
   expect(checks.menu >= 5, `快捷菜单项过少：${checks.menu}`);
-  expect(checks.tabs === 9, `设置页签应为 9 个，实际 ${checks.tabs}`);
+  expect(checks.tabs === 8, `设置页签应为 8 个，实际 ${checks.tabs}`);
   expect(checks.rebindBtn, '已匹配作品列表里没有「改绑…」按钮');
   expect(checks.candPanel, '改绑候选面板未打开');
   expect(checks.candClosed, 'Esc 未关闭改绑候选面板');

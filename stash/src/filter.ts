@@ -6,6 +6,7 @@ import {
   state,
   sortedGames,
   facetCount,
+  clearFacets,
   COLLECTIONS,
   collectionMatch,
   type GridFilter,
@@ -19,7 +20,7 @@ import { hideStates, showState, NATIVE_DEFAULT } from './layers';
 
 type FacetCol = 'set' | 'tag' | 'dev' | 'year';
 const COLS: FacetCol[] = ['set', 'tag', 'dev', 'year'];
-const COL_TITLE: Record<FacetCol, string> = { set: '集合', tag: '标签', dev: '会社', year: '发售年' };
+const COL_TITLE: Record<FacetCol, string> = { set: '快捷分类', tag: '标签', dev: '会社', year: '发售年' };
 
 interface Opt {
   v: string | number | null;
@@ -155,11 +156,11 @@ export function renderFilter(): void {
     const opts = options(col);
     const sel = currentOf(col);
     frow[ci] = Math.min(Math.max(0, frow[ci]), opts.length - 1);
-    return `<div class="flt-col">
+    return `<div class="flt-col${ci === fcol ? ' on' : ''}">
       <div class="flt-lab">${COL_TITLE[col]}<b>${opts.length - 1}</b></div>
       <div class="flt-opts" data-col="${ci}">${opts
         .map(
-          (o, i) => `<div class="flt-opt${o.v === sel ? ' on' : ''}${ci === fcol && i === frow[ci] ? ' focus' : ''}" data-i="${i}">
+          (o, i) => `<div class="flt-opt${o.v === sel ? ' on' : ''}${ci === fcol && i === frow[ci] ? ' focus' : ''}${o.count === 0 && o.v !== null && o.v !== sel ? ' zero' : ''}" data-i="${i}"${o.count === 0 && o.v !== null && o.v !== sel ? ' data-zero="1"' : ''}>
           <span class="flt-nm">${esc(o.label)}</span><span class="flt-ct">${o.count}</span>
         </div>`,
         )
@@ -173,6 +174,11 @@ export function renderFilter(): void {
       const ci = Number((el.parentElement as HTMLElement).dataset.col);
       fcol = ci;
       frow[ci] = Number(el.dataset.i);
+      if (el.dataset.zero) {
+        toast('该条件当前没有作品');
+        renderFilter();
+        return;
+      }
       pickFilter();
     });
   });
@@ -208,6 +214,10 @@ function pickFilter(): void {
   const col = COLS[fcol];
   const o = options(col)[frow[fcol]];
   if (!o) return;
+  if (o.count === 0 && o.v !== null) {
+    toast('该条件当前没有作品');
+    return;
+  }
   choose(col, o.v);
   state.gridFocus = 0;
   toast(`${COL_TITLE[col]} · ${o.v === null ? '全部' : esc(o.label)}`);
@@ -223,7 +233,23 @@ function closeFilter(): void {
   void import('./screens/grid').then((m) => m.renderGrid());
 }
 
-/** 把当前「状态筛选 + 分面 + 集合 + 排序」存成命名视图（最多 8 个，随设置落盘）。
+/** 清空全部筛选：状态 / 分面 / 快捷分类 / 保存视图一次归零，面板保持打开 */
+export function clearAllFilters(): void {
+  clearFacets();
+  state.viewName = null;
+  state.gridFilter = 'all';
+  state.gridFocus = 0;
+  document.querySelectorAll('#fchips .fchip').forEach((x) => {
+    const f = (x as HTMLElement).dataset.filter;
+    if (f) x.classList.toggle('on', f === 'all');
+  });
+  renderFilter();
+  void import('./screens/library').then((m) => m.renderRail());
+  void import('./screens/grid').then((m) => m.setFilter('all'));
+  toast('已清空全部筛选');
+}
+
+/** 把当前「状态筛选 + 分面 + 快捷分类 + 排序」存成命名视图（最多 8 个，随设置落盘）。
  *  输入弹层要盖在筛选面板之上，所以先收面板、填完再打开，避免弹层被压在下面。 */
 export async function saveCurrentView(): Promise<void> {
   const s = state.settings;
@@ -231,7 +257,7 @@ export async function saveCurrentView(): Promise<void> {
   hideStates();
   const raw = await promptInput({
     title: '保存筛选视图',
-    sub: '保存当前集合 / 分面 / 排序；之后在「筛选 · 集合」一键回到这里（最多 8 个）',
+    sub: '保存当前快捷分类 / 分面 / 排序；之后在「筛选 · 快捷分类」一键回到这里（最多 8 个）',
     value: '',
     cap: 24,
   });

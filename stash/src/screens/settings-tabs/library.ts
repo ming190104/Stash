@@ -152,7 +152,7 @@ export function libraryTabHTML(healthBlock: string): string {
     ? roots.map(rootRow).join('')
     : `<div class="snote">还没有添加游戏库目录。添加后先预览候选，勾选确认才入库；移除目录不会删除已入库的作品。</div>`;
   return `
-    <h2 class="sh">库</h2>
+    <h2 class="sh">库与统计</h2>
     <div class="spanel">
       <div class="srow"><div class="lab"><b>游戏库目录</b><span>从根目录自动发现作品（下一级子目录，含二级兜底）；支持多个目录</span></div>
         <button class="mini" data-act="browse">浏览文件…</button>

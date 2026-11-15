@@ -1,5 +1,5 @@
 /** 设置屏主控：页签路由、焦点环、改键捕获与各页签接线分发。
- *  九个页签：性能 / 外观 / 键位 / 启动 / 网络 / 库 / 统计 / 元数据 / 关于。
+ *  八个页签：性能 / 外观 / 键位 / 启动 / 网络 / 库与统计 / 元数据 / 关于。
  *  页签内容模板在 ./settings-tabs/，交互接线在 ./settings/wire/，
  *  共享 UI 状态与落盘在 ./settings/ 下——本文件只保留「在哪一页、焦点在哪」的骨架。 */
 
@@ -94,12 +94,10 @@ export async function renderSettings(): Promise<void> {
       setRawHTML(body, networkHTML(s));
       break;
     case 5:
-      setRawHTML(body, libraryTabHTML(healthHTML()));
+      // 统计是只读页，并进「库」页签：少一个页签，也让「库 → 统计」在同一处看完
+      setRawHTML(body, libraryTabHTML(healthHTML()) + statsHTML());
       break;
     case 6:
-      setRawHTML(body, statsHTML());
-      break;
-    case 7:
       setRawHTML(body, metadataHTML());
       break;
     default:
@@ -109,7 +107,7 @@ export async function renderSettings(): Promise<void> {
   wire(body);
   applyRing(); // 面板重建后重新挂焦点环（DOM 换了，旧引用已失效）
   if (sui.tab === 3) void syncBootState();
-  if (sui.tab === 8) void loadLogIssues();
+  if (sui.tab === 7) void loadLogIssues();
 
   // 重建完成后把正在输入的框恢复原样（值与光标位置）
   if (keep) {
@@ -161,17 +159,26 @@ function wire(body: HTMLElement): void {
     case 5:
       wireLibraryTab(body);
       break;
-    case 7:
+    case 6:
       wireMetadataTab(body);
       break;
-    case 8:
+    case 7:
       wireAbout(body);
       break;
     default:
-      break; // 统计是纯只读页，没有控件
+      break;
   }
   wireActions(body);
   wireHealthFix(body);
+}
+
+/** 从其它屏直达某个设置页签（空态「扫描游戏库 / Steam…」等入口共用） */
+export function openSettingsTab(tab: number): void {
+  const n = document.querySelectorAll('#snav button').length;
+  sui.tab = Math.max(0, n ? Math.min(tab, n - 1) : tab);
+  sui.zone = 'nav';
+  setScreen('settings');
+  void renderSettings();
 }
 
 export function initSettings(): void {

@@ -44,7 +44,10 @@ function powerLabel(power: string): string {
 export function keysHTML(s: Settings, captureKey: keyof PadMap | null): string {
   const info = state.padInfo;
   const name = info.name || '未连接';
-  const meta = `${LAYOUT_LABEL[info.kind] ?? 'Xbox'} · ${powerLabel(info.power)}${info.ff ? ' · 力反馈' : ''}`;
+  // 没连手柄时不显示「Xbox · 电量未知」：那会让人以为已经识别到一个 Xbox 手柄
+  const meta = info.name
+    ? `${LAYOUT_LABEL[info.kind] ?? 'Xbox'} · ${powerLabel(info.power)}${info.ff ? ' · 力反馈' : ''}`
+    : '—';
   const t = s.padTuning ?? PAD_TUNING_DEFAULT;
   return `
     <h2 class="sh">键位映射</h2>

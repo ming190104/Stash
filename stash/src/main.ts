@@ -11,6 +11,7 @@ import { initFiles } from './screens/files';
 import { init as initNav } from './nav';
 import { init as initFps } from './fps';
 import { initOverlay, applyStateParam, hideStates } from './overlay';
+import { toggleQuickMenu } from './quick';
 import { initDropImport } from './drop';
 import { toast, esc, errMsg, applyTheme, cachedTheme, applyLayout, cachedLayout, applyMotion, applyFontScale, applyAnimSpeed, applyBootAnim, applyFullscreenUI, stageScale } from './ui';
 import { applySoundSettings } from './sfx';
@@ -165,6 +166,10 @@ async function boot(): Promise<void> {
   // data-go 统一跳转（topbar 设置按钮 / 详情返回）
   document.querySelectorAll('[data-go]').forEach((b) => {
     b.addEventListener('click', () => setScreen((b as HTMLElement).dataset.go as never));
+  });
+  // 顶栏常驻菜单按钮：全屏隐藏搜索 / 设置 / 窗口按钮后，纯鼠标仍能打开快捷菜单
+  document.querySelectorAll('[data-quick]').forEach((b) => {
+    b.addEventListener('click', () => void toggleQuickMenu());
   });
 
   // 无边框窗口自绘按钮（decorations:false；拖拽由顶栏的 data-tauri-drag-region 承担）

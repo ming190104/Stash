@@ -5,7 +5,7 @@ import type { PadMap } from '../../types';
 import { toast, ringEls, ringFocus, ringClear } from '../../ui';
 
 export const sui = {
-  /** 当前页签（0 性能 … 8 关于） */
+  /** 当前页签（0 性能 … 7 关于） */
   tab: 0,
   /** 焦点环所在区：左侧页签 or 右侧面板。掌机上左右键在这两层之间进出。 */
   zone: 'nav' as 'nav' | 'panel',

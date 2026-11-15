@@ -45,14 +45,27 @@ export function showEmpty(kind: 'empty' | 'noresult'): void {
       `
       <div class="state-mark">遊</div>
       <div class="state-title">还没有任何作品</div>
-      <div class="state-sub">选一个游戏主程序 exe，填上标题就能入库；封面 / 引擎按所在目录读取。</div>
-      <div class="state-btns"><button class="cta" id="emAdd"><span class="k">A</span>添加游戏 exe…</button></div>`,
+      <div class="state-sub">先在应用内浏览文件添加，或用系统对话框直接选 exe；封面 / 引擎按所在目录读取。也可以把游戏主程序直接拖进窗口。</div>
+      <div class="state-btns">
+        <button class="cta" id="emAdd"><span class="k">A</span>浏览文件添加…</button>
+        <button class="ghost" id="emExe">选择 exe…</button>
+        <button class="ghost" id="emScan">扫描游戏库 / Steam…</button>
+      </div>`,
     );
     // 入口会先弹系统对话框 / 走 IPC：失败必须有提示，不能变成未捕获拒绝
     const failed = (e: unknown): void =>
       toast(esc(String((e as { message?: string })?.message ?? e)), true);
+    // 手柄 / 触屏优先：应用内文件浏览器全程可方向键操作，不再一上来就丢进原生对话框
     b.querySelector('#emAdd')?.addEventListener('click', () => {
+      void import('./screens/files').then((m) => m.openFiles()).catch(failed);
+    });
+    b.querySelector('#emExe')?.addEventListener('click', () => {
       import('./screens/settings').then((m) => m.addManualGame()).catch(failed);
+    });
+    b.querySelector('#emScan')?.addEventListener('click', () => {
+      import('./screens/settings')
+        .then((m) => m.openSettingsTab(5))
+        .catch(failed);
     });
   }
   showState('emptyState');

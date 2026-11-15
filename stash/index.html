@@ -46,6 +46,10 @@
         <button class="tbtn fs-hide" data-go="settings" title="设置">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3"/></svg>
         </button>
+        <!-- 全屏下顶栏图标会隐藏：这个按钮永远保留，纯鼠标也能打开快捷菜单 -->
+        <button class="tbtn" data-quick="menu" title="快捷菜单（Start / ☰）">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></svg>
+        </button>
         <!-- 无边框窗口的自绘窗口按钮（decorations:false 后没有系统标题栏） -->
         <span class="winbtns">
           <button class="tbtn" data-win="min" title="最小化">
@@ -63,6 +67,11 @@
       <div class="hero-info" id="heroInfo"></div>
     </div>
     <div class="wm" id="heroWm"></div>
+    <!-- 海报墙自己的标题：网格是管理视图，海报墙是沉浸浏览，不能只差一个筛选条 -->
+    <div class="wall-head">
+      <h1 class="gh">海报墙<small>POSTER WALL</small></h1>
+      <span class="tstat" id="wallCount">-- 部作品</span>
+    </div>
 
     <div class="rail-zone">
       <div class="rail-vp"><div class="rail-track" id="railTrack"></div></div>
@@ -91,7 +100,8 @@
       <span class="kg"><span class="kk acc">A</span>启动游戏</span>
       <span class="kg"><span class="kk">Y</span>详情</span>
       <span class="kg"><span class="kk">M</span>多选</span>
-      <span class="kg"><span class="kk">Q</span><span class="kk">E</span>网格视图</span>
+      <span class="kg classickey"><span class="kk">↓</span>网格</span>
+      <span class="kg qekey"><span class="kk">Q</span><span class="kk">E</span>网格</span>
       <span class="kg"><span class="kk">?</span>快捷键</span>
       <span class="kg"><span class="kk">☰</span>设置</span>
     </footer>
@@ -109,7 +119,11 @@
           <span class="fchip" id="selBtn" title="多选（M / X）">多选</span>
         </div>
         <div class="tr">
+          <button class="mini gback" data-go="library">← 返回轨道</button>
           <span class="tstat" id="gameCount2">-- 部作品</span><span id="clock2">--:--</span>
+          <button class="tbtn" data-quick="menu" title="快捷菜单（Start / ☰）">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></svg>
+          </button>
           <span class="winbtns">
             <button class="tbtn" data-win="min" title="最小化"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8h8"/></svg></button>
             <button class="tbtn winclose" data-win="close" title="关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
@@ -155,8 +169,13 @@
 
   <!-- ④ 设置屏 -->
   <section class="screen" data-s="settings">
+    <!-- 鼠标用户不能只靠底栏的 B：设置页需要一条可点的返回路径 -->
+    <button class="back" data-go="library"><span class="kk">B</span>返回游戏库</button>
     <header class="topbar" data-tauri-drag-region>
       <div class="tr"><span class="tstat">本地游戏库</span><span id="clock3">--:--</span>
+        <button class="tbtn" data-quick="menu" title="快捷菜单（Start / ☰）">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></svg>
+        </button>
         <span class="winbtns">
           <button class="tbtn" data-win="min" title="最小化"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8h8"/></svg></button>
           <button class="tbtn winclose" data-win="close" title="关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
@@ -165,15 +184,14 @@
     </header>
     <div class="set">
       <nav class="snav" id="snav">
-        <button class="on"><span class="ic" style="background:#ff8e9e"></span>性能</button>
-        <button><span class="ic" style="background:#ffc28c"></span>外观</button>
-        <button><span class="ic" style="background:#b9a8ff"></span>键位</button>
-        <button><span class="ic" style="background:#ffd479"></span>启动</button>
-        <button><span class="ic" style="background:#8ec9ff"></span>网络</button>
-        <button><span class="ic" style="background:#7fe0c3"></span>库</button>
-        <button><span class="ic" style="background:#8ee6d8"></span>统计</button>
-        <button><span class="ic" style="background:#c59cff"></span>元数据</button>
-        <button><span class="ic" style="background:#9fe8b4"></span>关于</button>
+        <button class="on"><span class="ic"></span>性能</button>
+        <button><span class="ic"></span>外观</button>
+        <button><span class="ic"></span>键位</button>
+        <button><span class="ic"></span>启动</button>
+        <button><span class="ic"></span>网络</button>
+        <button><span class="ic"></span>库与统计</button>
+        <button><span class="ic"></span>元数据</button>
+        <button><span class="ic"></span>关于</button>
       </nav>
       <div class="sbody" id="sbody"></div>
     </div>
@@ -191,6 +209,10 @@
       <h1 class="gh">文件<small>FILES · 只读</small></h1>
       <div class="tr">
         <span class="tstat" id="fsCount">-- 项</span>
+        <button class="mini" id="fsBack">← 返回</button>
+        <button class="tbtn" data-quick="menu" title="快捷菜单（Start / ☰）">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></svg>
+        </button>
         <span class="winbtns">
           <button class="tbtn" data-win="min" title="最小化"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8h8"/></svg></button>
           <button class="tbtn winclose" data-win="close" title="关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
@@ -255,25 +277,26 @@
         <div class="seg" id="spSort"><b class="on">最近游玩</b><b>名称</b><b>发售年</b><b>通关进度</b></div>
       </div>
       <div>
-        <div class="sp-lab">结果</div>
+        <div class="sp-lab">结果<span class="sp-count" id="spCount"></span></div>
         <div class="sp-list" id="spList"></div>
       </div>
       <div class="flt-foot sp-foot">
         <span class="kg"><span class="kk">↑↓</span>选择</span>
         <span class="kg"><span class="kk">←→</span>排序</span>
-        <span class="kg"><span class="kk acc">A</span>打开</span>
+        <span class="kg"><span class="kk acc">A</span><span id="spAHint">打开</span></span>
         <span class="kg"><span class="kk">B</span>关闭</span>
         <span class="kg"><span class="kk">/</span>输入</span>
       </div>
     </div>
   </div>
 
-  <!-- 筛选面板（集合 / 标签 / 会社 / 年份，P1 + P10 保存视图） -->
+  <!-- 筛选面板（快捷分类 / 标签 / 会社 / 年份，P1 + P10 保存视图） -->
   <div class="state" id="filterPanel">
     <div class="flt-box">
       <div class="flt-head">
         <b>筛选</b>
-        <span class="flt-sub">集合 · 标签 · 会社 · 发售年 · 与上方状态筛选叠加</span>
+        <span class="flt-sub">快捷分类 · 标签 · 会社 · 发售年 · 与上方状态筛选叠加</span>
+        <span class="mini" id="fltClear" title="清除状态与全部分面条件">清空全部</span>
         <span class="mini" id="saveView" title="把当前筛选组合存成视图">保存视图</span>
         <span class="kk">Esc</span>
       </div>
@@ -366,6 +389,7 @@
           <div class="help-row"><span>搜索 · 排序</span><span class="hk"><b class="kk">/</b></span></div>
           <div class="help-row"><span>快捷键总览（设置 · 关于）</span><span class="hk"><b class="kk">F1</b><b class="kk">?</b></span></div>
           <div class="help-row"><span>库 ⇄ 网格（手柄：Start → 切换视图）</span><span class="hk"><b class="kk">Q</b><b class="kk">E</b></span></div>
+          <div class="help-row"><span>经典布局 ↓ 进入网格</span><span class="hk"><b class="kk">↓</b></span></div>
           <div class="help-row"><span>直切四屏</span><span class="hk"><b class="kk">1</b><b class="kk">2</b><b class="kk">3</b><b class="kk">4</b></span></div>
           <div class="help-row"><span>设置（手柄：Start → 设置）</span><span class="hk"><b class="kk">4</b></span></div>
           <div class="help-row"><span>快捷菜单</span><span class="hk"><b class="kk">☰</b><b class="kk">Start</b></span></div>

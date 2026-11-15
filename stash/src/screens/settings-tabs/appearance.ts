@@ -1,5 +1,5 @@
 /** 外观页签：主题 / 布局 / 动效 / 字号 / 竖排原名 / 音效。 */
-import { state } from '../../state';
+import { state, SORT_MODES } from '../../state';
 import type { Settings } from '../../types';
 import { esc, normalizeFontScale, normalizeAnimSpeed, normalizeBootAnim } from '../../ui';
 import { layoutMode } from '../library';
@@ -13,6 +13,8 @@ export function appearanceHTML(s: Settings): string {
         <span class="mini" id="pickTheme">${esc(THEME_LABEL[s.theme] ?? THEME_LABEL.cinema)} ▾</span></div>
       <div class="srow"><div class="lab"><b>界面布局</b><span>经典 = 大海报 + 封面轨道；列表 = 左列快速浏览 + 右侧大图；海报墙 = 大封面网格，方向键上下整排移动</span></div>
         ${segHTML('segLayout', [{ v: 'classic', label: '经典' }, { v: 'list', label: '列表' }, { v: 'wall', label: '海报墙' }], layoutMode())}</div>
+      <div class="srow"><div class="lab"><b>排序方式</b><span>轨道 / 列表 / 海报墙与网格共用同一排序</span></div>
+        ${segHTML('segSort', SORT_MODES, state.sortBy)}</div>
       <div class="srow"><div class="lab"><b>动效强度</b><span>焦点弹跳与轨道滑动的幅度 · 与帧率档位正交</span></div>
         ${segHTML('segMotion', [{ v: '0', label: '标准' }, { v: '1', label: '柔和' }], String(state.motion))}</div>
       <div class="srow"><div class="lab"><b>启动与转场速度</b><span>启动跃迁与全屏切换的时长 · 不改变库内动效</span></div>

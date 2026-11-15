@@ -1,4 +1,5 @@
-/** 元数据页签：匹配进度 / 已匹配作品 / 待确认队列 / 未匹配队列 / 封面缓存 / 手动添加 / 隐藏作品 / 导入导出。 */
+/** 元数据页签：匹配进度 / 已匹配作品 / 待确认队列 / 未匹配队列 / 封面缓存 / 隐藏作品 / 导入导出。
+ *  「手动添加 exe」只在「库与统计」保留一份，避免同一动作在两个页签重复。 */
 import { state } from '../../state';
 import { esc } from '../../ui';
 import type { SourceProbe, SourceState, SourceStatus } from '../../ipc';
@@ -79,7 +80,7 @@ export function metadataHTML(): string {
       <div class="srow"><div class="lab"><b>本地元数据</b><span>meta.json · 原名 / 厂商 / 年份 / 标签 / 简介</span></div>
         <div class="stat"><b>${matched}</b><span>/ ${state.games.length} 已匹配</span></div></div>
       <div class="srow"><div class="lab"><b>Bangumi 匹配</b><span>≥80 自动入库 · 50–80 待确认 · &lt;50 手动绑定；可随时取消</span></div>
-        <span class="mini" data-act="match">开始匹配</span><span class="mini" data-act="cancelmatch">取消</span></div>
+        <div class="lacts"><span class="mini" data-act="match">开始匹配</span><span class="mini" data-act="cancelmatch">取消</span></div></div>
       <div class="srow"><div class="lab"><b>数据源可达性</b><span>Bangumi 需代理 · 不可达的主源匹配时自动跳过 · 匹配前会自动预检</span></div>
         <span class="mini" data-act="probe">测试</span></div>
       ${probeRowsHTML()}
@@ -120,10 +121,6 @@ export function metadataHTML(): string {
       }
       <div class="srow"><div class="lab"><b>封面缓存</b><span>WebP · 255×340 轨道档 / 300×400 详情档</span></div>
         <div class="stat"><b>${state.games.filter((g) => g.thumb).length}</b><span>已生成</span></div></div>
-    </div>
-    <div class="spanel">
-      <div class="srow"><div class="lab"><b>手动添加</b><span>直接选主程序 exe + 填标题；封面 / 引擎仍按所在目录读取，小体积 / 合集目录也能入库</span></div>
-        <button class="mini" data-act="addgame">选择 exe…</button></div>
     </div>
     ${
       hidden.length

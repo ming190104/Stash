@@ -20,7 +20,7 @@ import {
 } from './layers';
 import { promptShown, dismissPrompt, submitPrompt } from './prompt';
 import { openSearch, searchFieldKey, searchKey, scheduleSearchRender, applySort } from './search';
-import { openFilter, saveCurrentView, syncFilterChip, filterKey } from './filter';
+import { openFilter, saveCurrentView, clearAllFilters, syncFilterChip, filterKey } from './filter';
 import { showEmpty } from './empty';
 import { bgKey } from './bgpanel';
 import { candKey } from './candpanel';
@@ -166,6 +166,7 @@ export function initOverlay(): void {
   });
 
   document.getElementById('fBtn')?.addEventListener('click', openFilter);
+  document.getElementById('fltClear')?.addEventListener('click', () => clearAllFilters());
   document.getElementById('saveView')?.addEventListener('click', () => {
     if (filterShown()) void saveCurrentView();
   });

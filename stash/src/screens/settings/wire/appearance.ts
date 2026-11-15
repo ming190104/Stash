@@ -117,6 +117,21 @@ export function wireAppearance(body: HTMLElement): void {
       toast(`布局 · ${v === 'list' ? '列表' : v === 'wall' ? '海报墙' : '经典'}`);
     });
   });
+  // 排序：轨道 / 列表 / 海报墙 / 网格共用，落盘后重启仍生效
+  body.querySelectorAll('#segSort b').forEach((b) => {
+    b.addEventListener('click', () => {
+      state.sortBy = (b as HTMLElement).dataset.v as typeof state.sortBy;
+      state.focus = 0;
+      body.querySelectorAll('#segSort b').forEach((x) => x.classList.toggle('on', x === b));
+      renderRail();
+      renderGrid();
+      if (state.settings) {
+        state.settings.sort = state.sortBy;
+        persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
+      }
+      toast('已重新排序');
+    });
+  });
   // 竖排原名（落盘）
   body.querySelector('#tgVt')?.addEventListener('click', (e) => {
     state.verticalTitle = !state.verticalTitle;
