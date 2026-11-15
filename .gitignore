@@ -40,6 +40,7 @@ stash/_metrics.cjs
 stash/.cargo/
 # 本地打包产物
 stash/release/
+release/
 
 # 根目录临时预览图（截图产物，不属于源码）
 /*_preview.png
