@@ -36,7 +36,7 @@ export function mockSettings(): Settings {
     sort: 'lastPlayed',
     motion: 0,
     animSpeed: 1,
-    bootAnim: 'core',
+    bootAnim: 'warp',
     fontScale: 1,
     verticalTitle: true,
     autostart: false,

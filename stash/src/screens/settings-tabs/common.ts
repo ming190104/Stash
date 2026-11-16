@@ -1,6 +1,6 @@
 /** 设置页各页签共用的小工具：分段选择器 / 主题表 / 手柄键位表 / 文件名。 */
 import { PAD_DEFAULT, padGlyph, type PadKind } from '../../padmap';
-import type { FpsMode, PadMap, Settings, ThemeName } from '../../types';
+import type { BootAnim, FpsMode, PadMap, Settings, ThemeName } from '../../types';
 import { esc } from '../../ui';
 
 export const FPS_MODES: FpsMode[] = ['auto', '120', '90', '60'];
@@ -18,10 +18,25 @@ export const THEME_OPTS: { v: ThemeName; label: string }[] = [
   { v: 'moss', label: '苔庭' },
   { v: 'crimson', label: '绯红' },
   { v: 'daybreak', label: '白昼' },
+  { v: 'eva01', label: 'EVA-01 · 初号机' },
+  { v: 'eva02', label: 'EVA-02 · 明日香' },
+  { v: 'nerv', label: 'NERV · MAGI' },
 ];
 export const THEME_LABEL: Record<ThemeName, string> = Object.fromEntries(
   THEME_OPTS.map((t) => [t.v, t.label]),
 ) as Record<ThemeName, string>;
+
+/** 启动动画：与主题同为「下拉按钮 + 共用菜单」 */
+export const BOOT_OPTS: { v: BootAnim; label: string }[] = [
+  { v: 'warp', label: '流光跃迁' },
+  { v: 'eva01', label: 'EVA-01 · 初号机' },
+  { v: 'eva02', label: 'EVA-02 · 明日香' },
+  { v: 'evaNerv', label: 'NERV · 设施' },
+  { v: 'off', label: '关闭' },
+];
+export const BOOT_LABEL: Record<BootAnim, string> = Object.fromEntries(
+  BOOT_OPTS.map((b) => [b.v, b.label]),
+) as Record<BootAnim, string>;
 
 /** 可改的动作（方向键 / 摇杆是固定导航，不在此列） */
 const PAD_ACTIONS: { k: keyof PadMap; label: string }[] = [

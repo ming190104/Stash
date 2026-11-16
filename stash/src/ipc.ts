@@ -62,7 +62,7 @@ export function sanitizeSettings(raw: unknown): Settings {
   if (!need(out.layout === 'classic' || out.layout === 'list' || out.layout === 'wall')) out.layout = 'classic';
   if (!need(typeof out.motion === 'number')) out.motion = 0;
   if (!need(typeof out.animSpeed === 'number')) out.animSpeed = 1;
-  if (!need(out.bootAnim === 'core' || out.bootAnim === 'warp' || out.bootAnim === 'off')) out.bootAnim = 'core';
+  if (!need(out.bootAnim === 'warp' || out.bootAnim === 'eva01' || out.bootAnim === 'eva02' || out.bootAnim === 'evaNerv' || out.bootAnim === 'off')) out.bootAnim = 'warp';
   if (!need(typeof out.verticalTitle === 'boolean')) out.verticalTitle = true;
   if (!need(typeof out.autostart === 'boolean')) out.autostart = false;
   if (!need(typeof out.fullscreen === 'boolean')) out.fullscreen = true;

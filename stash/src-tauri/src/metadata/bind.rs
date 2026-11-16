@@ -143,19 +143,6 @@ fn bind_kungal_sync(store: &Store, id: &str, work_id: &str, f: ApplyFields) -> R
     Ok(())
 }
 
-/// 手动绑定：直接指定 Bangumi 条目（从候选里选，或手填 id）。绑定即视为已确认。
-/// `async`：取条目 + 下载封面全是网络 IO。
-#[tauri::command]
-pub async fn bind_subject(app: AppHandle, store: State<'_, Store>, id: String, subject_id: u32) -> Result<(), AppError> {
-    let st = store.inner().clone();
-    // 取条目（10s 超时）+ 下载封面（3–9s）+ 两档缩略图：整段阻塞
-    tauri::async_runtime::spawn_blocking(move || {
-        bind_subject_sync(&app, &st, &id, subject_id, ApplyFields::all())
-    })
-    .await
-    .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
-}
-
 pub fn bind_subject_sync(
     app: &AppHandle,
     store: &Store,

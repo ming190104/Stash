@@ -89,7 +89,7 @@ pub async fn add_game(
             .any(|g| g.id == id || crate::store::normalize_dir(&g.dir) == dir_norm)
         {
             return Err(AppError::new(
-                ErrCode::ConfigInvalid,
+                ErrCode::AlreadyInLibrary,
                 "该目录已在库中；要改名请用详情页「重命名」",
             ));
         }
@@ -129,21 +129,29 @@ fn spawn_thumbs(app: &AppHandle, store: &Store, games: &[Game]) {
     let app = app.clone();
     let store = store.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        // 先把缩略图全部生成好：解码 + 缩放是重活，绝不能持库锁做
+        let done: Vec<(String, String)> = pending
+            .into_iter()
+            .filter_map(|(id, cover)| {
+                thumb::ensure(&store, &cover, &id, false)
+                    .map(|p| (id, p.to_string_lossy().to_string()))
+            })
+            .collect();
+        if done.is_empty() {
+            return;
+        }
+        // 一次 load + 批量改 + 一次 save：导入千部时不再产生千次全量落盘
+        let _lock = store::lock_library();
+        let mut games = store.load_library();
         let mut any = false;
-        for (id, cover) in pending {
-            let Some(p) = thumb::ensure(&store, &cover, &id, false) else {
-                continue;
-            };
-            let path = p.to_string_lossy().to_string();
-            let _lock = store::lock_library();
-            let mut games = store.load_library();
+        for (id, path) in done {
             if let Some(g) = games.iter_mut().find(|g| g.id == id) {
                 g.thumb = Some(path);
-                let _ = store.save_library(&games);
                 any = true;
             }
         }
         if any {
+            let _ = store.save_library(&games);
             let _ = app.emit("thumbs://done", ());
         }
     });
@@ -390,6 +398,29 @@ fn path_under(root: &Path, p: &Path) -> bool {
     if has_parent(root) || has_parent(p) {
         return false;
     }
+    if !normalized_under(root, p) {
+        return false;
+    }
+    // 词法检查挡不住 junction / 符号链接：`root\link -> D:\Outside` 时字符串上
+    // 仍在 root 下，真实位置已经逃出去。能解析就按真实路径再比一次；
+    // 解析失败（网络盘、目标尚不存在）时退回词法结果，避免误杀。
+    let canon_root = root.canonicalize().ok();
+    let canon_p = p.canonicalize().ok().or_else(|| {
+        p.parent().and_then(|parent| {
+            parent
+                .canonicalize()
+                .ok()
+                .map(|parent| parent.join(p.file_name().unwrap_or_default()))
+        })
+    });
+    match (canon_root, canon_p) {
+        (Some(r), Some(c)) => normalized_under(&r, &c),
+        _ => true,
+    }
+}
+
+/// 归一化后的前缀比较（大小写 / 分隔符 / 尾斜杠）
+fn normalized_under(root: &Path, p: &Path) -> bool {
     let r = store::normalize_dir(&root.to_string_lossy());
     let d = store::normalize_dir(&p.to_string_lossy());
     if d == r {
@@ -434,5 +465,30 @@ mod tests {
             Path::new(r"D:\Games\..\Other"),
             Path::new(r"D:\Other\Game.exe")
         ));
+    }
+
+    /// junction / 符号链接逃逸：词法上在 root 下，真实路径在 root 外。
+    /// Windows 建符号链接需要管理员或开发者模式，建不了就跳过（CI 常见）。
+    #[cfg(windows)]
+    #[test]
+    fn rejects_symlink_escape() {
+        use std::os::windows::fs::symlink_dir;
+        let base = std::env::temp_dir().join(format!(
+            "stash-path-under-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let root = base.join("root");
+        let outside = base.join("outside");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let link = root.join("link");
+        if symlink_dir(&outside, &link).is_err() {
+            let _ = std::fs::remove_dir_all(&base);
+            return;
+        }
+        assert!(!path_under(&root, &link.join("game.exe")));
+        assert!(path_under(&root, &root.join("game.exe")));
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

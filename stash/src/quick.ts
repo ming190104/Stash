@@ -231,6 +231,10 @@ export async function openMenu(
   opts?: { back?: () => void },
 ): Promise<void> {
   const m = ensure();
+  // 菜单是模态层：先卸掉输入焦点。设置页正在输入时按 Start，若不主动失焦，
+  // 打开菜单后字母仍会继续写进背后的输入框（A / Enter 也会被输入框吞掉）。
+  const active = document.activeElement as HTMLElement | null;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) active.blur();
   const t = m.querySelector<HTMLElement>('.qt');
   if (t) setRawHTML(t, `${esc(title)}<span>${esc(sub)}</span>`);
   items = list;

@@ -192,11 +192,19 @@ pub fn fit_fullscreen(hwnd: isize) {
             SWP_NOACTIVATE | SWP_FRAMECHANGED,
         );
         // 任务栏还占着工作区（自动隐藏没生效 / 还没滑走）：直接把它藏起来，
-        // 否则它是 TOPMOST，会压住全屏窗口右侧那一条
+        // 否则它是 TOPMOST，会压住全屏窗口右侧那一条。
+        // 只在延迟贴边任务仍然有效时藏：restore() 之后 FIT_ON 已置 false，
+        // 此时再藏任务栏会把用户刚还原的任务栏又弄消失（且没有标记可恢复）。
         let work_w = mi.rcWork.right - mi.rcWork.left;
         let work_h = mi.rcWork.bottom - mi.rcWork.top;
-        if work_w < mon_w || work_h < mon_h {
+        if (work_w < mon_w || work_h < mon_h)
+            && FIT_ON.load(std::sync::atomic::Ordering::SeqCst)
+        {
             hide_shell_tray();
+            // 极小概率：检查与隐藏之间用户退出了全屏，这里再补一次显示
+            if !FIT_ON.load(std::sync::atomic::Ordering::SeqCst) {
+                show_shell_tray();
+            }
         }
         tracing::info!(
             "全屏：窗口 {}×{} → 显示器 {}×{}（工作区 {}×{}，max={}）",
@@ -357,6 +365,8 @@ pub fn clamp_to_work_later(hwnd: isize) {
 pub fn restore() {
     #[cfg(windows)]
     {
+        // 先取消还没执行的延迟贴边任务：否则它可能在本函数之后醒来，把任务栏又藏掉
+        FIT_ON.store(false, std::sync::atomic::Ordering::SeqCst);
         let orig = ORIG.lock().unwrap_or_else(|e| e.into_inner()).take();
         if let Some((state, hwnd)) = orig {
             set_state(hwnd, state);

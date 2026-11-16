@@ -87,6 +87,14 @@ export function clearSearchHistory(): void {
 /** 输入防抖：大库上每次按键都重绘结果 + 拼音检索会明显发涩，120ms 内的连续输入只算最后一次 */
 let searchTimer: number | undefined;
 
+/** 面板关闭时作废挂起的重绘：否则定时器仍会重绘一个已经隐藏的列表 */
+export function cancelSearchRender(): void {
+  if (searchTimer !== undefined) {
+    window.clearTimeout(searchTimer);
+    searchTimer = undefined;
+  }
+}
+
 export function scheduleSearchRender(): void {
   if (searchTimer !== undefined) window.clearTimeout(searchTimer);
   searchTimer = window.setTimeout(() => {
@@ -103,6 +111,8 @@ export function flushSearchRender(): void {
   renderSearch();
 }
 
+let lastSig = '';
+
 export function renderSearch(): void {
   const box = document.getElementById('spList');
   if (!box) return;
@@ -113,6 +123,11 @@ export function renderSearch(): void {
   if (count) count.textContent = state.query.trim() ? `${list.length} 部命中` : `全部 ${list.length} 部`;
   const action = document.getElementById('spAHint');
   if (action) action.textContent = list.length ? '打开' : '清除';
+  // 内容没变就只更新上方的计数，不整表重建：否则每次防抖都会重排 + 重新绑定 click，
+  // 还会把用户已经用 ↑↓ 选中的候选重置回第一条
+  const sig = [state.query, hist.join('\u0001'), list.map((g) => g.id).join('\u0001')].join('\u0002');
+  if (sig === lastSig) return;
+  lastSig = sig;
   const histHtml = hist.length
     ? `<div class="sp-hist">${hist
         .map((q) => `<span class="sp-hchip" data-q="${esc(q)}">${esc(q)}</span>`)
@@ -128,12 +143,13 @@ export function renderSearch(): void {
     </div>`,
         )
         .join('')
-    : `<div class="sp-empty"><span>没有匹配「${esc(state.query)}」的作品 · 试试会社名 / 标签 / 日文假名</span><button class="mini" id="spClear">清除搜索</button></div>`;
+    : `<div class="sp-empty"><span>没有匹配「${esc(state.query)}」的作品 · 试试会社名 / 标签 / 日文假名 / 拼音 / 罗马音</span><button class="mini" id="spClear">清除搜索</button></div>`;
   setRawHTML(box, histHtml + listHtml);
   box.querySelector('#spClear')?.addEventListener('click', clearQuery);
   box.querySelectorAll<HTMLElement>('.sp-item').forEach((el) => {
     el.addEventListener('click', () => {
       pushSearchHistory(state.query);
+      cancelSearchRender();
       hideStates();
       const id = el.dataset.id!;
       void import('./screens/library').then((m) => m.openDetail(id));
@@ -183,6 +199,9 @@ export function sortStep(dir: number): void {
 }
 
 export function openSearch(): void {
+  cancelSearchRender();
+  // 面板重新打开时强制重建列表：期间 DOM 可能已被别的屏重建
+  lastSig = '';
   state.query = '';
   const inp = document.getElementById('spInput') as HTMLInputElement | null;
   if (inp) inp.value = '';
@@ -243,7 +262,10 @@ function rememberQuery(): void {
 
 /** 焦点在搜索框：Esc / Enter / ↑↓ 交给候选列表，其余按键一律不触发全局快捷键 */
 export function searchFieldKey(e: KeyboardEvent): boolean {
+  // 输入法组合态：Enter（上屏）/ ↑↓（选候选）/ Esc（取消组合）都属于输入法，不能当命令键
+  if (e.isComposing || e.keyCode === 229) return true;
   if (e.code === 'Escape') {
+    cancelSearchRender();
     hideStates();
     e.preventDefault();
   } else if (e.code === 'Enter' || e.code === 'NumpadEnter') {
@@ -259,6 +281,8 @@ export function searchFieldKey(e: KeyboardEvent): boolean {
 
 /** 面板打开且焦点不在输入框（点了排序 chip / 手柄合成事件）：A / ↑↓ / Esc 仍由面板消费 */
 export function searchKey(e: KeyboardEvent): boolean {
+  // 焦点虽不在搜索框，但输入法仍可能处于组合态（焦点刚被摘走）：按键先交还输入法
+  if (e.isComposing || e.keyCode === 229) return true;
   // 搜索框失焦时 Enter / A 仍必须能选中候选，否则手柄在搜索面板按 A 毫无反应。
   if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyA') {
     rememberQuery();
@@ -278,6 +302,7 @@ export function searchKey(e: KeyboardEvent): boolean {
     return true;
   }
   if (e.code === 'Escape' || e.code === 'Backspace' || e.code === 'KeyB') {
+    cancelSearchRender();
     hideStates();
     e.preventDefault();
     return true;

@@ -167,6 +167,20 @@ describe('背景候选墙', () => {
     expect(await pick).toBeNull();
   });
 
+  it('在线候选与本地数量相同但 key 不同时，不得整批丢弃在线结果', async () => {
+    const local = [{ ...CARDS[0] }];
+    const remote = [{ ...CARDS[1] }];
+    vi.mocked(backgroundCandidates)
+      .mockResolvedValueOnce(local)
+      .mockResolvedValueOnce(remote); // 长度同为 1，最容易命中「按数量判断」的旧 bug
+    const pick = openBgPanel('g', 'x');
+
+    await vi.waitFor(() => expect(document.querySelectorAll('#bgGrid .bg-card').length).toBe(2));
+    expect(document.querySelector<HTMLElement>('#bgGrid .bg-card[data-i="0"] .bg-nm')!.textContent).toBe('商店横幅 2');
+    expect(bgKey(key('Escape'))).toBe(true);
+    expect(await pick).toBeNull();
+  });
+
   it('没有候选时给出去向提示，而不是空白面板', async () => {
     vi.mocked(backgroundCandidates).mockResolvedValue([]);
     const pick = openBgPanel('g', 'x');

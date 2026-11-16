@@ -29,9 +29,16 @@ pub fn stop_game(id: String) -> Result<(), AppError> {
 
 /// 当前运行中的游戏（启动后对账用；没在运行则 None）
 #[tauri::command]
-pub fn running_game(store: State<'_, Store>) -> Option<Game> {
-    let id = launcher::running_id()?;
-    store.load_library().into_iter().find(|g| g.id == id)
+pub async fn running_game(store: State<'_, Store>) -> Result<Option<Game>, AppError> {
+    // 读整库 + 枚举进程都是阻塞操作：放主线程会冻界面（云同步盘尤其明显）
+    let st = store.inner().clone();
+    Ok(tauri::async_runtime::spawn_blocking(move || {
+        let id = launcher::running_id()?;
+        st.load_library().into_iter().find(|g| g.id == id)
+    })
+    .await
+    .ok()
+    .flatten())
 }
 
 /// 当前手柄连接状态。前端启动时补查一次：手柄线程起得比页面早，

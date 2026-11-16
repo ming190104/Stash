@@ -69,9 +69,16 @@ export function gameById(id: string | null): Game | null {
   return state.games.find((g) => g.id === id) ?? null;
 }
 
+/** 四屏可见的作品（隐藏作品只在「设置 · 库」出现），不排序。
+ *  分面计数、候选池这类只要集合不要顺序的地方用它：sortedGames 每次都要排一遍全库，
+ *  方向键连发时「面板 4 列 × 每步重排」正是大库卡顿的来源。 */
+export function visibleGames(): Game[] {
+  return state.games.filter((x) => !x.hidden);
+}
+
 export function sortedGames(): Game[] {
   // 隐藏作品只在「设置 · 库」里出现，默认四屏一律不显示
-  const g = state.games.filter((x) => !x.hidden);
+  const g = visibleGames();
   switch (state.sortBy) {
     case 'title':
       g.sort((a, b) => a.title.localeCompare(b.title, 'zh'));
@@ -88,9 +95,29 @@ export function sortedGames(): Game[] {
   return g;
 }
 
+/** 智能集合的预聚合数据：一次遍历算好，供同批次的所有判定复用。
+ *  「同会社系列」原来对每部作品都要再扫一遍全库（O(N²)），
+ *  网格筛选 + 筛选面板四列计数会把它放大到无法接受的量级。 */
+export interface CollectionCtx {
+  /** 可见作品中「同会社至少 2 部」的开发商 */
+  seriesDevs: Set<string>;
+}
+
+export function collectionCtx(): CollectionCtx {
+  const n = new Map<string, number>();
+  for (const g of state.games) {
+    if (g.hidden || !g.developer) continue;
+    n.set(g.developer, (n.get(g.developer) ?? 0) + 1);
+  }
+  const seriesDevs = new Set<string>();
+  for (const [dev, count] of n) if (count >= 2) seriesDevs.add(dev);
+  return { seriesDevs };
+}
+
 /** 智能集合条件：只读数据，不需要用户维护。
- *  短篇用联网匹配拿到的参考时长（EGS）；没有时长的作品不进「短篇」，避免误判。 */
-export function collectionMatch(g: Game, c: CollectionId | null): boolean {
+ *  短篇用联网匹配拿到的参考时长（EGS）；没有时长的作品不进「短篇」，避免误判。
+ *  ctx 由调用方在同一批次里算一次传进来；不传时退回单次计算（只有单条判定时才该这样用）。 */
+export function collectionMatch(g: Game, c: CollectionId | null, ctx?: CollectionCtx): boolean {
   if (!c) return true;
   if (c === 'unplayed') return !g.lastPlayed;
   if (c === 'short') return !!g.lengthMinutes && g.lengthMinutes > 0 && g.lengthMinutes <= 600;
@@ -98,12 +125,13 @@ export function collectionMatch(g: Game, c: CollectionId | null): boolean {
   // 同会社系列：同一开发商在库里至少 2 部（隐藏的不算，否则会出现「只剩一部」的空集合）
   const dev = g.developer;
   if (!dev) return false;
-  return state.games.filter((x) => !x.hidden && x.developer === dev).length >= 2;
+  return (ctx ?? collectionCtx()).seriesDevs.has(dev);
 }
 
 /** 网格筛选后的列表（mockup FILTERS 同款语义 + 标签 / 会社 / 年份分面 + 智能集合） */
 export function gridList(): Game[] {
   const f = state.gridFilter;
+  const ctx = state.collection ? collectionCtx() : null;
   return sortedGames().filter((g) => {
     const byStatus =
       f === 'all'
@@ -119,7 +147,7 @@ export function gridList(): Game[] {
     if (state.tagFilter && !g.tags.includes(state.tagFilter) && !(g.userTags ?? []).includes(state.tagFilter)) return false;
     if (state.devFilter && g.developer !== state.devFilter) return false;
     if (state.yearFilter !== null && g.year !== state.yearFilter) return false;
-    if (!collectionMatch(g, state.collection)) return false;
+    if (!collectionMatch(g, state.collection, ctx ?? undefined)) return false;
     return true;
   });
 }

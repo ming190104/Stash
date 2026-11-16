@@ -31,7 +31,7 @@ function buildGrid(animate = false): void {
       // 与轨道卡片同一套语义：只保留 NEW（从未启动）；「新」角标已移除
       const isNew = !g.lastPlayed;
       return `
-    <div class="gcell${sel ? ' sel' : ''}" data-i="${i}" data-g="${gi}" data-id="${g.id}" style="--d:${delay}ms">
+    <div class="gcell${sel ? ' sel' : ''}" data-i="${i}" data-g="${gi}" data-id="${esc(g.id)}" style="--d:${delay}ms">
       <div class="card">
         ${artHTML(g)}
         <div class="dim"></div><div class="lift"></div>

@@ -171,6 +171,11 @@ export async function renderDetail(): Promise<void> {
   const srcLabel = !g.matched
     ? '本地目录'
     : ({ bangumi: 'Bangumi', moegirl: '萌娘百科', kungal: '鲲 Galgame', vndb: 'VNDB', igdb: 'IGDB' } as Record<string, string>)[g.metaSource ?? ''] ?? '在线';
+  const ref = refText(g);
+  // 同会社作品：只从当前库里取，用于详情页的横向推荐条
+  const related = g.developer
+    ? state.games.filter((x) => x.id !== g.id && !x.hidden && x.developer === g.developer).slice(0, 6)
+    : [];
 
   setRawHTML(
     info,
@@ -180,16 +185,17 @@ export async function renderDetail(): Promise<void> {
     <div class="d-pills">${pills.join('')}</div>
     <p class="d-sum">${esc(cnFirst(g.summary ?? '') || '尚未匹配元数据——当前信息来自本地目录。可在「设置 · 元数据」里运行 Bangumi 匹配。')}</p>
     <div class="d-meta">
-      <div>开发商<b>${esc(g.developer ?? '—')}</b></div><div>发售日<b>${g.year ?? '—'}</b></div><div>参考<b>${refText(g)}</b></div><div>元数据<b>${esc(srcLabel)}</b></div><div>引擎<b>${esc(g.engineLabel)}${g.needsLocale ? '<i class="warn"> · 需转区</i>' : ''}</b></div>
+      <div>开发商<b class="${g.developer ? '' : 'na'}">${esc(g.developer ?? '—')}</b></div><div>发售日<b class="${g.year ? '' : 'na'}">${g.year ?? '—'}</b></div><div>参考<b class="${ref === '—' ? 'na' : ''}">${ref}</b></div><div>元数据<b>${esc(srcLabel)}</b></div><div>引擎<b>${esc(g.engineLabel)}${g.needsLocale ? '<i class="warn"> · 需转区</i>' : ''}</b></div>
       <div>最近游玩<b>${fmtRelative(g.lastPlayed)}</b></div><div>累计时长<b>${fmtDuration(g.playSeconds)}</b></div><div>启动次数<b>${g.playCount} 次</b></div>
       <div>通关进度<b>${Math.round(g.progress * 100)}%</b></div>
-      <div>结局<b>${g.endings.length ? `${endsDone}/${g.endings.length}` : '—'}</b>${g.endings.length ? `<span class="linkbtn" id="dEnds">管理</span>` : `<span class="linkbtn" id="dEnds">标记…</span>`}</div>
+      <div>结局<b class="${g.endings.length ? '' : 'na'}">${g.endings.length ? `${endsDone}/${g.endings.length}` : '—'}</b>${g.endings.length ? `<span class="linkbtn" id="dEnds">管理</span>` : `<span class="linkbtn" id="dEnds">标记…</span>`}</div>
       <div>评分<b class="dstars">${stars}</b></div>
       <div>标签<b>${userTags.length}</b><span class="linkbtn" id="dTagAdd">添加</span></div>
-      <div>备注<b>${g.notes ? '已写' : '—'}</b><span class="linkbtn" id="dNotes">编辑</span></div>
+      <div>备注<b class="${g.notes ? '' : 'na'}">${g.notes ? '已写' : '—'}</b><span class="linkbtn" id="dNotes">编辑</span></div>
       ${sess.length ? `<div class="d-sess"><span>最近场次</span>${sess.map((s) => `<b>${esc(fmtRelative(s.at))} · ${esc(fmtDuration(s.seconds))}</b>`).join('')}</div>` : ''}
       ${versions.length ? `<div class="d-ver"><span>同名版本</span>${versions.map((v) => `<span class="vchip" data-ver="${esc(v.id)}">${esc(baseDir(v.dir))}</span>`).join('')}</div>` : ''}
-    </div>`,
+    </div>
+    ${related.length ? `<div class="d-rel"><span>同会社作品</span>${related.map((r) => `<span class="rel-chip" data-rel="${esc(r.id)}">${esc(r.title)}</span>`).join('')}</div>` : ''}`,
   );
 
   // 侧栏键帽跟随当前手柄映射：AB 互换 / 改键后不能还写着旧的 A / RB
@@ -235,7 +241,9 @@ export async function renderDetail(): Promise<void> {
   });
   side.querySelector('#dOpen')?.addEventListener('click', () => {
     press('#dOpen');
-    openDir(g.id).catch((e) => toast(esc(String((e as { message?: string })?.message ?? e)), true));
+    openDir(g.id)
+      .then(() => toast('已打开游戏目录'))
+      .catch((e) => toast(esc(String((e as { message?: string })?.message ?? e)), true));
   });
   side.querySelector('#dMore')?.addEventListener('click', () => {
     press('#dMore');
@@ -288,6 +296,11 @@ export async function renderDetail(): Promise<void> {
   info.querySelector('#dNotes')?.addEventListener('click', () => void editNotes(g));
   // 元数据格里的行内动作（结局管理、添加标签、编辑备注）同样是 span
   info.querySelectorAll<HTMLElement>('.linkbtn').forEach(clickable);
+  // 同会社推荐：与同名版本一样，在同一屏内切换
+  info.querySelectorAll<HTMLElement>('[data-rel]').forEach((el) => {
+    clickable(el);
+    el.addEventListener('click', () => switchDetailGame(el.dataset.rel!));
+  });
 
   // DOM 刚重建（side/info 都换过），焦点环按新集合重新挂上
   applyDetailRing();

@@ -18,9 +18,9 @@
 
 #[cfg(windows)]
 mod imp {
-    use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering};
     use std::sync::{Mutex, OnceLock};
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
     use windows_sys::Win32::System::Threading::GetCurrentProcessId;
@@ -40,6 +40,12 @@ mod imp {
     static HOOK: Mutex<Option<isize>> = Mutex::new(None);
     /// 主窗口句柄：守卫要把前台抢回它
     static OUR_WINDOW: AtomicIsize = AtomicIsize::new(0);
+    /// 上次尝试抢前台的时刻（毫秒）：抢失败后 1 秒内不再重复注入 Esc
+    static LAST_TRY_MS: AtomicU64 = AtomicU64::new(0);
+    /// 上次抢前台失败的 shell 窗口句柄：同一个窗口不再反复灌 Esc
+    static LAST_FAIL_FG: AtomicIsize = AtomicIsize::new(0);
+    /// 「抢前台失败」的告警只打一次，避免 120ms 轮询刷爆日志
+    static GUARD_WARNED: AtomicBool = AtomicBool::new(false);
 
     /// 启动时记下主窗口句柄
     pub fn set_window(hwnd: isize) {
@@ -79,11 +85,8 @@ mod imp {
         if code == HC_ACTION && ENABLED.load(Ordering::Relaxed) {
             let kb = &*(lparam as *const KBDLLHOOKSTRUCT);
             let vk = kb.vkCode as u16;
-            if vk == VK_LWIN || vk == VK_RWIN {
-                tracing::debug!("Win 键钩子：vk={vk} flags={}", kb.flags);
-                if own_foreground() {
-                    return 1; // 吞掉：开始菜单 / Win 组合键都不触发
-                }
+            if (vk == VK_LWIN || vk == VK_RWIN) && own_foreground() {
+                return 1; // 吞掉：开始菜单 / Win 组合键都不触发
             }
         }
         CallNextHookEx(std::ptr::null_mut(), code, wparam, lparam)
@@ -148,15 +151,40 @@ mod imp {
             let ours = ours as HWND;
             let fg = GetForegroundWindow();
             if fg.is_null() || fg == ours || !shell_surface(fg) {
+                LAST_FAIL_FG.store(0, Ordering::Relaxed);
+                return;
+            }
+            // 抢前台失败后 1 秒内不重复注入 Esc：守卫每 120ms 一轮，
+            // 连续失败会把 Esc 灌进游戏
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            if now.saturating_sub(LAST_TRY_MS.load(Ordering::Relaxed)) < 1000 {
+                return;
+            }
+            LAST_TRY_MS.store(now, Ordering::Relaxed);
+            // 同一个 shell 窗口上次就没抢回来：直接跳过，别再灌 Esc
+            if LAST_FAIL_FG.load(Ordering::Relaxed) == fg as isize {
                 return;
             }
             // 先 Esc 收起开始菜单 / 搜索，再把前台还给全屏窗口
             keybd_event(VK_ESCAPE as u8, 0, 0, 0);
             keybd_event(VK_ESCAPE as u8, 0, 2, 0); // KEYEVENTF_KEYUP
             std::thread::sleep(Duration::from_millis(40));
-            SetForegroundWindow(ours);
+            let switched = SetForegroundWindow(ours) != 0;
             SwitchToThisWindow(ours, 1);
-            tracing::info!("全屏守卫：开始菜单抢到前台，已收回");
+            std::thread::sleep(Duration::from_millis(30));
+            if !switched && GetForegroundWindow() != ours {
+                LAST_FAIL_FG.store(fg as isize, Ordering::Relaxed);
+                if !GUARD_WARNED.swap(true, Ordering::Relaxed) {
+                    tracing::warn!("全屏守卫：抢前台失败（可能被系统策略限制），暂停重复注入");
+                }
+            } else {
+                LAST_FAIL_FG.store(0, Ordering::Relaxed);
+                GUARD_WARNED.store(false, Ordering::Relaxed);
+                tracing::info!("全屏守卫：开始菜单抢到前台，已收回");
+            }
         }
     }
 

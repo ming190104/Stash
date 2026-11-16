@@ -188,29 +188,6 @@ pub fn needs_match(g: &Game, force: bool) -> bool {
     !(g.bangumi_id.is_some() || (g.match_score.is_some() && !g.pending))
 }
 
-/// 单部重新匹配（前端不阻塞，取回后自行刷新）。
-/// `async`：内部要走网络搜索 + 下封面（数秒级），不能占主线程。
-#[tauri::command]
-pub async fn match_one(store: State<'_, Store>, id: String) -> Result<String, AppError> {
-    let snap = store
-        .load_library()
-        .into_iter()
-        .find(|g| g.id == id)
-        .ok_or_else(|| AppError::new(ErrCode::NotFound, "游戏不在库中（可能已移除）"))?;
-    let st = store.inner().clone();
-    // 搜索 + 下封面都是阻塞网络调用（还有 1req/s 节流等待），不能占 tokio worker
-    tauri::async_runtime::spawn_blocking(move || {
-        // 用户主动点「重新匹配」：给 Bangumi / 萌娘百科一次重新探测的机会（上一轮可能只是一次超时）
-        net::reset_bangumi_offline();
-        moegirl::reset_offline();
-        let hit = resolve_hit(&st, &snap)?;
-        // 单部「重新匹配」是用户明确要求：允许覆盖手改元数据
-        Ok::<String, AppError>(write_hit_locked(&st, &id, hit.as_ref(), true).to_string())
-    })
-    .await
-    .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
-}
-
 /// 锁内回写一份匹配结果，返回档位字符串。`None` = 低于阈值（可能顺带清掉机器写的旧绑定）。
 /// `force` = 用户主动发起的重新匹配：允许覆盖手改过的元数据（清掉 meta_manual）。
 pub fn write_hit_locked(store: &Store, id: &str, hit: Option<&MatchHit>, force: bool) -> &'static str {

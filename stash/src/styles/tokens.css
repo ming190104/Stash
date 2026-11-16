@@ -19,6 +19,9 @@
   --gline:rgba(255,255,255,.09);
   --serif:"Noto Serif SC","Source Han Serif SC","SimSun",serif;
   --sans:"Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  --mono:'Cascadia Mono',Consolas,ui-monospace,monospace;
+  /* 警示色（EVA 三套用于状态灯 / 危险条，其余主题未用） */
+  --warn:#ff3b30;
   /* 焦点系统：外环 / 强环 / 线宽 / 偏移 / 危险形态，全站唯一来源（主题只改 --acc 即可） */
   --focus-ring:color-mix(in srgb,var(--acc) 55%,transparent);
   --focus-ring-strong:color-mix(in srgb,var(--acc) 88%,transparent);
@@ -135,3 +138,32 @@ html[data-theme="daybreak"] .lbar,
 html[data-theme="daybreak"] .lp-bar{background:rgba(33,26,18,.12)}
 html[data-theme="daybreak"] .lthumb{box-shadow:0 6px 14px rgba(33,26,18,.18)}
 html[data-theme="daybreak"] .lp-art{box-shadow:0 26px 50px rgba(33,26,18,.22),inset 0 0 0 1px rgba(33,26,18,.14)}
+
+/* ===== EVA 三套（P12）：只给令牌，形状 / 字体 / 装饰在 eva-ui.css ===== */
+/* 01 初号机：紫 + 荧光绿，生物质感（长圆角、呼吸光） */
+html[data-theme="eva01"]{
+  --bg0:#08070e; --bg1:#040308;
+  --ink1:#f2eee3; --ink2:rgba(242,238,227,.68); --ink3:rgba(242,238,227,.5);
+  --acc:#9a6bff; --acc2:#74ff9a; --warn:#ff3b30;
+  --acc-ink:#d8ccff; --acc-on:#140a26;
+  --accg:linear-gradient(135deg,#9a6bff,#74ff9a);
+  --glass:rgba(18,14,30,.66); --gline:rgba(154,107,255,.2);
+}
+/* 02 明日香：红 + 橙，工业警示（全直边、切角、上下危险条） */
+html[data-theme="eva02"]{
+  --bg0:#120607; --bg1:#070203;
+  --ink1:#fbeee9; --ink2:rgba(251,238,233,.7); --ink3:rgba(251,238,233,.52);
+  --acc:#ff2f3c; --acc2:#ffa62b; --warn:#ffd24a;
+  --acc-ink:#ffc3bd; --acc-on:#2b0508;
+  --accg:linear-gradient(135deg,#ff2f3c,#ffa62b);
+  --glass:rgba(30,10,13,.68); --gline:rgba(255,80,90,.22);
+}
+/* NERV：橙 + 琥珀，设施测绘（直边、1px 橙框、等宽标签、刻度进度） */
+html[data-theme="nerv"]{
+  --bg0:#0d0905; --bg1:#060302;
+  --ink1:#f6eee1; --ink2:rgba(246,238,225,.7); --ink3:rgba(246,238,225,.52);
+  --acc:#ff7a1a; --acc2:#ffc24b; --warn:#ff3f2e;
+  --acc-ink:#ffd2a0; --acc-on:#180a01;
+  --accg:linear-gradient(135deg,#ff7a1a,#ffc24b);
+  --glass:rgba(24,15,7,.7); --gline:rgba(255,122,26,.2);
+}

@@ -46,11 +46,18 @@ const LEGACY_NAME: &str = "vn-shelf";
 /// 数据根目录：优先新目录，迁移失败（旧目录还在）时继续用旧目录，避免「库突然空了」。
 pub fn data_root() -> PathBuf {
     let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-    let new = base.join(DIR_NAME);
+    pick_root(base.join(DIR_NAME), base.join(LEGACY_NAME))
+}
+
+/// 选数据根：新目录优先；但「旧目录有库、新目录没有」说明上次迁移只留下了半套数据
+/// （复制中途失败），这时必须继续用旧目录，否则界面直接变成空库。
+fn pick_root(new: PathBuf, old: PathBuf) -> PathBuf {
+    if old.join("library.json").exists() && !new.join("library.json").exists() {
+        return old;
+    }
     if new.exists() {
         return new;
     }
-    let old = base.join(LEGACY_NAME);
     if old.exists() {
         return old;
     }
@@ -63,7 +70,11 @@ pub fn data_root() -> PathBuf {
 /// 整体重命名就不会再发生（迁移被静默跳过）。新目录已存在时不动；
 /// 重命名失败（同步盘 / 杀软占用）改整目录复制，旧目录一律保留。
 pub fn migrate_legacy_dir() -> Option<(PathBuf, PathBuf)> {
-    let base = dirs::data_dir()?;
+    migrate_in(&dirs::data_dir()?)
+}
+
+/// 迁移主体（拆出来便于单测）：`base` 下 LEGACY_NAME → DIR_NAME。
+fn migrate_in(base: &Path) -> Option<(PathBuf, PathBuf)> {
     let old = base.join(LEGACY_NAME);
     let new = base.join(DIR_NAME);
     if new.exists() || !old.exists() {
@@ -72,10 +83,15 @@ pub fn migrate_legacy_dir() -> Option<(PathBuf, PathBuf)> {
     if fs::rename(&old, &new).is_ok() {
         return Some((old, new));
     }
-    match copy_dir_all(&old, &new) {
+    // 复制兜底：先复制到暂存目录，全部成功后再整体改名为正式目录。
+    // 直接往 Stash\ 里复制的话，中途失败会留下「半套数据」的目录，data_root()
+    // 见 exists() 就切过去 —— 界面空库，旧数据实际失联。
+    let staging = base.join(format!("{DIR_NAME}.migrating"));
+    let _ = fs::remove_dir_all(&staging);
+    match copy_dir_all(&old, &staging).and_then(|()| fs::rename(&staging, &new)) {
         Ok(()) => Some((old, new)),
         Err(e) => {
-            // 复制失败：data_root 会继续指向旧目录，数据不丢，只少了新目录
+            let _ = fs::remove_dir_all(&staging);
             eprintln!("stash: 数据目录迁移失败（{e}），继续使用 {}", old.display());
             None
         }
@@ -144,25 +160,40 @@ impl Store {
     }
 
     pub fn save_settings(&self, s: &Settings) -> std::io::Result<()> {
-        // 与 library 同规则：现行文件能解析才滚动 .bak，坏文件不能把好副本顶掉
-        if self.settings_path().exists() {
-            let current_ok = fs::read_to_string(self.settings_path())
-                .ok()
-                .and_then(|t| serde_json::from_str::<Settings>(&t).ok())
-                .is_some();
-            if current_ok {
-                let _ = fs::copy(self.settings_path(), self.settings_bak_path());
-            }
+        // 与 library 同规则：现行文件能解析才滚动 .bak，坏文件不能把好副本顶掉。
+        // .bak 也走原子写：fs::copy 中途失败会留下截断副本，主文件再坏就双失效。
+        let current = fs::read_to_string(self.settings_path()).ok();
+        let current_ok = current
+            .as_deref()
+            .and_then(|t| serde_json::from_str::<Settings>(t).ok())
+            .is_some();
+        if let (true, Some(text)) = (current_ok, current) {
+            let _ = save_atomic(&self.settings_bak_path(), &text);
         }
         save_atomic(&self.settings_path(), &serde_json::to_string_pretty(s)?)
     }
 
     pub fn load_library(&self) -> Vec<Game> {
+        let mut main_bad = false;
         for p in [self.library_path(), self.library_bak_path()] {
-            if let Ok(s) = fs::read_to_string(&p) {
-                let s = self.rebase_legacy_paths(s);
-                if let Ok(g) = serde_json::from_str::<Vec<Game>>(&s) {
+            let Ok(raw) = fs::read_to_string(&p) else {
+                continue;
+            };
+            let s = self.rebase_legacy_paths(raw);
+            match serde_json::from_str::<Vec<Game>>(&s) {
+                Ok(g) => {
+                    // 主文件坏、靠 .bak 救回来时，把坏主文件改名留档：
+                    // 否则下一次 save_library 会直接覆盖现场，用户永远不知道数据坏过
+                    if main_bad {
+                        self.quarantine("library.json");
+                    }
                     return g;
+                }
+                Err(e) => {
+                    tracing::warn!("{} 无法解析：{e}", p.display());
+                    if p == self.library_path() {
+                        main_bad = true;
+                    }
                 }
             }
         }
@@ -570,6 +601,25 @@ mod tests {
         }
     }
 
+    /// 迁移只在「旧目录在、新目录不在」时发生一次；重复调用不再动任何东西
+    #[test]
+    fn migrate_moves_legacy_dir_once() {
+        let base = std::env::temp_dir().join(format!("stash-migrate-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join(LEGACY_NAME)).unwrap();
+        fs::write(base.join(LEGACY_NAME).join("library.json"), "{\"games\":[]}").unwrap();
+
+        let (old, new) = migrate_in(&base).expect("首次应迁移");
+        assert!(new.join("library.json").exists());
+        assert!(!old.exists());
+        assert!(migrate_in(&base).is_none(), "新目录已存在时不再迁移");
+
+        // 旧目录又出现（用户从备份还原）：新目录仍在，不能覆盖
+        fs::create_dir_all(&old).unwrap();
+        assert!(migrate_in(&base).is_none());
+        let _ = fs::remove_dir_all(&base);
+    }
+
     /// 合并必须保留 Bangumi 写入的字段（否则 bangumi_id 还在、中文名已丢，永久不可恢复）
     #[test]
     fn merge_keeps_bangumi_metadata() {
@@ -636,6 +686,54 @@ mod tests {
         let (games, report) = merge_games(&[], vec![d.clone(), d]);
         assert_eq!(games.len(), 1);
         assert_eq!(report.added, 1);
+    }
+
+    /// 回归：上次迁移只复制了一半（新目录存在但没有 library.json）时必须继续用旧目录，
+    /// 否则界面直接空库、后续保存还写进残缺目录
+    #[test]
+    fn pick_root_keeps_old_dir_when_new_is_half_migrated() {
+        let base = std::env::temp_dir().join(format!("stash-root-{}", std::process::id()));
+        let new = base.join("Stash");
+        let old = base.join("vn-shelf");
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&new).unwrap();
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::write(old.join("library.json"), "[]").unwrap();
+        assert_eq!(pick_root(new.clone(), old.clone()), old);
+
+        // 新目录也有库（迁移完成）：用新目录
+        std::fs::write(new.join("library.json"), "[]").unwrap();
+        assert_eq!(pick_root(new.clone(), old), new);
+
+        // 全新安装：两个都不存在时用新目录
+        let _ = std::fs::remove_dir_all(&base);
+        assert_eq!(pick_root(new, base.join("vn-shelf")).file_name().unwrap(), "Stash");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// 主文件坏、.bak 好：必须用备份，并把坏主文件改名留档。
+    /// 否则下一次 save_library 直接覆盖现场，用户再也拿不回坏文件排查。
+    #[test]
+    fn corrupt_main_uses_bak_and_quarantines_main() {
+        let dir = std::env::temp_dir().join(format!("stash-bak-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let s = Store { dir: dir.clone() };
+        std::fs::write(s.library_path(), "{ not json").unwrap();
+        std::fs::write(s.library_bak_path(), "[]").unwrap();
+
+        assert!(s.load_library().is_empty(), "应读到 .bak 的空库");
+        assert!(!s.library_path().exists(), "坏主文件必须被隔离");
+        let quarantined = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("library.json.corrupt-")
+            });
+        assert!(quarantined, "应留下 library.json.corrupt-* 现场");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// 回归：手动添加第二部作品时，旧库绝不能参与合并。

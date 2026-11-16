@@ -33,6 +33,8 @@ export function scheduleHero(): void {
 function heroInfoHTML(g: Game): string {
   const pct = g.progress === 0 ? '未开始' : Math.round(g.progress * 100) + '%';
   const w = Math.round(g.progress * 100);
+  // 有进度时按钮改为「继续游玩」，比统一的「启动游戏」更贴近实际动作
+  const playLabel = g.progress > 0 ? '继续游玩' : '启动游戏';
   const tags = g.tags.length
     ? g.tags.map((t, j) => `<span class="pill${j === 0 ? ' hot' : ''}">${esc(t)}</span>`).join('')
     : `<span class="pill">${esc(g.engineLabel)}</span>`;
@@ -48,7 +50,7 @@ function heroInfoHTML(g: Game): string {
     <div class="h-bar enter"><i style="width:${w}%"></i></div>
   </div>
   <div class="h-cta row">
-    <button class="cta" id="ctaPlay"><span class="k">A</span>启动游戏</button>
+    <button class="cta" id="ctaPlay"><span class="k">A</span>${playLabel}</button>
     <button class="ghost" data-act="detail"><span class="k">Y</span>作品详情</button>
   </div>`;
 }

@@ -148,6 +148,16 @@ describe('批量操作菜单', () => {
     expect(m.toast).toHaveBeenLastCalledWith('已隐藏 · 1 部', false);
   });
 
+  it('执行过程中选中集被刷新剔除后，完成计数仍按执行前的总数', async () => {
+    await open(['a', 'b']);
+    // 模拟刷新钩子 / 失效条目回填时清空选中集：旧实现用 gridSel.size 会算成 0
+    m.setFavorite.mockImplementation(async (id: string) => {
+      state.gridSel.delete(id);
+    });
+    await item('fav').run();
+    expect(m.toast).toHaveBeenLastCalledWith('已收藏 · 2 部', false);
+  });
+
   it('单项失败不中断整批，完成文案区分成功与失败', async () => {
     await open(['a', 'b']);
     m.setFavorite.mockRejectedValueOnce(new Error('磁盘离线'));

@@ -12,7 +12,7 @@ export function game(id: string, over: Partial<Game> = {}): Game {
     romaji: null,
     dir: '',
     exe: '',
-    engine: '',
+    engine: 'unknown',
     engineLabel: '',
     engineEvidence: '',
     cover: null,
@@ -39,6 +39,9 @@ export function game(id: string, over: Partial<Game> = {}): Game {
     aliases: [],
     year: null,
     progress: 0,
+    hidden: false,
+    userTags: [],
+    notes: '',
     ...over,
   };
 }

@@ -10,6 +10,7 @@ import { setRawHTML } from '../html';
 import {
   addLibraryRoot,
   fsList,
+  getSettings,
   importLibraryRoot,
   previewLibraryRoot,
   type FsEntry,
@@ -223,6 +224,11 @@ async function addDirToLibrary(): Promise<void> {
     const norm = (p: string) => p.replace(/[\\/]+$/, '').toLowerCase();
     const known = roots.some((r) => norm(r) === norm(dir));
     const cands = known ? await previewLibraryRoot(dir) : await addLibraryRoot(dir);
+    if (!known) {
+      // 后端已把新库根写进设置：必须回读，否则下次再对同一目录操作会误走
+      // 「已在库根」分支，拿着旧的 roots 去 preview 一个不存在的根直接失败
+      state.settings = await getSettings().catch(() => state.settings);
+    }
     const picks = cands
       .filter((c) => !c.inLibrary)
       .map((c) => ({ dir: c.dir, exe: c.exe, title: c.title }));

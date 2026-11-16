@@ -2,9 +2,9 @@
  *  toast 走 innerHTML（支持 <span class="kk acc">▶</span> 键位标记，mockup 同款），
  *  动态内容在汇点 safeToast 统一处理：只保留键帽 span，其余按纯文本转义。 */
 
-import type { BootAnim, LayoutName, ThemeName } from './types';
+import { esc, setRawHTML, domEpochNo } from './html';
 import { sfx } from './sfx';
-import { esc, setRawHTML } from './html';
+import type { BootAnim, LayoutName, ThemeName } from './types';
 
 export { esc };
 
@@ -17,7 +17,7 @@ const TOAST_SHOW_MS = 1800;
 /** 队列上限：极端连点不把提示排到十几秒后，超出丢最早的一条 */
 const TOAST_QUEUE_MAX = 5;
 
-const THEMES: ThemeName[] = ['cinema', 'oled', 'sakura', 'frost', 'contrast', 'amber', 'iris', 'moss', 'crimson', 'daybreak'];
+const THEMES: ThemeName[] = ['cinema', 'oled', 'sakura', 'frost', 'contrast', 'amber', 'iris', 'moss', 'crimson', 'daybreak', 'eva01', 'eva02', 'nerv'];
 const LAYOUTS: LayoutName[] = ['classic', 'list', 'wall'];
 
 /** 应用主题：写 html[data-theme]，并缓存一份用于下次启动首帧（避免设置读盘前的闪色） */
@@ -63,11 +63,11 @@ export function normalizeAnimSpeed(v: number | undefined): number {
   return v === 1.5 || v === 2 ? v : 1;
 }
 
-/** 冷启动动画档位：core 核心启动 / warp 流光跃迁 / off 关闭 */
-const BOOT_ANIMS: BootAnim[] = ['core', 'warp', 'off'];
+/** 冷启动动画档位：warp 流光跃迁 / 三档 EVA 起动序列 / off 关闭 */
+const BOOT_ANIMS: BootAnim[] = ['warp', 'eva01', 'eva02', 'evaNerv', 'off'];
 
 export function normalizeBootAnim(v: unknown): BootAnim {
-  return (BOOT_ANIMS as unknown[]).includes(v) ? (v as BootAnim) : 'core';
+  return (BOOT_ANIMS as unknown[]).includes(v) ? (v as BootAnim) : 'warp';
 }
 
 /** 记住档位，供下次冷启动在设置读盘前就能选对动画。 */
@@ -83,9 +83,9 @@ export function applyBootAnim(v: unknown): BootAnim {
 
 export function cachedBootAnim(): BootAnim {
   try {
-    return normalizeBootAnim(localStorage.getItem('vnBootAnim') ?? 'core');
+    return normalizeBootAnim(localStorage.getItem('vnBootAnim') ?? 'warp');
   } catch {
-    return 'core';
+    return 'warp';
   }
 }
 
@@ -153,7 +153,10 @@ export function normalizeFontScale(v: unknown): number {
 
 /** 把字号比例写到根变量：app.css 里所有 font-size 都是 calc(Npx * var(--fs,1)) */
 export function applyFontScale(v: unknown): void {
-  document.documentElement.style.setProperty('--fs', String(normalizeFontScale(v)));
+  const fs = normalizeFontScale(v);
+  document.documentElement.style.setProperty('--fs', String(fs));
+  // 特大字号下部分装饰元素要单独隐藏 / 放大；CSS 无法直接比较 var()，同步一份 data 属性给选择器
+  document.documentElement.dataset.fsScale = String(fs);
 }
 
 /** 全屏时隐藏右上角的三个窗口按钮：无边框全屏里它们既用不上又压在画面上 */
@@ -295,12 +298,22 @@ export function pressCard(card: HTMLElement | null, ms = 140): void {
 export const RING_SEL =
   '.tg,.mini,.cta,.ghost,.seg b[data-v],.inp,.back,.tbtn,.linkbtn,.dstar,.pmrow,.snav button,.cand-card';
 
-/** 收集容器内可聚焦控件（文档序，与视觉顺序一致） */
+/** 收集容器内可聚焦控件（文档序，与视觉顺序一致）。
+ *  同一份 DOM 上多次调用（手柄连发 / 环移动后紧接着取列表）复用上次结果：
+ *  每个元素读 `offsetParent` 都会强制布局，控件多时连发明显掉帧。
+ *  用 DOM 版本号失效：任何 setRawHTML / clearHTML 之后自动重算。 */
+const RING_CACHE = new WeakMap<ParentNode, { els: HTMLElement[]; epoch: number }>();
+
 export function ringEls(root: ParentNode = document): HTMLElement[] {
-  return [...root.querySelectorAll<HTMLElement>(RING_SEL)].filter(
+  const epoch = domEpochNo();
+  const hit = RING_CACHE.get(root);
+  if (hit && hit.epoch === epoch) return hit.els;
+  const els = [...root.querySelectorAll<HTMLElement>(RING_SEL)].filter(
     // 隐藏元素不进焦点环（例如 data-act 区域被 display:none 收起的候选面板）
     (el) => el.offsetParent !== null || el === document.activeElement,
   );
+  RING_CACHE.set(root, { els, epoch });
+  return els;
 }
 
 /** 给一组元素中的第 i 个挂 `.focus`，返回夹紧后的索引 */

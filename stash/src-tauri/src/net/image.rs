@@ -3,7 +3,7 @@
 use crate::models::{AppError, ErrCode, Settings};
 use crate::store::Store;
 
-use super::client::{download_client, wait_turn};
+use super::client::{check_remote_url, download_client, wait_turn};
 
 /// 取一张网图：返回 (字节, 扩展名)。`what` 只用于错误文案。
 /// 走 1 req/s 串行闸门（封面 / 背景这类单张下载）。
@@ -32,6 +32,9 @@ fn fetch_image_inner(
     what: &str,
     throttled: bool,
 ) -> Result<(Vec<u8>, String), AppError> {
+    // 图片地址来自远端元数据：不限协议 / 主机的话，恶意条目能让客户端去访问内网
+    // （SSRF 面），也能用 file:// 之类读本地文件。放在最前面，避免任何请求发出。
+    check_remote_url(url, "图片")?;
     let c = download_client(settings)?;
     let _turn = if throttled { Some(wait_turn()) } else { None };
     let resp = c
@@ -126,4 +129,41 @@ pub fn download_cover(
 ) -> Result<String, AppError> {
     let (bytes, ext) = fetch_image(settings, url, "封面")?;
     save_image(store, game_id, "_src", &bytes, &ext)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::check_remote_url;
+
+    #[test]
+    fn rejects_local_and_private_urls() {
+        for url in [
+            "file:///C:/Windows/win.ini",
+            "ftp://example.com/a.png",
+            "http://127.0.0.1/a.png",
+            "http://[::1]/a.png",
+            "http://[::ffff:127.0.0.1]/a.png",
+            "http://[::ffff:192.168.1.2]/a.png",
+            "http://localhost/a.png",
+            "http://foo.localhost/a.png",
+            "http://router.local/a.png",
+            "http://192.168.1.2/a.png",
+            "http://10.0.0.5/a.png",
+            "http://169.254.1.1/a.png",
+            "http://0.0.0.0/a.png",
+        ] {
+            assert!(check_remote_url(url, "图片").is_err(), "必须拒绝：{url}");
+        }
+    }
+
+    #[test]
+    fn allows_public_https_urls() {
+        for url in [
+            "https://lain.bgm.tv/pic/cover/l/ab/cd/123.jpg",
+            "http://img.example.com/a.png",
+            "https://8.8.8.8/a.png",
+        ] {
+            assert!(check_remote_url(url, "图片").is_ok(), "必须允许：{url}");
+        }
+    }
 }

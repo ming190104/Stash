@@ -1,0 +1,7 @@
+# 锁定 Rust 工具链：`cargo clippy --all-targets -- -D warnings` 目前是全绿的，
+# 换一个工具链版本就可能因为新增 lint 把 CI 直接打红。升级时改这里，
+# 并在本地把 npm run verify:rust 跑一遍再提交。
+[toolchain]
+channel = "1.96.0"
+components = ["clippy"]
+profile = "minimal"

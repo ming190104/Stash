@@ -62,13 +62,16 @@ async function eachGame(ids: string[], op: (id: string) => Promise<void>): Promi
   return failed;
 }
 
-async function finishBatch(msg: string, failed = 0): Promise<void> {
-  const n = state.gridSel.size;
+/** 收尾：总数由调用方在执行前捕获。
+ *  `state.gridSel.size` 在刷新后会被剔除失效 id，用它计数会偏小甚至为负。 */
+async function finishBatch(msg: string, total: number, failed = 0): Promise<void> {
+  const n = total;
+  const ok = Math.max(0, n - failed);
   state.gridSel.clear();
   state.gridMulti = false;
   window.dispatchEvent(new Event('multi-change'));
   await refreshHook();
-  toast(failed ? `${msg} · ${n - failed} 部成功 · ${failed} 部失败` : `${msg} · ${n} 部`, failed > 0);
+  toast(failed ? `${msg} · ${ok} 部成功 · ${failed} 部失败` : `${msg} · ${n} 部`, failed > 0);
 }
 
 /** 批量操作菜单：多选态下点击「批量操作…」或按 X 打开 */
@@ -89,7 +92,7 @@ export async function openBatch(): Promise<void> {
       label: addFav ? `收藏 ${ids.length} 部` : `取消收藏 ${ids.length} 部`,
       run: async () => {
         const failed = await eachGame(ids, (id) => setFavorite(id, addFav));
-        await finishBatch(addFav ? '已收藏' : '已取消收藏', failed);
+        await finishBatch(addFav ? '已收藏' : '已取消收藏', ids.length, failed);
       },
     },
     {
@@ -97,7 +100,7 @@ export async function openBatch(): Promise<void> {
       label: show ? `隐藏 ${ids.length} 部` : `取消隐藏 ${ids.length} 部`,
       run: async () => {
         const failed = await eachGame(ids, (id) => setHidden(id, show));
-        await finishBatch(show ? '已隐藏' : '已取消隐藏', failed);
+        await finishBatch(show ? '已隐藏' : '已取消隐藏', ids.length, failed);
       },
     },
     {
@@ -118,7 +121,7 @@ export async function openBatch(): Promise<void> {
           if (tags.includes(tag)) return;
           await setUserTags(id, [...tags, tag]);
         });
-        await finishBatch('已添加标签', failed);
+        await finishBatch('已添加标签', ids.length, failed);
       },
     },
     {
@@ -131,7 +134,7 @@ export async function openBatch(): Promise<void> {
         });
         if (!ok) return;
         const failed = await eachGame(ids, (id) => removeGame(id));
-        await finishBatch('已移除', failed);
+        await finishBatch('已移除', ids.length, failed);
       },
     },
     { key: 'close', label: '关闭', hint: 'B', run: () => {} },

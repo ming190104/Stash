@@ -19,6 +19,8 @@ export const sui = {
   captureSeq: 0,
   /** 上一次渲染的页签：切换页签时把面板滚回顶部，后台重渲染则保留滚动位置 */
   lastRenderedTab: -1,
+  /** 已匹配作品的筛选词：面板由后台 rerender() 重建时不能丢 */
+  matchedFilter: '',
 };
 
 let rerenderFn: () => void = () => {};

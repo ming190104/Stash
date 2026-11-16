@@ -9,12 +9,12 @@ import { pinyinHay } from '../pinyin';
 /** 最小可用 Game：只填搜索相关字段，其余给空值，避免测试依赖完整 mock 库 */
 function game(id: string, title: string, over: Partial<Game> = {}): Game {
   return {
-    id, title, titleOriginal: null, romaji: null, dir: '', exe: '', engine: '', engineLabel: '',
+    id, title, titleOriginal: null, romaji: null, dir: '', exe: '', engine: 'unknown', engineLabel: '',
     engineEvidence: '', cover: null, thumb: null, shots: [], peProduct: null, peCompany: null,
     developer: null, sizeGb: 0, lastPlayed: null, playCount: 0, playSeconds: 0, endings: [],
     favorite: false, addedAt: 0, needsLocale: false, matched: true, launchArgs: [], bangumiId: null,
     matchScore: null, pending: false, summary: null, tags: [], aliases: [], year: null,
-    progress: 0, ...over,
+    progress: 0, hidden: false, userTags: [], notes: '', ...over,
   };
 }
 

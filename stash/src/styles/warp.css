@@ -1,15 +1,35 @@
-/* 核心启动（S-01 Core Boot）：冷启动与全屏切换共用同一套仪器元素。
-   颜色全部取自主题令牌（--bg1 / --ink1 / --acc / --ink2 / --ink3），
-   十套主题（含「白昼」亮色）自动换色；切换主题后下一次播放即生效。
-   时间轴以 3.0s 为撰写基准，--k 由 splash.ts 按实际时长 / 速度写入：
-     冷启动 1× = 5.0s（--k = 5/3），全屏切换 1× = 1.75s（--k = 1.75/3）。
-   收尾不靠这里的淡出关键帧硬切，splash.ts 会在运动末尾叠一段 340ms 透明度过渡。
-   动画只动 transform / opacity（120fps 红线）。 */
+/* Stash 启动转场（S-01 核心启动 / S-03 流光跃迁 / 全屏压缩段）
+   ------------------------------------------------------------------
+   时间轴：所有一次性动画共用 3.0s 撰写基准，--k 由 splash.ts 写入实际时长 / 3000。
+     冷启动 1× = 5.0s（--k = 5/3），全屏 1× = 1.75s（--k = 1.75/3）；
+     1.5× / 2× 两处共用同一倍率。3.0s 基准下 1% = 30ms；1× 下 1% = 50ms。
+     只在错峰的小元素上用 calc(秒 * var(--k)) 的时长 / 延迟，秒数写 3.0s 基准值。
+   八拍（3.0s 基准百分比；1× 实际时间 = 百分比 × 50ms）：
+     上电 0–6% → 上线 6–14% → 扫描 14–24% → 蓄力 24–36%
+     锁定 36–48% → 读取 48–68% → 落定 68–88% → 交棒 88–100%
+   不可动的不变量：闪光峰值 36.5%（= 1.825s），splash.ts 的 0.365 与它同源；
+     全屏换边压在 36.5% 的闪光下，任何让峰值漂移的改动都会切在错处。
+   颜色全部取自主题令牌；只动 transform / opacity（120fps 红线）。
+   daybreak（白昼）下加色改正片叠底、闪光降峰、扫描线隐藏、暗角改用墨色。 */
 
 #warpSplash {
   --k: 1;
   --wp-line: color-mix(in srgb, var(--ink1) 30%, transparent);
   --wp-line2: color-mix(in srgb, var(--ink1) 52%, transparent);
+  /* 闪光：中心直接用 ink1（暗色近白、白昼墨爆），外圈才混强调色 */
+  --wp-glow: color-mix(in srgb, var(--ink1) 46%, var(--acc) 54%);
+  --wp-flash: color-mix(in srgb, var(--wp-glow) 60%, transparent);
+  --wp-flash-peak: .78;
+  /* 暗角：不能混 bg0 —— 白昼主题的 bg0 比 bg1 更亮，会把暗角翻成亮角 */
+  --wp-vig-c: color-mix(in srgb, var(--bg1) 78%, #000);
+  --wp-add: plus-lighter;
+  --wp-grain-op: .05;
+  --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  --e-ign: cubic-bezier(.16, 1, .3, 1);
+  --e-asm: cubic-bezier(.2, .9, .2, 1);
+  --e-env: cubic-bezier(.33, 0, .2, 1);
+  --e-snap: cubic-bezier(.2, 0, .1, 1);
+  --e-exit: cubic-bezier(.4, 0, .2, 1);
   position: absolute;
   inset: 0;
   z-index: 400;
@@ -18,44 +38,59 @@
   pointer-events: none;
   background: var(--bg1);
   font-family: var(--sans);
+  isolation: isolate;
 }
 
 #warpSplash.on {
   display: block;
 }
 
-#warpSplash.mode-core.on {
-  animation: wpc-out calc(3s * var(--k)) linear both;
+/* 颗粒：内联 SVG 湍流当 alpha，不下载素材；没有它，OLED 纯黑上的大渐变会出色带 */
+#warpSplash::before {
+  content: '';
+  position: absolute;
+  inset: -8%;
+  z-index: 6;
+  pointer-events: none;
+  opacity: var(--wp-grain-op);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  animation: wpc-grain 1.2s steps(2) infinite;
 }
 
-/* ===== 库位网格底图 ===== */
+/* ===== 库位网格底图：72px 细网格 + 360px 主网格 ===== */
 .wp-grid {
   position: absolute;
   inset: -12%;
   opacity: 0;
   background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink1) 11%, transparent) 0 1px, transparent 1px 360px),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--ink1) 11%, transparent) 0 1px, transparent 1px 360px),
     repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink1) 6%, transparent) 0 1px, transparent 1px 72px),
     repeating-linear-gradient(0deg, color-mix(in srgb, var(--ink1) 6%, transparent) 0 1px, transparent 1px 72px);
-  -webkit-mask: radial-gradient(circle at 50% 47%, #000 0 32%, transparent 72%);
-  mask: radial-gradient(circle at 50% 47%, #000 0 32%, transparent 72%);
-  animation: wpc-grid calc(3s * var(--k)) ease both;
+  -webkit-mask: radial-gradient(circle 520px at 50% 44.5%, #000 0 26%, transparent 72%);
+  mask: radial-gradient(circle 520px at 50% 44.5%, #000 0 26%, transparent 72%);
+  animation: wpc-grid calc(3s * var(--k)) linear both;
 }
 
-/* ===== 顶部状态条：SCANNING CORE → CORE LOCKED ===== */
+/* ===== 顶部状态条：SCANNING CORE → CORE LOCKED → LIBRARY READY ===== */
 .wp-read {
   position: absolute;
   left: 50%;
   top: 62px;
-  width: 300px;
+  width: 320px;
   height: 12px;
-  margin-left: -150px;
-  font-size: 9px;
-  letter-spacing: .36em;
-  text-indent: .36em;
+  margin-left: -160px;
+  font-family: var(--mono);
+  font-size: clamp(9.5px, calc(9.5px * var(--fs, 1)), 12px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .22em;
+  text-indent: .22em;
   text-align: center;
-  color: color-mix(in srgb, var(--ink1) 72%, transparent);
+  color: color-mix(in srgb, var(--ink1) 66%, transparent);
   opacity: 0;
-  animation: wpc-in calc(.5s * var(--k)) calc(.3s * var(--k)) ease both;
+  animation: wpc-in calc(.16s * var(--k)) calc(.12s * var(--k)) var(--e-ign) both;
 }
 
 .wp-read::before,
@@ -63,17 +98,18 @@
   content: '';
   position: absolute;
   top: 50%;
-  width: 70px;
+  width: 96px;
   height: 1px;
+  animation: wpc-line calc(3s * var(--k)) linear both;
 }
 
 .wp-read::before {
-  left: -82px;
+  left: -108px;
   background: linear-gradient(90deg, transparent, var(--wp-line2));
 }
 
 .wp-read::after {
-  right: -82px;
+  right: -108px;
   background: linear-gradient(270deg, transparent, var(--wp-line2));
 }
 
@@ -87,6 +123,7 @@
   white-space: nowrap;
 }
 
+/* 状态在闪光下面完成换字：20ms 硬切，不留两层同时亮 */
 .wp-s1 {
   animation: wpc-s1 calc(3s * var(--k)) linear both;
 }
@@ -97,23 +134,50 @@
   animation: wpc-s2 calc(3s * var(--k)) linear both;
 }
 
-/* 末段确认：CORE LOCKED 之后接一句 LIBRARY READY，把 5s 的收束落在「可进入」上 */
+/* 末段确认：CORE LOCKED 之后接一句 LIBRARY READY，把 5s 收束在「可进入」上 */
 .wp-s3 {
-  color: var(--acc);
+  color: var(--ink2);
   opacity: 0;
   animation: wpc-s3 calc(3s * var(--k)) linear both;
 }
 
-/* ===== 核心总成 ===== */
+/* ===== 核心总成：三个平面里唯一会推近的那一层 ===== */
 .wp-core {
   position: absolute;
   left: 50%;
-  top: 47%;
+  top: 44.5%;
   width: 340px;
   height: 340px;
   margin: -170px 0 0 -170px;
   opacity: 0;
-  animation: wpc-in calc(.45s * var(--k)) calc(.06s * var(--k)) ease both;
+  animation: wpc-core calc(3s * var(--k)) linear both;
+}
+
+/* 固定的 0° 索引刻度：没有参照物，46° 与 49° 的差别读不出来 */
+.wp-core::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 1px;
+  height: 11px;
+  margin-left: -.5px;
+  background: color-mix(in srgb, var(--ink1) 48%, transparent);
+}
+
+/* 中心碟形凹陷：给实心块一个落脚的底 */
+.wp-core::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 232px;
+  height: 232px;
+  margin: -116px 0 0 -116px;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side,
+    color-mix(in srgb, var(--ink1) 4%, transparent) 0 62%,
+    transparent 67%);
 }
 
 .wp-halo {
@@ -122,46 +186,72 @@
   border-radius: 50%;
   pointer-events: none;
   background: radial-gradient(circle,
-    color-mix(in srgb, var(--ink1) 16%, transparent),
-    color-mix(in srgb, var(--ink1) 5%, transparent) 44%,
+    color-mix(in srgb, var(--ink1) 10%, transparent),
+    color-mix(in srgb, var(--acc) 7%, transparent) 44%,
     transparent 68%);
   opacity: 0;
-  animation: wpc-halo calc(3s * var(--k)) ease both;
+  animation: wpc-halo calc(3s * var(--k)) var(--e-env) both;
 }
 
-.wp-ticks,
-.wp-ticks2,
-.wp-arc,
-.wp-orbit,
-.wp-sweep {
+/* 左上 key light：仪器被一盏灯照到，而不是自己均匀发光 */
+.wp-halo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
+  background: radial-gradient(45% 45% at 36% 28%,
+    color-mix(in srgb, var(--ink1) 9%, transparent),
+    transparent 70%);
 }
 
+/* 第三圈远景刻度：把 340px 的控件放进一台更大的机器里 */
+.wp-halo::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 520px;
+  height: 520px;
+  margin: -260px 0 0 -260px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg,
+    color-mix(in srgb, var(--ink1) 34%, transparent) 0deg .5deg,
+    transparent .5deg 30deg);
+  -webkit-mask: radial-gradient(circle 260px at 50% 50%, transparent 246px, #000 247px 251px, transparent 252px);
+  mask: radial-gradient(circle 260px at 50% 50%, transparent 246px, #000 247px 251px, transparent 252px);
+  opacity: .55;
+  animation: wpc-spin calc(60s * var(--k)) linear infinite reverse;
+}
+
+/* 刻度环：mask 必须写死像素半径。百分比按 farthest-corner 解析，
+   340px 盒子的基准是 240px 而不是内切圆 170px，环带会被推到盒外切掉。 */
 .wp-ticks {
   position: absolute;
   inset: 0;
+  border-radius: 50%;
   background: repeating-conic-gradient(from 0deg,
-    color-mix(in srgb, var(--ink1) 62%, transparent) 0deg .35deg, transparent .35deg 4.5deg);
-  -webkit-mask: radial-gradient(circle, transparent 68%, #000 69% 72.5%, transparent 73.5%);
-  mask: radial-gradient(circle, transparent 68%, #000 69% 72.5%, transparent 73.5%);
-  animation: wpc-spin calc(26s * var(--k)) linear infinite;
+    color-mix(in srgb, var(--ink1) 46%, transparent) 0deg .35deg, transparent .35deg 4.5deg);
+  -webkit-mask: radial-gradient(circle 170px at 50% 50%, transparent 162px, #000 163px 169px, transparent 170px);
+  mask: radial-gradient(circle 170px at 50% 50%, transparent 162px, #000 163px 169px, transparent 170px);
+  animation: wpc-lock-a calc(3s * var(--k)) linear both;
 }
 
 .wp-ticks2 {
   position: absolute;
   inset: 26px;
+  border-radius: 50%;
   background: repeating-conic-gradient(from 0deg,
-    color-mix(in srgb, var(--ink1) 40%, transparent) 0deg .5deg, transparent .5deg 9deg);
-  /* 用像素半径而不是百分比：盒子的 farthest-corner 比内切圆大，百分比会把环推到盒子外 */
-  -webkit-mask: radial-gradient(circle, transparent 129px, #000 130px 137px, transparent 138px);
-  mask: radial-gradient(circle, transparent 129px, #000 130px 137px, transparent 138px);
-  animation: wpc-spin-r calc(16s * var(--k)) linear infinite;
+    color-mix(in srgb, var(--ink1) 32%, transparent) 0deg .5deg, transparent .5deg 9deg);
+  -webkit-mask: radial-gradient(circle 144px at 50% 50%, transparent 129px, #000 130px 137px, transparent 138px);
+  mask: radial-gradient(circle 144px at 50% 50%, transparent 129px, #000 130px 137px, transparent 138px);
+  animation: wpc-lock-b calc(3s * var(--k)) linear both;
 }
 
-/* 双弧环：一冷一暖（冷 = 主题文字色，暖 = 主题强调色），锁定时定住一瞬 */
+/* 双弧环：一冷一暖，锁定后只做极慢漂移 */
 .wp-arc {
   position: absolute;
   inset: 14px;
+  border-radius: 50%;
   background: conic-gradient(from 0deg,
     transparent 0 26deg,
     color-mix(in srgb, var(--acc) 78%, transparent) 30deg 38deg,
@@ -170,19 +260,19 @@
     transparent 176deg 236deg,
     color-mix(in srgb, var(--ink1) 24%, transparent) 240deg 246deg,
     transparent 250deg 360deg);
-  -webkit-mask: radial-gradient(circle, transparent 71%, #000 72% 74.5%, transparent 75.5%);
-  mask: radial-gradient(circle, transparent 71%, #000 72% 74.5%, transparent 75.5%);
+  -webkit-mask: radial-gradient(circle 156px at 50% 50%, transparent 149px, #000 150px 155px, transparent 156px);
+  mask: radial-gradient(circle 156px at 50% 50%, transparent 149px, #000 150px 155px, transparent 156px);
   opacity: 0;
   animation:
-    wpc-arc calc(1.05s * var(--k)) calc(.35s * var(--k)) cubic-bezier(.2, .8, .2, 1) both,
-    wpc-spin calc(22s * var(--k)) calc(1.4s * var(--k)) linear infinite;
+    wpc-arc-in calc(.24s * var(--k)) calc(.276s * var(--k)) var(--e-asm) both,
+    wpc-spin calc(40s * var(--k)) calc(.276s * var(--k)) linear infinite;
 }
 
-/* 三个轨道节点，随环转动 */
+/* 三个轨道节点，随环转动（锁定后放慢，但不停：卫星还在走） */
 .wp-orbit {
   position: absolute;
   inset: 0;
-  animation: wpc-spin calc(11s * var(--k)) linear infinite;
+  animation: wpc-spin calc(18s * var(--k)) linear infinite;
 }
 
 .wp-orbit i {
@@ -194,10 +284,16 @@
   margin: -2.5px;
   border-radius: 50%;
   background: var(--ink1);
-  box-shadow: 0 0 9px 1px color-mix(in srgb, var(--ink1) 75%, transparent);
+  box-shadow:
+    0 0 9px 1px color-mix(in srgb, var(--acc) 55%, transparent),
+    0 0 30px 8px color-mix(in srgb, var(--ink1) 16%, transparent);
+  mix-blend-mode: var(--wp-add);
   opacity: 0;
-  animation: wpc-in calc(.5s * var(--k)) calc(1s * var(--k)) ease both;
+  animation: wpc-in calc(.14s * var(--k)) var(--e-asm) both;
 }
+
+.wp-orbit i:nth-child(1) { animation-delay: calc(.252s * var(--k)); }
+.wp-orbit i:nth-child(2) { animation-delay: calc(.3s * var(--k)); }
 
 .wp-orbit i:nth-child(2) {
   left: 93%;
@@ -214,10 +310,13 @@
   height: 3px;
   margin: -1.5px;
   background: var(--acc);
-  box-shadow: 0 0 9px 1px color-mix(in srgb, var(--acc) 70%, transparent);
+  box-shadow:
+    0 0 9px 1px color-mix(in srgb, var(--acc) 70%, transparent),
+    0 0 30px 8px color-mix(in srgb, var(--acc) 14%, transparent);
+  animation-delay: calc(.348s * var(--k));
 }
 
-/* 十字准线 */
+/* 十字准线：接上光轴，从中心向两侧弹开 */
 .wp-cross {
   position: absolute;
   inset: 0;
@@ -228,7 +327,6 @@
 .wp-cross::after {
   content: '';
   position: absolute;
-  background: linear-gradient(90deg, transparent, var(--wp-line), transparent);
   opacity: 0;
 }
 
@@ -237,33 +335,36 @@
   right: -74px;
   top: 50%;
   height: 1px;
+  background: linear-gradient(90deg, transparent, var(--wp-line), transparent);
   transform: scaleX(0);
-  animation: wpc-cross-h calc(1s * var(--k)) calc(.4s * var(--k)) cubic-bezier(.2, .8, .2, 1) both;
+  animation: wpc-cross-h calc(3s * var(--k)) linear both;
 }
 
 .wp-cross::after {
-  top: -74px;
-  bottom: -74px;
+  top: -212px;
+  bottom: -212px;
   left: 50%;
   width: 1px;
-  background: linear-gradient(180deg, transparent, var(--wp-line), transparent);
+  background: linear-gradient(180deg, transparent, var(--wp-line) 18%, var(--wp-line) 82%, transparent);
   transform: scaleY(0);
-  animation: wpc-cross-v calc(1s * var(--k)) calc(.4s * var(--k)) cubic-bezier(.2, .8, .2, 1) both;
+  animation: wpc-cross-v calc(3s * var(--k)) linear both;
 }
 
-/* 扫描楔：暖色前缘 + 一根指向环外的雷达针 */
+/* 扫描楔：前缘非线性衰减 + 一根指向环外的雷达针 */
 .wp-sweep {
   position: absolute;
   inset: 0;
+  border-radius: 50%;
   opacity: 0;
   background: conic-gradient(from 0deg, transparent 0 284deg,
-    color-mix(in srgb, var(--acc) 8%, transparent) 312deg,
-    color-mix(in srgb, var(--acc) 40%, transparent) 348deg,
-    color-mix(in srgb, var(--acc) 90%, transparent) 359deg,
+    color-mix(in srgb, var(--acc) 6%, transparent) 312deg,
+    color-mix(in srgb, var(--acc) 20%, transparent) 340deg,
+    color-mix(in srgb, var(--acc) 62%, transparent) 352deg,
+    color-mix(in srgb, var(--acc) 100%, transparent) 359.6deg,
     transparent 360deg);
-  -webkit-mask: radial-gradient(circle, transparent 56%, #000 57% 74%, transparent 75%);
-  mask: radial-gradient(circle, transparent 56%, #000 57% 74%, transparent 75%);
-  animation: wpc-sweep calc(1.1s * var(--k)) calc(.5s * var(--k)) cubic-bezier(.35, .05, .25, 1) both;
+  -webkit-mask: radial-gradient(circle 170px at 50% 50%, transparent 132px, #000 133px 168px, transparent 169px);
+  mask: radial-gradient(circle 170px at 50% 50%, transparent 132px, #000 133px 168px, transparent 169px);
+  animation: wpc-sweep calc(3s * var(--k)) linear both;
 }
 
 .wp-sweep::before {
@@ -286,36 +387,25 @@
   margin-left: -2.5px;
   border-radius: 50%;
   background: var(--acc);
-  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--acc) 75%, transparent);
+  box-shadow: 0 0 18px 3px color-mix(in srgb, var(--acc) 45%, transparent);
+  mix-blend-mode: var(--wp-add);
 }
 
-/* 两道锁脉冲 */
-.wp-pulse,
-.wp-pulse2 {
+/* 锁定冲击环：只留一道，另一道交给闪光的 ::after */
+.wp-pulse {
   position: absolute;
   left: 50%;
   top: 50%;
-  border-radius: 50%;
-  opacity: 0;
-}
-
-.wp-pulse {
   width: 300px;
   height: 300px;
   margin: -150px 0 0 -150px;
+  border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--acc) 60%, transparent);
-  animation: wpc-pulse calc(1s * var(--k)) calc(1s * var(--k)) ease-out both;
+  opacity: 0;
+  animation: wpc-pulse calc(.62s * var(--k)) calc(1.095s * var(--k)) cubic-bezier(.17, .67, .35, 1) both;
 }
 
-.wp-pulse2 {
-  width: 340px;
-  height: 340px;
-  margin: -170px 0 0 -170px;
-  border: 1px solid color-mix(in srgb, var(--ink1) 45%, transparent);
-  animation: wpc-pulse2 calc(1.15s * var(--k)) calc(1.08s * var(--k)) ease-out both;
-}
-
-/* 末段收束环：在 LIBRARY READY 出现前轻轻推一圈，避免 5s 的后半段完全静止 */
+/* 收束环：不是再向外扩一次，而是镜头停住时的一次内收 */
 .wp-settle {
   position: absolute;
   left: 50%;
@@ -326,10 +416,10 @@
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--acc) 38%, transparent);
   opacity: 0;
-  animation: wpc-settle calc(.9s * var(--k)) calc(2.1s * var(--k)) cubic-bezier(.2, .8, .2, 1) both;
+  animation: wpc-settle calc(.56s * var(--k)) calc(1.62s * var(--k)) cubic-bezier(.16, 1, .3, 1) both;
 }
 
-/* 锁定菱形 + 核心光点 */
+/* 锁定菱形：唯一的实心块；落位带一次过冲，最后必须落在 45° */
 .wp-hex {
   position: absolute;
   left: 50%;
@@ -337,9 +427,10 @@
   width: 92px;
   height: 92px;
   margin: -46px 0 0 -46px;
-  border: 1px solid color-mix(in srgb, var(--ink1) 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--acc) 52%, transparent);
+  background: color-mix(in srgb, var(--acc) 7%, transparent);
   opacity: 0;
-  animation: wpc-hex calc(1.35s * var(--k)) calc(.95s * var(--k)) cubic-bezier(.2, .9, .2, 1) both;
+  animation: wpc-hex calc(3s * var(--k)) linear both;
 }
 
 .wp-hex::before,
@@ -372,9 +463,10 @@
   margin: -3.5px;
   border-radius: 50%;
   background: var(--acc);
-  box-shadow: 0 0 14px 3px color-mix(in srgb, var(--acc) 55%, transparent);
+  box-shadow: 0 0 10px 2px color-mix(in srgb, var(--acc) 55%, transparent);
+  mix-blend-mode: var(--wp-add);
   opacity: 0;
-  animation: wpc-dot calc(.5s * var(--k)) calc(.9s * var(--k)) ease both;
+  animation: wpc-dot calc(.3s * var(--k)) calc(1.182s * var(--k)) var(--e-asm) both;
 }
 
 /* 光点的呼吸放在伪元素上：只动 transform / opacity，不碰 box-shadow */
@@ -385,55 +477,35 @@
   border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--acc) 45%, transparent), transparent 70%);
   opacity: .75;
-  animation: wpc-breath calc(2.2s * var(--k)) calc(1.4s * var(--k)) ease-in-out infinite;
+  animation: wpc-breath calc(1.6s * var(--k)) calc(1.2s * var(--k)) ease-in-out infinite;
 }
 
-/* ===== HUD 四角与电平条 ===== */
+/* ===== HUD：只留两个角，它是取景框，不是空间里的物体 ===== */
 .wp-hud {
   position: absolute;
   inset: 38px;
   pointer-events: none;
-  font-size: 8.5px;
-  letter-spacing: .22em;
-  color: var(--ink3);
+  font-family: var(--mono);
+  font-size: clamp(9.5px, calc(9.5px * var(--fs, 1)), 12px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .18em;
+  color: color-mix(in srgb, var(--ink1) 42%, transparent);
+  animation: wpc-layer-out calc(3s * var(--k)) linear both;
 }
 
 .wp-corner {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border: 1px solid color-mix(in srgb, var(--ink1) 38%, transparent);
   opacity: 0;
-  animation: wpc-in calc(.5s * var(--k)) calc(.1s * var(--k)) ease both;
+  animation: wpc-in calc(.12s * var(--k)) var(--e-ign) both;
 }
 
-.wp-tl {
-  left: 0;
-  top: 0;
-  border-right: 0;
-  border-bottom: 0;
-}
-
-.wp-tr {
-  right: 0;
-  top: 0;
-  border-left: 0;
-  border-bottom: 0;
-}
-
-.wp-bl {
-  left: 0;
-  bottom: 0;
-  border-right: 0;
-  border-top: 0;
-}
-
-.wp-br {
-  right: 0;
-  bottom: 0;
-  border-left: 0;
-  border-top: 0;
-}
+.wp-tl { left: 0; top: 0; border-right: 0; border-bottom: 0; animation-delay: calc(.036s * var(--k)); }
+.wp-tr { right: 0; top: 0; border-left: 0; border-bottom: 0; animation-delay: calc(.048s * var(--k)); }
+.wp-bl { left: 0; bottom: 0; border-right: 0; border-top: 0; animation-delay: calc(.06s * var(--k)); }
+.wp-br { right: 0; bottom: 0; border-left: 0; border-top: 0; animation-delay: calc(.072s * var(--k)); }
 
 .wp-hud .wp-t1 {
   position: absolute;
@@ -441,102 +513,58 @@
   top: 1px;
 }
 
-.wp-hud .wp-t2 {
-  position: absolute;
-  right: 28px;
-  top: 1px;
-  text-align: right;
-}
-
-.wp-hud .wp-t3 {
-  position: absolute;
-  left: 28px;
-  bottom: 26px;
-}
-
-.wp-hud .wp-t4 {
-  position: absolute;
-  right: 28px;
-  bottom: 26px;
-  text-align: right;
-}
-
-.wp-meter {
-  position: absolute;
-  top: 50%;
-  width: 1px;
-  height: 76px;
-  margin-top: -38px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--ink1) 14%, transparent);
-}
-
-.wp-ml {
-  left: 0;
-}
-
-.wp-mr {
-  right: 0;
-}
-
-.wp-meter::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -34%;
-  height: 34%;
-  background: var(--acc);
-  opacity: .75;
-  animation: wpc-meter calc(1.7s * var(--k)) calc(.55s * var(--k)) cubic-bezier(.4, 0, .2, 1) both;
-}
-
-/* ===== 右侧遥测 ===== */
+/* ===== 右侧阶段刻度：不报假数字，只报这台机器走到第几步 ===== */
 .wp-side {
   position: absolute;
   right: 64px;
   top: calc(50% - 210px);
   text-align: right;
-  font-size: 8px;
-  line-height: 2.5;
+  font-family: var(--mono);
+  font-size: clamp(9.5px, calc(9.5px * var(--fs, 1)), 12px);
+  font-variant-numeric: tabular-nums;
+  line-height: 2.2;
   letter-spacing: .2em;
-  color: color-mix(in srgb, var(--ink1) 28%, transparent);
+  color: color-mix(in srgb, var(--ink1) 26%, transparent);
+  animation: wpc-layer-out calc(3s * var(--k)) linear both;
 }
 
 .wp-side div {
   opacity: 0;
-  animation: wpc-in calc(.4s * var(--k)) ease both;
+  animation: wpc-in calc(.192s * var(--k)) var(--e-ign) both;
 }
 
-.wp-side div:nth-child(1) { animation-delay: calc(.95s * var(--k)); }
-.wp-side div:nth-child(2) { animation-delay: calc(1.1s * var(--k)); }
-.wp-side div:nth-child(3) { animation-delay: calc(1.25s * var(--k)); }
-.wp-side div:nth-child(4) { animation-delay: calc(1.4s * var(--k)); }
+.wp-side div:nth-child(1) { animation-delay: calc(.18s * var(--k)); }
+.wp-side div:nth-child(2) { animation-delay: calc(1.095s * var(--k)); }
+.wp-side div:nth-child(3) { animation-delay: calc(1.44s * var(--k)); }
+.wp-side div:nth-child(4) { animation-delay: calc(2.448s * var(--k)); }
 
 .wp-side b {
-  color: color-mix(in srgb, var(--acc) 85%, transparent);
+  color: color-mix(in srgb, var(--acc) 68%, transparent);
   font-weight: 400;
 }
 
-/* ===== 左下挂载日志 ===== */
+/* ===== 左下挂载日志：先挂载、后闭锁，叙事顺序才对 ===== */
 .wp-log {
   position: absolute;
   left: 64px;
   bottom: 88px;
-  font-size: 9px;
+  font-family: var(--mono);
+  font-size: clamp(9.5px, calc(9.5px * var(--fs, 1)), 12px);
+  font-variant-numeric: tabular-nums;
   line-height: 2.2;
   letter-spacing: .14em;
   color: var(--ink2);
+  animation: wpc-layer-out calc(3s * var(--k)) linear both;
 }
 
 .wp-log div {
   opacity: 0;
-  animation: wpc-in calc(.32s * var(--k)) ease both;
+  animation: wpc-in calc(.192s * var(--k)) var(--e-ign) both;
 }
 
-.wp-log div:nth-child(1) { animation-delay: calc(.5s * var(--k)); }
-.wp-log div:nth-child(2) { animation-delay: calc(1.08s * var(--k)); }
-.wp-log div:nth-child(3) { animation-delay: calc(1.3s * var(--k)); }
+.wp-log div:nth-child(1) { animation-delay: calc(.372s * var(--k)); }
+.wp-log div:nth-child(2) { animation-delay: calc(.468s * var(--k)); }
+.wp-log div:nth-child(3) { animation-delay: calc(.78s * var(--k)); }
 
 .wp-log b {
   color: var(--acc);
@@ -545,29 +573,32 @@
 
 .wp-cursor {
   display: inline-block;
-  width: 6px;
-  height: 9px;
+  width: 4px;
+  height: 8px;
   margin-left: 5px;
   background: var(--acc);
   opacity: 0;
   animation:
-    wpc-in calc(.2s * var(--k)) calc(1.62s * var(--k)) ease both,
-    wpc-blink calc(1.05s * var(--k)) calc(1.62s * var(--k)) steps(1) infinite;
+    wpc-in calc(.12s * var(--k)) calc(.78s * var(--k)) ease both,
+    wpc-blink calc(1.05s * var(--k)) calc(.78s * var(--k)) steps(1) infinite;
 }
 
-/* ===== 字标：上下细线框住，逐字立起，再由扫描光带刷过 ===== */
+/* ===== 字标：display 字重 + 宽字距，逐字落款不做等距节拍器 ===== */
 .wp-word {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(50% + 172px);
+  top: calc(50% + 196px);
   text-align: center;
-  font-size: 68px;
-  font-weight: 400;
+  font-family: "Segoe UI Variable Display", "Segoe UI", var(--sans);
+  font-size: 92px;
+  font-weight: 200;
   line-height: 1;
-  letter-spacing: .3em;
-  text-indent: .3em;
-  color: var(--ink1);
+  letter-spacing: .18em;
+  text-indent: .18em;
+  color: color-mix(in srgb, var(--ink1) 90%, transparent);
+  text-shadow: 0 0 24px color-mix(in srgb, var(--acc) 12%, transparent);
+  animation: wpc-word-out calc(3s * var(--k)) linear both;
 }
 
 .wp-word::before,
@@ -575,47 +606,43 @@
   content: '';
   position: absolute;
   left: 50%;
-  width: 430px;
+  width: 520px;
   height: 1px;
-  margin-left: -215px;
+  margin-left: -260px;
   background: linear-gradient(90deg, transparent,
-    color-mix(in srgb, var(--ink1) 32%, transparent), transparent);
-  opacity: 0;
-  animation: wpc-in calc(.6s * var(--k)) calc(1.32s * var(--k)) ease both;
+    color-mix(in srgb, var(--ink1) 26%, transparent), transparent);
+  transform: scaleX(0);
+  animation: wpc-line-in calc(.22s * var(--k)) calc(1.44s * var(--k)) var(--e-ign) both;
 }
 
-.wp-word::before {
-  top: -20px;
-}
-
-.wp-word::after {
-  bottom: -22px;
-}
+.wp-word::before { top: -30px; }
+.wp-word::after { bottom: -32px; }
 
 .wp-word span {
   display: inline-block;
   opacity: 0;
-  transform: translateY(16px) scale(.94);
-  animation: wpc-let calc(.62s * var(--k)) cubic-bezier(.2, .9, .2, 1) both;
+  transform: translateY(18px);
+  animation: wpc-let calc(.12s * var(--k)) cubic-bezier(.2, .9, .2, 1) both;
 }
 
-.wp-word span:nth-child(1) { animation-delay: calc(.98s * var(--k)); }
-.wp-word span:nth-child(2) { animation-delay: calc(1.03s * var(--k)); }
-.wp-word span:nth-child(3) { animation-delay: calc(1.08s * var(--k)); }
-.wp-word span:nth-child(4) { animation-delay: calc(1.13s * var(--k)); }
-.wp-word span:nth-child(5) { animation-delay: calc(1.18s * var(--k)); }
+/* 间隔 80 / 75 / 65 / 55ms（1×），不再等距 */
+.wp-word span:nth-child(1) { animation-delay: calc(1.068s * var(--k)); }
+.wp-word span:nth-child(2) { animation-delay: calc(1.116s * var(--k)); }
+.wp-word span:nth-child(3) { animation-delay: calc(1.161s * var(--k)); }
+.wp-word span:nth-child(4) { animation-delay: calc(1.2s * var(--k)); }
+.wp-word span:nth-child(5) { animation-delay: calc(1.233s * var(--k)); }
 
 .wp-scan {
   position: absolute;
-  top: calc(50% + 156px);
+  top: calc(50% + 178px);
   left: 50%;
   width: 3px;
-  height: 96px;
+  height: 88px;
   margin-left: -1.5px;
   opacity: 0;
   background: linear-gradient(180deg, transparent,
     color-mix(in srgb, var(--acc) 90%, transparent), transparent);
-  animation: wpc-scan calc(.58s * var(--k)) calc(1.14s * var(--k)) cubic-bezier(.5, 0, .2, 1) both;
+  animation: wpc-scan calc(.276s * var(--k)) calc(1.44s * var(--k)) cubic-bezier(.5, 0, .2, 1) both;
 }
 
 /* ===== 副标题与底部进度 ===== */
@@ -623,17 +650,19 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(50% + 280px);
+  top: calc(50% + 318px);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  font-size: 9.5px;
-  letter-spacing: .44em;
-  text-indent: .44em;
-  color: color-mix(in srgb, var(--ink1) 55%, transparent);
+  font-family: var(--mono);
+  font-size: clamp(10px, calc(10px * var(--fs, 1)), 13px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .34em;
+  text-indent: .34em;
+  color: color-mix(in srgb, var(--ink1) 62%, transparent);
   opacity: 0;
-  animation: wpc-in calc(.55s * var(--k)) calc(1.5s * var(--k)) ease both;
+  animation: wpc-sub calc(3s * var(--k)) linear both;
 }
 
 .wp-sub i {
@@ -661,163 +690,277 @@
   background: var(--acc);
   transform: scaleX(0);
   transform-origin: 0 50%;
-  animation: wpc-prog calc(2.3s * var(--k)) calc(.35s * var(--k)) cubic-bezier(.3, .1, .2, 1) both;
+  animation: wpc-prog calc(3s * var(--k)) linear both;
 }
 
-/* ===== 纹理与锁定闪光 ===== */
+/* ===== 纹理：扫描线只当极淡的屏纹，暗角给画面一个台面 ===== */
 .wp-scanlines {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: .5;
+  opacity: .16;
   background: repeating-linear-gradient(180deg,
-    color-mix(in srgb, var(--bg1) 55%, transparent) 0 1px, transparent 1px 3px);
+    color-mix(in srgb, var(--ink1) 4%, transparent) 0 1px, transparent 1px 3px);
 }
 
 .wp-vig {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(120% 92% at 50% 50%, transparent 38%,
-    color-mix(in srgb, var(--bg0) 78%, transparent));
+  background: radial-gradient(120% 92% at 50% 50%, transparent 38%, var(--wp-vig-c));
 }
 
+/* 底部压暗：仪器有台面，不是浮在页面中央 */
+.wp-vig::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--bg1) 70%, #000) 100%);
+  opacity: .5;
+}
+
+/* 前景两块软暗角：一压，纵深立刻出来 */
+.wp-vig::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(40% 32% at 0% 100%, color-mix(in srgb, var(--bg1) 88%, transparent), transparent 72%),
+    radial-gradient(40% 32% at 100% 100%, color-mix(in srgb, var(--bg1) 88%, transparent), transparent 72%);
+  opacity: .45;
+}
+
+/* ===== 锁定闪光：核心 + 横向镜头光 + 冲击环，三件套同帧发出 ===== */
 .wp-flash {
   position: absolute;
   inset: 0;
   opacity: 0;
-  background: radial-gradient(70% 62% at 50% 47%,
-    color-mix(in srgb, var(--ink1) 58%, transparent), transparent 76%);
-  animation: wpc-flash calc(.55s * var(--k)) calc(1.02s * var(--k)) ease-out both;
+  background: radial-gradient(32% 26% at 50% 47%,
+    var(--ink1) 0 1.5%,
+    var(--wp-glow) 9%,
+    transparent 58%);
+  animation: wpc-flash calc(3s * var(--k)) linear both;
 }
 
-/* ===== 全屏切换压缩段：只留核心与字标，去掉遥测 / 日志 / 网格 / 进度 ===== */
+.wp-flash::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  width: 1280px;
+  height: 2px;
+  margin: -1px 0 0 -640px;
+  background: linear-gradient(90deg, transparent,
+    color-mix(in srgb, var(--ink1) 85%, transparent), transparent);
+  transform: scaleX(.12);
+  opacity: 0;
+  animation: wpc-lens calc(3s * var(--k)) linear both;
+}
+
+.wp-flash::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  width: 340px;
+  height: 340px;
+  margin: -170px 0 0 -170px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--acc) 58%, transparent);
+  transform: scale(.9);
+  opacity: 0;
+  animation: wpc-shock calc(3s * var(--k)) linear both;
+}
+
+/* ===== 全屏切换压缩段：只留核心与字标，去掉网格 / 遥测 / 日志 / 进度 =====
+   压缩段不是「冷启动快放」：它要在一秒多里认出同一台仪器、完成换边、不给等待感。 */
 #warpSplash:not(.boot) .wp-grid,
 #warpSplash:not(.boot) .wp-side,
 #warpSplash:not(.boot) .wp-log,
 #warpSplash:not(.boot) .wp-prog,
 #warpSplash:not(.boot) .wp-scan,
-#warpSplash:not(.boot) .wp-meter,
+#warpSplash:not(.boot) .wp-sub,
 #warpSplash:not(.boot) .wp-s3,
-#warpSplash:not(.boot) .wp-settle {
+#warpSplash:not(.boot) .wp-settle,
+#warpSplash:not(.boot) .wp-pulse {
   display: none;
 }
 
+/* 压缩段不做逐字错峰：五段 90ms 的抖动在 1.75s 里只会显得碎 */
+#warpSplash:not(.boot) .wp-word span {
+  animation: wpc-word-slam calc(.2s * var(--k)) cubic-bezier(.2, .9, .2, 1) calc(1.044s * var(--k)) both;
+}
+
+#warpSplash:not(.boot) .wp-word span:nth-child(n) { animation-delay: calc(1.044s * var(--k)); }
+
+/* 状态条在压缩段里不提前退场：视觉淡出交给 JS 的收尾过渡 */
+#warpSplash:not(.boot) .wp-s2 {
+  animation-name: wpc-s2-hold;
+}
+
+/* 压缩段没有副标题与进度，字标也不能用 92px：缩小、下移一点，独占画面 */
 #warpSplash:not(.boot) .wp-word {
-  top: calc(50% + 172px);
-  font-size: 34px;
-  letter-spacing: .42em;
-  text-indent: .42em;
+  top: calc(50% + 150px);
+  font-size: 56px;
+  letter-spacing: .30em;
+  text-indent: .30em;
 }
 
 #warpSplash:not(.boot) .wp-word::before,
 #warpSplash:not(.boot) .wp-word::after {
-  width: 300px;
-  margin-left: -150px;
+  width: 360px;
+  margin-left: -180px;
 }
 
-#warpSplash:not(.boot) .wp-sub {
-  top: calc(50% + 240px);
-}
+#warpSplash:not(.boot) .wp-word::before { top: -20px; }
+#warpSplash:not(.boot) .wp-word::after { bottom: -22px; }
 
-/* ===== 关键帧（全部只用 transform / opacity） ===== */
-@keyframes wpc-out {
-  0%, 94% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
+/* ===== 关键帧：核心启动 ===== */
 @keyframes wpc-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
+@keyframes wpc-grain {
+  0% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-1%, 1%, 0); }
+  100% { transform: translate3d(1%, -1%, 0); }
+}
+
 @keyframes wpc-grid {
-  0% { opacity: 0; }
-  14% { opacity: 1; }
-  78% { opacity: 1; }
-  100% { opacity: .3; }
+  0% { opacity: 0; transform: scale(1.02); }
+  7.6% { opacity: .34; }
+  14% { opacity: .34; }
+  30% { opacity: .22; }
+  36.5% { opacity: .20; }
+  48% { opacity: .28; }
+  68% { opacity: .16; }
+  100% { opacity: .12; transform: scale(1.075); }
+}
+
+@keyframes wpc-core {
+  0% { opacity: 0; transform: scale(1); }
+  2.4% { opacity: 1; transform: scale(1.001); }
+  36.5% { transform: scale(1.012); }
+  68% { transform: scale(1.028); }
+  87.6% { transform: scale(1.035); }
+  91.2% { transform: scale(.985); }
+  100% { transform: scale(.985); }
 }
 
 @keyframes wpc-halo {
-  0%, 16% { opacity: 0; }
-  38% { opacity: .55; }
-  64% { opacity: .4; }
-  100% { opacity: .48; }
+  0% { opacity: 0; }
+  2% { opacity: .18; }
+  12% { opacity: .22; }
+  31.2% { opacity: .10; }
+  36.5% { opacity: .12; }
+  58% { opacity: .52; }
+  69.6% { opacity: .44; }
+  88% { opacity: .40; }
+  100% { opacity: .30; }
 }
 
 @keyframes wpc-s1 {
-  0%, 8% { opacity: 0; }
-  16%, 30% { opacity: 1; }
-  36%, 100% { opacity: 0; }
+  0%, 2.4% { opacity: 0; }
+  5.6% { opacity: 1; }
+  35.8% { opacity: 1; }
+  35.9%, 100% { opacity: 0; }
 }
 
 @keyframes wpc-s2 {
-  0%, 32% { opacity: 0; }
-  40%, 82% { opacity: 1; }
-  86%, 100% { opacity: 0; }
+  0%, 36% { opacity: 0; }
+  37.2% { opacity: 1; }
+  82.8% { opacity: 1; }
+  86.4%, 100% { opacity: 0; }
+}
+
+/* 压缩段：留到最后，由 JS 的收尾过渡统一压暗 */
+@keyframes wpc-s2-hold {
+  0%, 36% { opacity: 0; }
+  37.2%, 100% { opacity: 1; }
 }
 
 @keyframes wpc-s3 {
-  0%, 84% { opacity: 0; }
-  88%, 96% { opacity: 1; }
+  0%, 81.6% { opacity: 0; }
+  84.8% { opacity: 1; }
+  93.2% { opacity: 1; }
+  95% { opacity: 0; }
   100% { opacity: 0; }
+}
+
+/* 刻度环：先慢转，30% 起加速，36.5% 过冲 1.1°，再回弹到 46.2° */
+@keyframes wpc-lock-a {
+  0% { transform: rotate(-18deg); }
+  6% { transform: rotate(-18deg); }
+  20% { transform: rotate(8deg); }
+  32% { transform: rotate(31deg); }
+  36.5% { transform: rotate(47.1deg); }
+  37.6% { transform: rotate(46.2deg); }
+  100% { transform: rotate(46.6deg); }
+}
+
+@keyframes wpc-lock-b {
+  0% { transform: rotate(12deg); }
+  6% { transform: rotate(12deg); }
+  20% { transform: rotate(-11deg); }
+  32% { transform: rotate(-22deg); }
+  36.5% { transform: rotate(-32.1deg); }
+  37.6% { transform: rotate(-31.2deg); }
+  100% { transform: rotate(-31.6deg); }
 }
 
 @keyframes wpc-spin {
   to { transform: rotate(360deg); }
 }
 
-@keyframes wpc-spin-r {
-  to { transform: rotate(-360deg); }
-}
-
-@keyframes wpc-arc {
-  0% { opacity: 0; transform: rotate(-14deg); }
-  100% { opacity: 1; transform: rotate(0deg); }
+@keyframes wpc-arc-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes wpc-cross-h {
   0% { opacity: 0; transform: scaleX(0); }
-  30% { opacity: 1; }
-  100% { opacity: 1; transform: scaleX(1); }
+  2.4% { opacity: 1; transform: scaleX(1); }
+  89.2% { opacity: 1; }
+  95.2%, 100% { opacity: 0; }
 }
 
 @keyframes wpc-cross-v {
   0% { opacity: 0; transform: scaleY(0); }
-  30% { opacity: 1; }
-  100% { opacity: 1; transform: scaleY(1); }
+  0.8% { opacity: 0; transform: scaleY(0); }
+  3.6% { opacity: 1; transform: scaleY(1); }
+  89.2% { opacity: 1; }
+  95.2%, 100% { opacity: 0; }
 }
 
+/* 扫描从 14% 匀速走到 36.5%，到点与闪光同帧消失 */
 @keyframes wpc-sweep {
-  0% { opacity: 0; transform: rotate(-40deg); }
-  12% { opacity: 1; }
-  58% { opacity: 1; transform: rotate(300deg); }
-  66%, 100% { opacity: 0; transform: rotate(312deg); }
+  0%, 14% { opacity: 0; transform: rotate(-40deg); }
+  14.8% { opacity: 1; }
+  36.5% { opacity: 1; transform: rotate(303deg); }
+  36.7% { opacity: 0; transform: rotate(303deg); }
+  100% { opacity: 0; transform: rotate(303deg); }
 }
 
 @keyframes wpc-pulse {
-  0% { opacity: 0; transform: scale(.96); }
-  18% { opacity: .85; }
-  100% { opacity: 0; transform: scale(1.5); }
-}
-
-@keyframes wpc-pulse2 {
-  0% { opacity: 0; transform: scale(.98); }
-  16% { opacity: .55; }
-  100% { opacity: 0; transform: scale(1.34); }
+  0% { opacity: 0; transform: scale(.9); }
+  8% { opacity: .62; }
+  100% { opacity: 0; transform: scale(1.55); }
 }
 
 @keyframes wpc-settle {
-  0% { opacity: 0; transform: scale(.92); }
-  28% { opacity: .38; }
-  100% { opacity: 0; transform: scale(1.34); }
+  0% { opacity: 0; transform: scale(1.08); }
+  22% { opacity: .34; }
+  100% { opacity: 0; transform: scale(1); }
 }
 
+/* 菱形：27.2% 起进入，36.5% 过冲 47.2°，37.6% 回弹 44.6°，38.4% 落在 45° */
 @keyframes wpc-hex {
-  0% { opacity: 0; transform: rotate(28deg) scale(.55); }
-  28% { opacity: 1; }
-  58% { transform: rotate(45deg) scale(1); }
-  100% { opacity: 1; transform: rotate(49deg) scale(1); }
+  0%, 27.2% { opacity: 0; transform: rotate(28deg) scale(.55); }
+  29% { opacity: 1; transform: rotate(34deg) scale(.78); }
+  36.5% { opacity: 1; transform: rotate(47.2deg) scale(1.04); }
+  37.6% { opacity: 1; transform: rotate(44.6deg) scale(.998); }
+  38.4%, 100% { opacity: 1; transform: rotate(45deg) scale(1); }
 }
 
 @keyframes wpc-dot {
@@ -830,33 +973,90 @@
   50% { opacity: .3; transform: scale(1.35); }
 }
 
-@keyframes wpc-meter {
-  0% { transform: translateY(0); opacity: 0; }
-  20% { opacity: .75; }
-  100% { transform: translateY(300%); opacity: 0; }
+@keyframes wpc-let {
+  0% { opacity: 0; transform: translateY(18px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes wpc-let {
-  0% { opacity: 0; transform: translateY(16px) scale(.94); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+/* 压缩段字标：一次落款，不做逐字 */
+@keyframes wpc-word-slam {
+  0% { opacity: 0; transform: scale(1.22); }
+  55% { opacity: 1; transform: scale(.985); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 @keyframes wpc-scan {
-  0% { opacity: 0; transform: translateX(-190px); }
+  0% { opacity: 0; transform: translateX(-260px); }
   18% { opacity: 1; }
   82% { opacity: 1; }
-  100% { opacity: 0; transform: translateX(190px); }
+  100% { opacity: 0; transform: translateX(260px); }
 }
 
+/* 进度条：只在四个叙事检查点跳变，其余时间完全静止 */
 @keyframes wpc-prog {
   0% { transform: scaleX(0); }
+  14% { transform: scaleX(.06); }
+  20% { transform: scaleX(.06); }
+  24% { transform: scaleX(.40); }
+  36.5% { transform: scaleX(.40); }
+  38% { transform: scaleX(.62); }
+  60% { transform: scaleX(.62); }
+  64% { transform: scaleX(.84); }
+  80% { transform: scaleX(.84); }
+  84% { transform: scaleX(.92); }
+  91.2% { transform: scaleX(.92); }
+  93.2% { transform: scaleX(1); }
   100% { transform: scaleX(1); }
 }
 
 @keyframes wpc-flash {
-  0% { opacity: 0; }
-  14% { opacity: .5; }
-  100% { opacity: 0; }
+  0%, 35.3% { opacity: 0; }
+  36.5% { opacity: var(--wp-flash-peak); }
+  38% { opacity: .42; }
+  44%, 100% { opacity: 0; }
+}
+
+@keyframes wpc-lens {
+  0%, 35.3% { opacity: 0; transform: scaleX(.12); }
+  36.9% { opacity: .9; transform: scaleX(.22); }
+  41% { opacity: 0; transform: scaleX(1.4); }
+  100% { opacity: 0; transform: scaleX(1.4); }
+}
+
+@keyframes wpc-shock {
+  0%, 36% { opacity: 0; transform: scale(.9); }
+  37% { opacity: .5; }
+  46% { opacity: 0; transform: scale(2.6); }
+  100% { opacity: 0; transform: scale(2.6); }
+}
+
+@keyframes wpc-line {
+  0%, 81.6% { transform: scaleX(1); opacity: 1; }
+  92% { transform: scaleX(.66); opacity: 0; }
+  100% { transform: scaleX(.66); opacity: 0; }
+}
+
+@keyframes wpc-line-in {
+  0% { opacity: 0; transform: scaleX(0); }
+  100% { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes wpc-sub {
+  0%, 50.4% { opacity: 0; }
+  54% { opacity: 1; }
+  88% { opacity: 1; }
+  90.8%, 100% { opacity: 0; }
+}
+
+@keyframes wpc-word-out {
+  0%, 87.6% { opacity: 1; transform: translateY(0); }
+  92% { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+
+@keyframes wpc-layer-out {
+  0%, 89.2% { opacity: 1; }
+  95.2%, 100% { opacity: 0; }
 }
 
 @keyframes wpc-blink {
@@ -865,10 +1065,10 @@
 }
 
 /* ===== 流光跃迁（S-03，设置里选「跃迁」时用于冷启动） =====
-   两层光丝错峰冲向中心 → 核心亮点 → 三道加速环 → 刻度环 → 白闪 + 横向速度线 →
-   HUD / 状态条 / 逐字字标 / 副标题 / 底部进度，末段整体淡出。 */
-#warpSplash.mode-warp.on {
-  animation: wv-out var(--wv-dur) linear both;
+   两层光丝错峰冲向中心 → 核心亮点 → 三道加速环 → 刻度环 →
+   白闪 + 横向速度线 → HUD / 状态条 / 逐字字标 / 副标题 / 底部进度，末段整体淡出。 */
+#warpSplash.mode-warp {
+  --wv-dur: 5000ms;
 }
 
 .wv-field,
@@ -882,7 +1082,7 @@
   height: 0;
 }
 
-/* 外层短光丝 */
+/* 外层短光丝：--o 由 splash.ts 按 i%5 写入，给纵深 */
 .wv-streak {
   position: absolute;
   left: -0.5px;
@@ -892,7 +1092,7 @@
   opacity: 0;
   transform-origin: 50% 0;
   background: linear-gradient(0deg, transparent,
-    color-mix(in srgb, var(--acc) 82%, #fff), transparent);
+    color-mix(in srgb, var(--acc) 82%, var(--ink1)), transparent);
   animation: wv-streak var(--wv-dur) cubic-bezier(.3, .7, .2, 1) both;
 }
 
@@ -910,7 +1110,7 @@
   animation: wv-trail var(--wv-dur) cubic-bezier(.2, .65, .25, 1) both;
 }
 
-/* 中心亮点 */
+/* 中心亮点：一路涨到 60% 的白闪 */
 .wv-core {
   position: absolute;
   left: 50%;
@@ -921,11 +1121,12 @@
   border-radius: 50%;
   background: var(--ink1);
   box-shadow: 0 0 24px 6px color-mix(in srgb, var(--acc) 55%, transparent);
+  mix-blend-mode: var(--wp-add);
   opacity: 0;
   animation: wv-core var(--wv-dur) ease both;
 }
 
-/* 三道加速环，依次冲出 */
+/* 三道加速环：错峰 280ms、寿命 620ms，别让三片糊成一团 */
 .wv-rings i {
   position: absolute;
   left: -90px;
@@ -935,26 +1136,26 @@
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--acc) 55%, transparent);
   opacity: 0;
-  animation: wv-ring var(--wv-dur) cubic-bezier(.16, 1, .3, 1) both;
+  animation: wv-ring calc(var(--wv-dur) * .124) cubic-bezier(.16, 1, .3, 1) both;
 }
 
 .wv-rings i:nth-child(2) {
-  animation-delay: calc(var(--wv-dur) * .06);
+  animation-delay: calc(var(--wv-dur) * .056);
   border-color: color-mix(in srgb, var(--ink1) 45%, transparent);
 }
 
 .wv-rings i:nth-child(3) {
-  animation-delay: calc(var(--wv-dur) * .12);
+  animation-delay: calc(var(--wv-dur) * .112);
   border-color: color-mix(in srgb, var(--ink1) 28%, transparent);
 }
 
-/* 第四道环不参与加速，只在末段慢慢收束，给 5s 的后半段一个落点 */
+/* 第四道环不参与加速：它是白闪那一刻的冲击环 */
 .wv-rings i:nth-child(4) {
-  border-color: color-mix(in srgb, var(--acc) 42%, transparent);
-  animation: wv-settle calc(var(--wv-dur) * .34) cubic-bezier(.16, 1, .3, 1) calc(var(--wv-dur) * .66) both;
+  border-color: color-mix(in srgb, var(--acc) 58%, transparent);
+  animation: wv-shock calc(var(--wv-dur) * .12) cubic-bezier(.16, 1, .3, 1) calc(var(--wv-dur) * .60) both;
 }
 
-/* 刻度环：缓慢转动，闪前后可见 */
+/* 刻度环：白闪后定格，留一圈极淡的刻度当「到达」的参照 */
 .wv-ticks {
   position: absolute;
   left: 50%;
@@ -965,13 +1166,12 @@
   border-radius: 50%;
   background: repeating-conic-gradient(from 0deg,
     color-mix(in srgb, var(--ink1) 55%, transparent) 0deg .4deg, transparent .4deg 6deg);
-  /* 同上：像素半径，保证 300px 盒子里刻度环落在内切圆内侧 */
-  -webkit-mask: radial-gradient(circle, transparent 135px, #000 136px 143px, transparent 144px);
-  mask: radial-gradient(circle, transparent 135px, #000 136px 143px, transparent 144px);
+  -webkit-mask: radial-gradient(circle 150px at 50% 50%, transparent 135px, #000 136px 143px, transparent 144px);
+  mask: radial-gradient(circle 150px at 50% 50%, transparent 135px, #000 136px 143px, transparent 144px);
   opacity: 0;
   animation:
     wv-ticks var(--wv-dur) ease both,
-    wv-spin calc(var(--wv-dur) * 2.4) linear infinite;
+    wv-lock var(--wv-dur) linear both;
 }
 
 /* 白闪瞬间的两道横向速度线 */
@@ -990,21 +1190,39 @@
 
 .wv-burst i:nth-child(2) {
   top: 36px;
-  animation-delay: calc(var(--wv-dur) * .03);
+  animation-delay: calc(var(--wv-dur) * .012);
 }
 
+/* 白闪：核心 + 横向镜头光，峰值放在 60%（3.0s），给前半段足够长的旅程 */
 .wv-flash {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 900px;
-  height: 900px;
-  margin: -450px 0 0 -450px;
+  width: 640px;
+  height: 640px;
+  margin: -320px 0 0 -320px;
   border-radius: 50%;
   opacity: 0;
   background: radial-gradient(closest-side,
-    color-mix(in srgb, var(--ink1) 52%, transparent), transparent 62%);
+    var(--ink1) 0 3%,
+    var(--wp-glow) 18%,
+    transparent 66%);
   animation: wv-flash var(--wv-dur) ease-out both;
+}
+
+.wv-flash::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1280px;
+  height: 2px;
+  margin: -1px 0 0 -640px;
+  background: linear-gradient(90deg, transparent,
+    color-mix(in srgb, var(--ink1) 85%, transparent), transparent);
+  transform: scaleX(.15);
+  opacity: 0;
+  animation: wv-lens var(--wv-dur) linear both;
 }
 
 /* HUD 四角与角标 */
@@ -1012,17 +1230,19 @@
   position: absolute;
   inset: 38px;
   pointer-events: none;
-  font-size: 8.5px;
-  letter-spacing: .22em;
-  color: var(--ink3);
+  font-family: var(--mono);
+  font-size: clamp(9.5px, calc(9.5px * var(--fs, 1)), 12px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .18em;
+  color: color-mix(in srgb, var(--ink1) 42%, transparent);
   opacity: 0;
   animation: wv-hud var(--wv-dur) ease both;
 }
 
 .wv-corner {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border: 1px solid color-mix(in srgb, var(--ink1) 38%, transparent);
 }
 
@@ -1037,25 +1257,20 @@
   top: 1px;
 }
 
-.wv-hud .wv-t2 {
-  position: absolute;
-  right: 28px;
-  top: 1px;
-  text-align: right;
-}
-
-/* 顶部状态条：WARP DRIVE → LINK LOCKED */
+/* 顶部状态条：WARP DRIVE → LINK LOCKED → LIBRARY READY */
 .wv-read {
   position: absolute;
   left: 50%;
   top: 62px;
-  width: 260px;
+  width: 280px;
   height: 12px;
-  margin-left: -130px;
+  margin-left: -140px;
   text-align: center;
-  font-size: 9px;
-  letter-spacing: .36em;
-  text-indent: .36em;
+  font-family: var(--mono);
+  font-size: clamp(9.5px, calc(9.5px * var(--fs, 1)), 12px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .32em;
+  text-indent: .32em;
   color: color-mix(in srgb, var(--ink1) 72%, transparent);
 }
 
@@ -1079,68 +1294,59 @@
   animation: wv-s2 var(--wv-dur) linear both;
 }
 
-/* 与核心启动共用同一句收束文案：跃迁到达后也要落到「库已就绪」 */
 .wv-s3 {
-  color: var(--acc);
+  color: var(--ink2);
   animation: wv-s3 var(--wv-dur) linear both;
 }
 
-/* 字标：逐字立起 */
+/* 字标：逐字立起，间隔 70 / 65 / 60 / 55ms */
 .wv-word {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(50% + 58px);
+  top: calc(50% + 196px);
   text-align: center;
-  font-size: 60px;
+  font-family: "Segoe UI Variable Display", "Segoe UI", var(--sans);
+  font-size: 92px;
+  font-weight: 200;
   line-height: 1;
-  letter-spacing: .36em;
-  text-indent: .36em;
-  color: var(--ink1);
+  letter-spacing: .18em;
+  text-indent: .18em;
+  color: color-mix(in srgb, var(--ink1) 90%, transparent);
+  text-shadow: 0 0 24px color-mix(in srgb, var(--acc) 12%, transparent);
+  animation: wv-word-out var(--wv-dur) linear both;
 }
 
 .wv-word span {
   display: inline-block;
   opacity: 0;
-  transform: translateY(18px) scale(.94);
-  animation: wv-let var(--wv-dur) cubic-bezier(.2, .9, .2, 1) both;
+  transform: translateY(18px);
+  animation: wv-let calc(var(--wv-dur) * .08) cubic-bezier(.2, .9, .2, 1) both;
 }
 
-.wv-word span:nth-child(1) { animation-delay: calc(var(--wv-dur) * .54); }
-.wv-word span:nth-child(2) { animation-delay: calc(var(--wv-dur) * .56); }
-.wv-word span:nth-child(3) { animation-delay: calc(var(--wv-dur) * .58); }
-.wv-word span:nth-child(4) { animation-delay: calc(var(--wv-dur) * .60); }
-.wv-word span:nth-child(5) { animation-delay: calc(var(--wv-dur) * .62); }
+.wv-word span:nth-child(1) { animation-delay: calc(var(--wv-dur) * .594); }
+.wv-word span:nth-child(2) { animation-delay: calc(var(--wv-dur) * .608); }
+.wv-word span:nth-child(3) { animation-delay: calc(var(--wv-dur) * .621); }
+.wv-word span:nth-child(4) { animation-delay: calc(var(--wv-dur) * .633); }
+.wv-word span:nth-child(5) { animation-delay: calc(var(--wv-dur) * .644); }
 
-/* 字标成型后的最后一记横向扫光：把白闪后的静态驻留切成两拍 */
-.wv-word::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 300px;
-  height: 1px;
-  margin: -.5px 0 0 -150px;
-  background: linear-gradient(90deg, transparent,
-    color-mix(in srgb, var(--acc) 88%, transparent), transparent);
-  opacity: 0;
-  transform: scaleX(.15);
-  animation: wv-wordsweep var(--wv-dur) cubic-bezier(.4, 0, .2, 1) both;
-}
+/* 字标不再加横向扫光：1px 的横扫线正好穿过字母中部，收尾那 0.9s 看上去像删除线 */
 
 .wv-sub {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(50% + 138px);
+  top: calc(50% + 318px);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  font-size: 10px;
-  letter-spacing: .46em;
-  text-indent: .46em;
-  color: color-mix(in srgb, var(--ink1) 82%, transparent);
+  font-family: var(--mono);
+  font-size: clamp(10px, calc(10px * var(--fs, 1)), 13px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .36em;
+  text-indent: .36em;
+  color: color-mix(in srgb, var(--ink1) 62%, transparent);
   opacity: 0;
   animation: wv-sub var(--wv-dur) linear both;
 }
@@ -1177,114 +1383,182 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(120% 92% at 50% 50%, transparent 42%,
-    color-mix(in srgb, var(--bg0) 82%, transparent));
+  background: radial-gradient(120% 92% at 50% 50%, transparent 42%, var(--wp-vig-c));
 }
 
-@keyframes wv-spin {
-  to { transform: rotate(360deg); }
+.wv-vig::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--bg1) 70%, #000) 100%);
+  opacity: .5;
 }
 
+/* ===== 关键帧：流光跃迁 ===== */
+@keyframes wv-lock {
+  0% { transform: rotate(-8deg); }
+  18% { transform: rotate(4deg); }
+  40% { transform: rotate(22deg); }
+  58% { transform: rotate(29deg); }
+  60% { transform: rotate(30deg); }
+  100% { transform: rotate(31.2deg); }
+}
+
+/* 光丝在白闪（60%）被吞掉：之后不再有穿梭 */
 @keyframes wv-streak {
   0% { opacity: 0; transform: rotate(var(--a)) translateY(-720px) scaleY(.35); }
-  24% { opacity: .78; }
-  70% { opacity: .62; transform: rotate(var(--a)) translateY(-120px) scaleY(1); }
-  100% { opacity: 0; transform: rotate(var(--a)) translateY(-10px) scaleY(.55); }
+  8% { opacity: calc(.8 * var(--o, 1)); }
+  34% { opacity: calc(.55 * var(--o, 1)); transform: rotate(var(--a)) translateY(-260px) scaleY(1); }
+  58% { opacity: calc(.42 * var(--o, 1)); transform: rotate(var(--a)) translateY(-40px) scaleY(.7); }
+  60%, 100% { opacity: 0; transform: rotate(var(--a)) translateY(-24px) scaleY(.5); }
 }
 
 @keyframes wv-trail {
   0% { opacity: 0; transform: rotate(var(--a)) translateY(-980px) scaleY(.5); }
-  30% { opacity: .38; }
-  72% { opacity: .28; transform: rotate(var(--a)) translateY(-90px) scaleY(1); }
-  100% { opacity: 0; transform: rotate(var(--a)) translateY(0) scaleY(.4); }
+  10% { opacity: .4; }
+  38% { opacity: .26; transform: rotate(var(--a)) translateY(-220px) scaleY(1); }
+  62%, 100% { opacity: 0; transform: rotate(var(--a)) translateY(-10px) scaleY(.4); }
 }
 
 @keyframes wv-core {
   0% { opacity: 0; transform: scale(.2); }
   10% { opacity: 1; transform: scale(1); }
   34% { opacity: 1; transform: scale(1.7); }
-  46% { opacity: 1; transform: scale(3.4); }
-  58%, 100% { opacity: 0; transform: scale(4.4); }
+  58% { opacity: 1; transform: scale(2.9); }
+  60% { opacity: 1; transform: scale(3.8); }
+  70%, 100% { opacity: 0; transform: scale(5); }
 }
 
+/* 三道环：620ms 寿命里读完整个扩散 */
 @keyframes wv-ring {
-  0%, 14% { opacity: 0; transform: scale(.22); }
-  22% { opacity: .65; transform: scale(.9); }
-  66%, 100% { opacity: 0; transform: scale(5); }
+  0% { opacity: 0; transform: scale(.22); }
+  16% { opacity: .65; transform: scale(.9); }
+  70% { opacity: .18; transform: scale(2.1); }
+  100% { opacity: 0; transform: scale(2.8); }
+}
+
+@keyframes wv-shock {
+  0% { opacity: 0; transform: scale(.9); }
+  14% { opacity: .55; }
+  100% { opacity: 0; transform: scale(2.3); }
 }
 
 @keyframes wv-ticks {
   0%, 18% { opacity: 0; }
-  32%, 60% { opacity: .55; }
-  72%, 100% { opacity: 0; }
+  32%, 58% { opacity: .55; }
+  64% { opacity: .26; }
+  100% { opacity: .18; }
 }
 
 @keyframes wv-burst {
-  0%, 40% { opacity: 0; transform: scaleX(.15); }
-  44% { opacity: .9; }
-  58%, 100% { opacity: 0; transform: scaleX(1); }
+  0%, 44% { opacity: 0; transform: scaleX(.15); }
+  58% { opacity: .9; transform: scaleX(1); }
+  72%, 100% { opacity: 0; transform: scaleX(1); }
 }
 
 @keyframes wv-flash {
-  0%, 40% { opacity: 0; }
-  46% { opacity: .9; }
+  0%, 56.4% { opacity: 0; }
+  60% { opacity: var(--wp-flash-peak); }
+  64% { opacity: .34; }
   72%, 100% { opacity: 0; }
 }
 
+@keyframes wv-lens {
+  0%, 56.4% { opacity: 0; transform: scaleX(.15); }
+  60.6% { opacity: .85; transform: scaleX(.24); }
+  67% { opacity: 0; transform: scaleX(1.35); }
+  100% { opacity: 0; transform: scaleX(1.35); }
+}
+
 @keyframes wv-hud {
-  0%, 50% { opacity: 0; }
-  62%, 100% { opacity: 1; }
+  0%, 62% { opacity: 0; }
+  70%, 100% { opacity: 1; }
 }
 
 @keyframes wv-s1 {
-  0%, 6% { opacity: 0; }
-  12%, 40% { opacity: 1; }
-  46%, 100% { opacity: 0; }
+  0%, 4% { opacity: 0; }
+  9%, 56% { opacity: 1; }
+  60%, 100% { opacity: 0; }
 }
 
 @keyframes wv-s2 {
-  0%, 46% { opacity: 0; }
-  54%, 82% { opacity: 1; }
+  0%, 60% { opacity: 0; }
+  64%, 82% { opacity: 1; }
   86%, 100% { opacity: 0; }
 }
 
 @keyframes wv-s3 {
-  0%, 84% { opacity: 0; }
-  88%, 96% { opacity: 1; }
-  100% { opacity: 0; }
+  0%, 81.6% { opacity: 0; }
+  84.8%, 92% { opacity: 1; }
+  95%, 100% { opacity: 0; }
 }
 
 @keyframes wv-let {
-  0% { opacity: 0; transform: translateY(18px) scale(.94); }
-  12%, 100% { opacity: 1; transform: none; }
+  0% { opacity: 0; transform: translateY(18px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes wv-word-out {
+  0%, 88.4% { opacity: 1; transform: translateY(0); }
+  92% { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 0; transform: translateY(-10px); }
 }
 
 @keyframes wv-sub {
-  0%, 70% { opacity: 0; }
-  80%, 100% { opacity: 1; }
+  0%, 78% { opacity: 0; }
+  82% { opacity: 1; }
+  88% { opacity: 1; }
+  90.8%, 100% { opacity: 0; }
 }
 
+/* 距离语义：一路走到底，不在中段爬行 */
 @keyframes wv-prog {
-  0%, 18% { transform: scaleX(0); }
-  86%, 100% { transform: scaleX(1); }
+  0%, 8% { transform: scaleX(0); }
+  84% { transform: scaleX(1); }
+  100% { transform: scaleX(1); }
 }
 
-@keyframes wv-wordsweep {
-  0%, 74% { opacity: 0; transform: scaleX(.15); }
-  80% { opacity: .85; }
-  90%, 100% { opacity: 0; transform: scaleX(1); }
+/* ===== 矮窗口（应用最小 960×540）：字标让位，副标题与旁注隐藏 ===== */
+@media (max-height: 1000px) {
+  .wp-word, .wv-word { font-size: 76px; top: calc(50% + 186px); }
+  .wp-word::before, .wp-word::after { width: 440px; margin-left: -220px; }
+  .wp-scan { top: calc(50% + 168px); height: 78px; }
+  .wp-sub, .wv-sub { top: calc(50% + 306px); }
 }
 
-@keyframes wv-settle {
-  0% { opacity: 0; transform: scale(.9); }
-  30% { opacity: .34; }
-  100% { opacity: 0; transform: scale(1.8); }
+@media (max-height: 820px) {
+  .wp-word, .wv-word { font-size: 56px; top: calc(50% + 164px); }
+  .wp-word::before, .wp-word::after { width: 340px; margin-left: -170px; }
+  .wp-scan { top: calc(50% + 148px); height: 72px; }
+  /* 副标题必须比字标收得更快：字标只缩到 +164，它若还停在 +286，
+     窗口一矮就会顶到贴底的进度条上（进度条 fixed 在 bottom 48px，不跟内容走） */
+  .wp-sub, .wv-sub { top: calc(50% + 240px); }
 }
 
-@keyframes wv-out {
-  0%, 94% { opacity: 1; }
-  100% { opacity: 0; }
+@media (max-height: 640px) {
+  #warpSplash.mode-core.boot .wp-core { transform: scale(.72); }
+  .wp-word, .wv-word { font-size: 40px; top: calc(50% + 124px); }
+  .wp-word::before, .wp-word::after { width: 280px; margin-left: -140px; }
+  .wp-scan { top: calc(50% + 112px); height: 68px; }
+  .wp-sub, .wv-sub { top: calc(50% + 200px); }
+  #warpSplash.mode-core.boot .wp-sub,
+  #warpSplash.mode-core.boot .wp-side,
+  #warpSplash.mode-core.boot .wp-log,
+  #warpSplash.mode-core.boot .wv-sub { display: none; }
+  .wp-prog, .wv-prog { bottom: 26px; }
 }
+
+/* ===== 白昼：发光失效，改成墨渗；扫描线与暗角都要换算法 ===== */
+html[data-theme="daybreak"] #warpSplash {
+  --wp-add: multiply;
+  --wp-flash-peak: .30;
+  --wp-vig-c: color-mix(in srgb, var(--ink1) 20%, transparent);
+  --wp-grain-op: .03;
+}
+
+html[data-theme="daybreak"] #warpSplash .wp-scanlines { display: none; }
+html[data-theme="daybreak"] #warpSplash .wp-word,
+html[data-theme="daybreak"] #warpSplash .wv-word { text-shadow: none; }
 
 /* 减少动态效果：直接不播（JS 也会跳过，双保险） */
 @media (prefers-reduced-motion: reduce) {

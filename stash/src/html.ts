@@ -39,8 +39,18 @@ export function html(strings: TemplateStringsArray, ...values: unknown[]): SafeH
   return new SafeHtml(out);
 }
 
+/** DOM 版本号：每次重写子树就递增。
+ *  依赖布局的缓存（如焦点环元素列表）用它与 DOM 重建对齐，而不是靠时间窗口。 */
+let domEpoch = 0;
+
+/** 当前 DOM 版本；缓存命中要求版本一致 */
+export function domEpochNo(): number {
+  return domEpoch;
+}
+
 /** 把模板写进元素（唯一允许直接碰 innerHTML 的入口，便于以后加 Trusted Types） */
 export function setHTML(el: HTMLElement, tpl: SafeHtml): void {
+  domEpoch++;
   el.innerHTML = tpl.value;
 }
 
@@ -53,5 +63,6 @@ export function setRawHTML(el: HTMLElement, markup: string): void {
 
 /** 清空子节点：替代 `el.innerHTML = ''`，让「只有 html.ts 碰 innerHTML」可被静态检查 */
 export function clearHTML(el: HTMLElement): void {
+  domEpoch++;
   el.textContent = '';
 }

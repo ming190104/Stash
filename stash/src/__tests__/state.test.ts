@@ -5,8 +5,10 @@ import type { Game } from '../types';
 import {
   state,
   sortedGames,
+  visibleGames,
   gridList,
   collectionMatch,
+  collectionCtx,
   facetCount,
   clearFacets,
   lastPlayedId,
@@ -16,12 +18,12 @@ import {
 /** 最小可用 Game：按用例覆盖排序 / 筛选 / 集合相关字段 */
 function game(id: string, over: Partial<Game> = {}): Game {
   return {
-    id, title: id, titleOriginal: null, romaji: null, dir: '', exe: '', engine: '', engineLabel: '',
+    id, title: id, titleOriginal: null, romaji: null, dir: '', exe: '', engine: 'unknown', engineLabel: '',
     engineEvidence: '', cover: null, thumb: null, shots: [], peProduct: null, peCompany: null,
     developer: null, sizeGb: 0, lastPlayed: null, playCount: 0, playSeconds: 0, endings: [],
     favorite: false, addedAt: 0, needsLocale: false, matched: true, launchArgs: [], bangumiId: null,
     matchScore: null, pending: false, summary: null, tags: [], aliases: [], year: null,
-    progress: 0, ...over,
+    progress: 0, hidden: false, userTags: [], notes: '', ...over,
   };
 }
 
@@ -56,6 +58,11 @@ describe('排序与隐藏条目', () => {
   it('最近游玩相同时按入库时间降序（稳定兜底）', () => {
     state.games = [game('old', { lastPlayed: 100, addedAt: 10 }), game('new', { lastPlayed: 100, addedAt: 20 })];
     expect(ids(sortedGames())).toEqual(['new', 'old']);
+  });
+
+  it('visibleGames 只过滤隐藏条目、不排序（分面计数用它，避免每列重排全库）', () => {
+    state.games = [game('a', { lastPlayed: 100 }), game('b', { lastPlayed: 200 }), game('h', { hidden: true })];
+    expect(ids(visibleGames())).toEqual(['a', 'b']);
   });
 
   it('名称 / 发售年 / 进度排序', () => {
@@ -138,6 +145,21 @@ describe('智能集合', () => {
     expect(collectionMatch(a, 'series')).toBe(true);
     expect(collectionMatch(c, 'series')).toBe(false);
     expect(collectionMatch(a, null)).toBe(true);
+  });
+
+  it('同会社系列走预聚合：隐藏作品不计数，也不需要逐条扫全库', () => {
+    const a = game('a', { developer: 'Key' });
+    const c = game('c', { developer: 'Leaf' });
+    const h = game('h', { developer: 'Leaf', hidden: true });
+    state.games = [a, game('b', { developer: 'Key' }), c, h];
+    const ctx = collectionCtx();
+    expect([...ctx.seriesDevs]).toEqual(['Key']);
+    expect(collectionMatch(a, 'series', ctx)).toBe(true);
+    expect(collectionMatch(c, 'series', ctx)).toBe(false);
+    expect(collectionMatch(h, 'series', ctx)).toBe(false);
+    // 不传 ctx 的旧调用方式结果一致（只用于单条判定）
+    expect(collectionMatch(a, 'series')).toBe(true);
+    expect(collectionMatch(c, 'series')).toBe(false);
   });
 
   it('最近入库按 30 天窗口判定（固定时钟，避免 flaky）', () => {

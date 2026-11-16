@@ -41,7 +41,14 @@ export {
   filterShown,
   endShown,
 } from './layers';
-export { openSearch, searchList, renderSearch, pushSearchHistory } from './search';
+export {
+  openSearch,
+  searchList,
+  renderSearch,
+  scheduleSearchRender,
+  cancelSearchRender,
+  pushSearchHistory,
+} from './search';
 export { openFilter, renderFilter, syncFilterChip, saveCurrentView } from './filter';
 export { filterDesc, showEmpty } from './empty';
 export { openEndings } from './endings';
@@ -58,9 +65,17 @@ export function handleOverlayKey(e: KeyboardEvent): boolean {
 
   if (isField) {
     if (promptShown()) {
-      // 输入弹层且焦点在输入框：只接管 Esc；B / Backspace 属于正文，不能当取消键
+      // 输入弹层且焦点在输入框：只接管 Esc；B / Backspace 属于正文，不能当取消键。
+      // 焦点若还在背后的设置输入框（纯确认弹层没有自己的输入框），A / Enter 必须能确认，
+      // 否则确认框会变成一个「怎么按都没反应」的死层。
       if (e.code === 'Escape') {
         dismissPrompt();
+        e.preventDefault();
+      } else if (
+        t.id !== 'pInput' &&
+        (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyA')
+      ) {
+        submitPrompt();
         e.preventDefault();
       }
       return true;

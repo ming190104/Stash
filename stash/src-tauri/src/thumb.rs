@@ -126,11 +126,31 @@ pub fn candidate_thumb_keyed(store: &Store, key: &str, bytes: &[u8]) -> Option<P
 /// 鲲 Galgame 候选封面：作品 id 是站点数字 id，直接进文件名。
 /// 与其它候选封面共用 `cand-` 前缀与 LRU 淘汰。
 pub fn candidate_thumb_kungal(store: &Store, work_id: &str, bytes: &[u8]) -> Option<PathBuf> {
-    let out = store.thumbs_dir().join(format!("cand-kungal-{work_id}.webp"));
+    let out = store.thumbs_dir().join(format!("cand-kungal-{}.webp", safe_key(work_id)));
     if out.exists() {
         return Some(out);
     }
     write_candidate(out, bytes)
+}
+
+/// 远端字符串进文件名前的白名单：只允许短 ASCII 字母数字 / `-` / `_`。
+///
+/// `work_id` 来自远端元数据，直接拼接会让 `../../x`、`a/b` 这类值造成路径穿越
+/// 或非法文件名；超长串也会撞 Windows 的 260 字符上限。其它值统一哈希成稳定短名。
+fn safe_key(s: &str) -> String {
+    if !s.is_empty()
+        && s.len() <= 40
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        return s.to_string();
+    }
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in s.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100_0000_01b3);
+    }
+    format!("h{h:016x}")
 }
 
 /// 候选封面落盘：裁成 3:4 小图 + WebP，经临时文件原子替换。
@@ -486,6 +506,25 @@ mod tests {
             .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
             .collect();
         assert!(stray.is_empty(), "不应残留临时文件：{stray:?}");
+    }
+
+    /// 远端 workId 不能原样进文件名：路径分隔符 / `..` / 超长都必须哈希成短名
+    #[test]
+    fn kungal_thumb_sanitizes_work_id() {
+        let s = temp_store("kungal-key");
+        let src = s.dir.join("src.png");
+        write_cover(&src, [70, 120, 210]);
+        let bytes = std::fs::read(&src).unwrap();
+
+        let ok = candidate_thumb_kungal(&s, "12345", &bytes).unwrap();
+        assert_eq!(ok.file_name().unwrap().to_string_lossy(), "cand-kungal-12345.webp");
+
+        for bad in ["../../evil", "a/b", "x\\y", &"9".repeat(80)] {
+            let p = candidate_thumb_kungal(&s, bad, &bytes).unwrap();
+            let name = p.file_name().unwrap().to_string_lossy().to_string();
+            assert!(name.starts_with("cand-kungal-h"), "必须哈希：{bad} → {name}");
+            assert!(!name.contains('/') && !name.contains('\\') && !name.contains(".."));
+        }
     }
 
     /// 网图候选：同一地址只解码一次，不同地址互不串图

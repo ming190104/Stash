@@ -230,6 +230,18 @@ pub async fn update_endings(store: State<'_, Store>, id: String, endings: Vec<En
 }
 
 fn update_endings_sync(store: &Store, id: &str, endings: Vec<EndMark>) -> Result<f64, AppError> {
+    // 回退进度要读游戏目录的 meta.json：慢盘上可达数十秒。
+    // 必须在取库写锁之前算好，否则整段时间都占着锁，收藏 / 启动记录全被堵住。
+    let fallback_meta = if endings.is_empty() {
+        store
+            .load_library()
+            .into_iter()
+            .find(|g| g.id == id)
+            .map(|g| crate::scanner::local_progress(std::path::Path::new(&g.dir)))
+            .unwrap_or(0.0)
+    } else {
+        0.0
+    };
     let _lock = crate::store::lock_library();
     let mut games = store.load_library();
     let g = games
@@ -248,7 +260,7 @@ fn update_endings_sync(store: &Store, id: &str, endings: Vec<EndMark>) -> Result
     // 清单被清空时回退到 meta.json 声明的进度：fallback 若用 g.progress，
     // 进度会冻结在上一次「done / total」上，与上面注释承诺的行为不一致
     let fallback = if g.endings.is_empty() {
-        crate::scanner::local_progress(std::path::Path::new(&g.dir))
+        fallback_meta
     } else {
         g.progress
     };

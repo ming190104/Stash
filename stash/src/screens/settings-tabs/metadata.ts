@@ -3,6 +3,8 @@
 import { state } from '../../state';
 import { esc } from '../../ui';
 import type { SourceProbe, SourceState, SourceStatus } from '../../ipc';
+import { sui } from '../settings/ui';
+import { artHTML } from '../art';
 
 /** 已匹配作品列表一次最多渲染这么多行，其余靠筛选缩小范围（避免几百部时整页被撑爆） */
 const MATCHED_SHOW = 20;
@@ -57,10 +59,11 @@ export function matchedRowsHTML(q: string): string {
   if (!all.length) return `<div class="pitem dimtxt">没有符合条件的作品</div>`;
   const rows = all
     .slice(0, MATCHED_SHOW)
-    .map(
-      (g) =>
-        `<div class="pitem"><span class="pnm">${esc(g.title)}</span><span class="psc">${g.bangumiId ?? g.kungalId ?? '—'}</span><button class="mini" data-rebind="${esc(g.id)}">改绑…</button></div>`,
-    )
+    .map((g) => {
+      // 匹配分放在条目前面，比单独一列数字更容易判断「这条对不对」
+      const score = g.matchScore != null ? `${Math.round(g.matchScore)} 分 · ` : '';
+      return `<div class="pitem"><span class="pthumb">${artHTML(g)}</span><span class="pnm">${esc(g.title)}</span><span class="psc">${score}${g.bangumiId ?? g.kungalId ?? '—'}</span><button class="mini" data-rebind="${esc(g.id)}">改绑</button></div>`;
+    })
     .join('');
   const more = all.length > MATCHED_SHOW ? `<div class="pitem dimtxt">还有 ${all.length - MATCHED_SHOW} 部 · 输入关键字缩小范围</div>` : '';
   return rows + more;
@@ -89,32 +92,32 @@ export function metadataHTML(): string {
       ${
         matchedVisible
           ? `<div class="srow"><div class="lab"><b>筛选</b><span>按中文名 / 日文原名缩小范围</span></div>
-              <input class="inp" id="matchedFilter" placeholder="筛选已匹配作品…" autocomplete="off"></div>
-            <div class="pending" id="matchedList">${matchedRowsHTML('')}</div>`
+              <input class="inp" id="matchedFilter" placeholder="筛选已匹配作品…" autocomplete="off" value="${esc(sui.matchedFilter)}"></div>
+            <div class="pending" id="matchedList">${matchedRowsHTML(sui.matchedFilter)}</div>`
           : ''
       }
       <div class="srow"><div class="lab"><b>待确认队列</b><span>${pending.length ? '分数介于 50–80，建议人工过一眼' : '暂无待确认作品'}</span></div>
-        ${pending.length ? `<span class="mini" data-bindqueue="pending">连续确认…</span>` : ''}
+        ${pending.length ? `<span class="mini" data-bindqueue="pending">连续确认</span>` : ''}
         <div class="stat"><b>${pending.length}</b><span>部待确认</span></div></div>
       ${
         pending.length
           ? `<div class="pending">${pending
               .map(
                 (g) =>
-                  `<div class="pitem"><span class="pnm">${esc(g.title)}</span><span class="psc">${g.matchScore ?? '—'}</span><button class="mini" data-bind="${esc(g.id)}">校正…</button></div>`,
+                  `<div class="pitem"><span class="pnm">${esc(g.title)}</span><span class="psc">${g.matchScore ?? '—'}</span><button class="mini" data-bind="${esc(g.id)}">校正</button></div>`,
               )
               .join('')}</div>`
           : ''
       }
-      <div class="srow"><div class="lab"><b>未匹配队列</b><span>${unmatched.length ? '自动匹配没到阈值；点「选择条目…」从搜索结果里手动绑定' : '全部作品都有条目'}</span></div>
-        ${unmatched.length ? `<span class="mini" data-bindqueue="unmatched">连续选择…</span>` : ''}
+      <div class="srow"><div class="lab"><b>未匹配队列</b><span>${unmatched.length ? '自动匹配没到阈值；点「选择」从搜索结果里手动绑定' : '全部作品都有条目'}</span></div>
+        ${unmatched.length ? `<span class="mini" data-bindqueue="unmatched">连续选择</span>` : ''}
         <div class="stat"><b>${unmatched.length}</b><span>部未匹配</span></div></div>
       ${
         unmatched.length
           ? `<div class="pending">${unmatched
               .map(
                 (g) =>
-                  `<div class="pitem"><span class="pnm">${esc(g.title)}</span><span class="psc">—</span><button class="mini" data-bind="${esc(g.id)}">选择条目…</button></div>`,
+                  `<div class="pitem"><span class="pnm">${esc(g.title)}</span><span class="psc">—</span><button class="mini" data-bind="${esc(g.id)}">选择</button></div>`,
               )
               .join('')}</div>`
           : ''

@@ -5,7 +5,7 @@
 import type { Game, NavIntent, Screen } from '../types';
 import { asset, launchGame, stopGame, onEvent, setFavorite, getSettings, getLibrary, runningGame } from '../ipc';
 import { placeholderArt } from '../art';
-import { state, sortedGames, setScreen, lastPlayedId, gameById } from '../state';
+import { state, sortedGames, setScreen, lastPlayedId, gameById, gridList } from '../state';
 import { clearHTML, setRawHTML } from '../html';
 import { registerHandler, isPadNavEvent } from '../nav';
 import { markSel, toggleSel, setMulti, openBatch, setMultiRefresh } from '../multi';
@@ -32,7 +32,7 @@ const STEP = 184;
 const HALF = 85;
 /** 手柄回书架手势只提示一次：它是游戏卡死时唯一的纯手柄出口 */
 const PAD_HOME_HINT = 'stash.padHomeHint';
-const RAIL_PAD = 64;
+const RAIL_PAD = 32;
 /** 舞台逻辑宽度：fitStage 会按窗口比例把它撑到 1280 以上（16:9 时正好 1280），
  *  轨道居中与首尾夹紧必须跟着走，否则宽窗口里焦点卡会偏到左边 */
 function stageW(): number {
@@ -271,7 +271,10 @@ export function toggleFav(id: string): void {
 
 /* ============ 空态 / 计数 ============ */
 export function updateEmpty(): void {
-  if (state.empty) showEmpty('empty');
+  // 空态只属于库 / 网格两屏：库被清空时用户可能正在设置页，
+  // 整屏空态（z-index 70）会把设置页盖住，还会顺手关掉面板。
+  const cur = state.screen;
+  if (state.empty && (cur === 'library' || cur === 'grid')) showEmpty('empty');
   else if (emptyShown()) hideEmpty();
 }
 
@@ -489,6 +492,8 @@ export function initLibrary(): void {
   window.addEventListener('stage-resize', () => {
     if (state.games.length) applyFocusCone();
   });
+  // 空态判定按屏分流：从设置页回到库 / 网格时补一次（见 updateEmpty 的注释）
+  window.addEventListener('screen-change', () => updateEmpty());
   registerHandler('library', (n: NavIntent) => {
     if (n.intent === 'accept') {
       // 多选态：A = 勾选当前焦点，不再启动
@@ -533,7 +538,12 @@ export function initLibrary(): void {
       if (n.dir === 'left') setFocus(state.focus - 1);
       if (n.dir === 'right') setFocus(state.focus + 1);
       if (n.dir === 'down') {
-        state.gridFocus = state.focus; // 轨道 → 网格：把当前焦点带过去（反了会悄悄改掉库焦点）
+        // 轨道索引是「未筛选」的，网格用的是筛选后的 gridList()：按 id 映射。
+        // 直接把 state.focus 赋过去，开过收藏 / 分面筛选时会落到别的作品或被夹到末尾。
+        const cur = sortedGames()[state.focus];
+        const list = gridList();
+        const i = cur ? list.findIndex((g) => g.id === cur.id) : -1;
+        state.gridFocus = i >= 0 ? i : 0;
         setScreen('grid');
         import('./grid')
           .then((m) => m.renderGrid())

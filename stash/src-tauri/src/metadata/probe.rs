@@ -5,6 +5,9 @@ use crate::store::Store;
 use crate::{egs, kungal, moegirl, net};
 use tauri::State;
 
+/// 一轮探测的总预算（见 `probe_sources_sync`）：超出的源标 skipped，不再逐个等超时。
+const PROBE_BUDGET: std::time::Duration = std::time::Duration::from_secs(45);
+
 /// 网络连通性自检（设置 · 网络页的「测试连接」）：一个真实搜索请求的最简路径。
 /// `async`：同步命令跑在主线程，而这里要等网络（Bangumi 不可达时单次 10s 超时 ×2）。
 #[tauri::command]
@@ -111,15 +114,44 @@ pub fn probe_sources_sync(s: &Settings, with_egs: bool) -> SourceProbe {
     egs::reset_offline();
     kungal::reset_offline();
 
-    let bangumi = match net::search(s, "CLANNAD") {
-        Ok(list) => SourceStatus {
-            status: "ok",
-            message: format!("Bangumi 可达（样例返回 {} 条）", list.len()),
-        },
-        Err(e) => SourceStatus {
-            status: code_status(e.code),
-            message: format!("Bangumi：{}", e.message),
-        },
+    // 整轮预算：单个源最坏要等 3 次重试 × 10s，四源串行能拖到两分钟以上，
+    // 「测试」按钮不该让人干等；超预算的源标 skipped，由前端显示为「跳过」。
+    let started = std::time::Instant::now();
+    let budget_over = || started.elapsed() >= PROBE_BUDGET;
+    let skipped = |name: &str| SourceStatus {
+        status: "skipped",
+        message: format!("{name}：整轮探测 45 秒预算已用尽，未探测"),
+    };
+
+    let bangumi = if budget_over() {
+        skipped("Bangumi")
+    } else {
+        match net::search(s, "CLANNAD") {
+            Ok(list) => SourceStatus {
+                status: "ok",
+                message: format!("Bangumi 可达（样例返回 {} 条）", list.len()),
+            },
+            Err(e) => SourceStatus {
+                status: code_status(e.code),
+                message: format!("Bangumi：{}", e.message),
+            },
+        }
+    };
+    // 鲲 Galgame 国内直连，不依赖代理；放在萌娘 / EGS 之前：它是 usable 的三个判定源之一，
+    // 预算用尽时也必须拿到它的结论，否则会把「只有鲲可用」误报成全部不可达
+    let kungal = if budget_over() {
+        skipped("鲲 Galgame")
+    } else {
+        match kungal::probe(s) {
+            Ok(_) => SourceStatus {
+                status: "ok",
+                message: "鲲 Galgame 可达（标题 / 简介 / 评分 / 时长）".to_string(),
+            },
+            Err(e) => SourceStatus {
+                status: code_status(e.code),
+                message: format!("鲲 Galgame：{}", e.message),
+            },
+        }
     };
     // 萌娘百科只在开着兜底时才有意义；关闭时不必浪费一次请求
     let moegirl = if !s.network.moegirl_fallback {
@@ -127,6 +159,8 @@ pub fn probe_sources_sync(s: &Settings, with_egs: bool) -> SourceProbe {
             status: "disabled",
             message: "萌娘百科兜底未开启".to_string(),
         }
+    } else if budget_over() {
+        skipped("萌娘百科")
     } else {
         match moegirl::lookup(s, "CLANNAD") {
             // 有结果 / 无结果都算可达：连不上才会走到 Err
@@ -145,6 +179,8 @@ pub fn probe_sources_sync(s: &Settings, with_egs: bool) -> SourceProbe {
             status: "skipped",
             message: "匹配预检不探测".to_string(),
         }
+    } else if budget_over() {
+        skipped("EGS")
     } else {
         match egs::lookup(s, "CLANNAD") {
             Ok(_) => SourceStatus {
@@ -158,31 +194,25 @@ pub fn probe_sources_sync(s: &Settings, with_egs: bool) -> SourceProbe {
         }
     };
 
-    // 鲲 Galgame 国内直连，不依赖代理；有响应即算可达
-    let kungal = match kungal::probe(s) {
-        Ok(_) => SourceStatus {
-            status: "ok",
-            message: "鲲 Galgame 可达（标题 / 简介 / 评分 / 时长）".to_string(),
-        },
-        Err(e) => SourceStatus {
-            status: code_status(e.code),
-            message: format!("鲲 Galgame：{}", e.message),
-        },
-    };
-
     let bangumi_ok = bangumi.status == "ok";
     let moegirl_ok = moegirl.status == "ok";
     let kungal_ok = kungal.status == "ok";
     let usable = bangumi_ok || moegirl_ok || kungal_ok;
+    // 预算耗尽导致跳过的源不能算进「都不可达」：结论要指向超时，而不是让用户去查网络
+    let timed_out = bangumi.status == "skipped"
+        || moegirl.status == "skipped"
+        || kungal.status == "skipped";
     let message = if !usable {
-        Some(if bangumi.status == "limited" {
+        if timed_out {
+            Some("探测超时（网络较慢或代理不可用），请稍后重试".to_string())
+        } else if bangumi.status == "limited" {
             // 429 冷却不是「不可达」：等一分钟或换代理都能恢复，不能误导用户去查网络
-            "Bangumi 触发限流（约 60 秒冷却），请稍后重试；长期如此建议在 Windows 设置里启用系统代理".to_string()
+            Some("Bangumi 触发限流（约 60 秒冷却），请稍后重试；长期如此建议在 Windows 设置里启用系统代理".to_string())
         } else if moegirl.status == "disabled" {
-            "Bangumi 不可达且萌娘百科兜底未开启；可在 Windows 设置里启用系统代理，或检查鲲 Galgame 是否可达".to_string()
+            Some("Bangumi 不可达且萌娘百科兜底未开启；可在 Windows 设置里启用系统代理，或检查鲲 Galgame 是否可达".to_string())
         } else {
-            "Bangumi / 萌娘百科 / 鲲 Galgame 都不可达；Bangumi 需要代理，请在 Windows 设置里启用系统代理".to_string()
-        })
+            Some("Bangumi / 萌娘百科 / 鲲 Galgame 都不可达；Bangumi 需要代理，请在 Windows 设置里启用系统代理".to_string())
+        }
     } else if !bangumi_ok && !moegirl_ok {
         Some("Bangumi 与萌娘百科不可达，本轮仅用鲲 Galgame 数据源".to_string())
     } else if !bangumi_ok {

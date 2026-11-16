@@ -8,6 +8,7 @@ import { renderRail } from '../../library';
 import { renderGrid } from '../../grid';
 import { rerender, sui } from '../ui';
 import { matchedRowsHTML } from '../../settings-tabs/metadata';
+import { hydrateArts } from '../../art';
 import { openCandPanel } from '../../../candpanel';
 
 /** 改绑 / 校正 / 选择条目：模态候选墙里完成绑定，回来后统一刷新库与设置面板。
@@ -57,8 +58,16 @@ export function wireMetadataTab(body: HTMLElement): void {
   // 已匹配作品：筛选框只重绘列表；「改绑…」用事件委托，重绘后不需要重新绑定
   const mf = body.querySelector<HTMLInputElement>('#matchedFilter');
   const mlist = body.querySelector<HTMLElement>('#matchedList');
+  // 列表里带封面缩略图：初次渲染与筛选重绘后都要补一次异步资源
+  if (mlist) hydrateArts(mlist);
   mf?.addEventListener('input', () => {
-    if (mlist) setRawHTML(mlist, matchedRowsHTML(mf.value));
+    // 筛选词存进 sui：后台 rerender() 重建面板后（匹配完成 / 换封面）
+    // 只读 DOM 的写法会把用户的筛选词丢掉
+    sui.matchedFilter = mf.value;
+    if (mlist) {
+      setRawHTML(mlist, matchedRowsHTML(mf.value));
+      hydrateArts(mlist);
+    }
   });
   mlist?.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-rebind]');

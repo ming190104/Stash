@@ -6,8 +6,13 @@ use crate::{input, power};
 use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
-pub fn get_settings(store: State<'_, Store>) -> Settings {
-    store.load_settings()
+pub async fn get_settings(store: State<'_, Store>) -> Result<Settings, AppError> {
+    // 读盘命令：网络盘 / 离线盘上 load_settings 可能阻塞数秒，不能占主线程。
+    // 读设置本身不会失败（坏文件内部已有兜底），join 失败时也按默认值继续。
+    let st = store.inner().clone();
+    Ok(tauri::async_runtime::spawn_blocking(move || st.load_settings())
+        .await
+        .unwrap_or_default())
 }
 
 #[tauri::command]

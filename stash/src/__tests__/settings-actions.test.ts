@@ -177,7 +177,7 @@ describe('手动添加', () => {
   it('重复入库：命中同目录时直接打开详情，不报红条', async () => {
     H.pickExeFile.mockResolvedValueOnce('D:\\VN\\Old\\game.exe');
     H.prompt.mockResolvedValueOnce('旧作');
-    H.addGame.mockRejectedValueOnce({ message: '该目录已在库中' });
+    H.addGame.mockRejectedValueOnce({ code: 'alreadyInLibrary', message: '该目录已在库中' });
     state.games = [game('old', { title: '旧作', dir: 'D:\\VN\\Old' })];
     await addManualGame();
     await vi.waitFor(() => expect(state.detailId).toBe('old'));
@@ -190,7 +190,7 @@ describe('手动添加', () => {
     state.games = [];
     H.pickExeFile.mockResolvedValueOnce('D:\\VN\\Latest\\game.exe');
     H.prompt.mockResolvedValueOnce('外部新增');
-    H.addGame.mockRejectedValueOnce({ message: '该目录已在库中' });
+    H.addGame.mockRejectedValueOnce({ code: 'alreadyInLibrary', message: '该目录已在库中' });
     H.getLibrary.mockResolvedValueOnce([latest]);
     await addManualGame();
     expect(state.games).toEqual([latest]);
@@ -200,7 +200,7 @@ describe('手动添加', () => {
   it('重复入库但定位不到条目时按错误提示', async () => {
     H.pickExeFile.mockResolvedValueOnce('D:\\VN\\Old\\game.exe');
     H.prompt.mockResolvedValueOnce('旧作');
-    H.addGame.mockRejectedValueOnce({ message: '该目录已在库中' });
+    H.addGame.mockRejectedValueOnce({ code: 'alreadyInLibrary', message: '该目录已在库中' });
     state.games = [];
     await addManualGame();
     expect(lastToast()).toContain('该目录已在库中');

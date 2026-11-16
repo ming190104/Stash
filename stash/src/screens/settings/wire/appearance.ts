@@ -8,10 +8,11 @@ import { applySoundSettings, sfx } from '../../../sfx';
 import { openMenu } from '../../../quick';
 import { renderRail } from '../../library';
 import { renderGrid } from '../../grid';
-import { THEME_LABEL, THEME_OPTS } from '../../settings-tabs/common';
+import { THEME_LABEL, THEME_OPTS, BOOT_LABEL, BOOT_OPTS } from '../../settings-tabs/common';
 import { persist } from '../persist';
 import { rerender } from '../ui';
 
+/** 启动动画档位与主题共用同一套下拉菜单代码路径 */
 export function wireAppearance(body: HTMLElement): void {
   // 主题：收成一个下拉按钮，点开共用菜单再选（不再铺一排色点）
   body.querySelector('#pickTheme')?.addEventListener('click', () => {
@@ -69,23 +70,37 @@ export function wireAppearance(body: HTMLElement): void {
   body.querySelector('#previewAnim')?.addEventListener('click', () => {
     const mode = normalizeBootAnim(state.settings?.bootAnim);
     if (mode === 'off') {
-      toast('启动动画已关闭，先选「核心启动」或「跃迁」再预览');
+      toast('启动动画已关闭，先选一个再预览');
       return;
     }
     previewBootAnim(mode);
   });
-  // 冷启动动画：写缓存供下次启动在设置读盘前选中同一档 + 落盘；切档立即预览一次
-  body.querySelectorAll('#segBootAnim b').forEach((b) => {
-    b.addEventListener('click', () => {
-      const v = applyBootAnim((b as HTMLElement).dataset.v);
-      body.querySelectorAll('#segBootAnim b').forEach((x) => x.classList.toggle('on', x === b));
-      if (state.settings) {
-        state.settings.bootAnim = v;
-        persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
-      }
-      previewBootAnim(v);
-      toast(`启动动画 · ${v === 'core' ? '核心启动' : v === 'warp' ? '流光跃迁' : '关闭'} · 下次启动生效`);
-    });
+  // 冷启动动画：与主题同样收成下拉；写缓存供下次启动在设置读盘前选中同一档 + 落盘；切档立即预览一次
+  body.querySelector('#pickBootAnim')?.addEventListener('click', () => {
+    const cur = normalizeBootAnim(state.settings?.bootAnim);
+    void openMenu(
+      '启动动画',
+      `当前 · ${BOOT_LABEL[cur]}`,
+      BOOT_OPTS.map((m) => ({
+        key: m.v,
+        label: m.label,
+        hint: m.v === cur ? '当前' : undefined,
+        run: async () => {
+          if (!state.settings) return;
+          const v = applyBootAnim(m.v);
+          state.settings.bootAnim = v;
+          previewBootAnim(v);
+          // 先落盘再报成功：persist() 失败时会按磁盘值回滚，此时不能再提示已切换
+          try {
+            await persist();
+            toast(`启动动画 · ${BOOT_LABEL[v]} · 下次启动生效`);
+          } catch (err) {
+            toast(esc(String((err as { message?: string })?.message ?? err)), true);
+          }
+          rerender();
+        },
+      })),
+    );
   });
   // 界面字号：写 --fs 根变量（app.css 全部 font-size 乘它）+ 落盘，版式不动
   body.querySelectorAll('#segFont b').forEach((b) => {

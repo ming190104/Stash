@@ -289,6 +289,16 @@ describe('同一按键的双通道投递', () => {
     expect(seen).toEqual([{ intent: 'accept' }]);
   });
 
+  it('手柄 B 与键盘 Esc 同一瞬间到达：只退一层', async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    const seen: NavIntent[] = [];
+    setScreen('grid');
+    registerHandler('grid', (n) => seen.push(n));
+    dispatchNav({ intent: 'back' }, 'pad');
+    dispatchNav({ intent: 'back' }, 'key');
+    expect(seen).toEqual([{ intent: 'back' }]);
+  });
+
   it('同一通道连按两次仍然各自生效（去重只拦跨通道）', async () => {
     // 等过去重窗口，避免受上一条用例留下的时间戳影响
     await new Promise((r) => setTimeout(r, 200));

@@ -84,7 +84,8 @@ function saveEndings(next: EndMark[]): void {
   const g = gameById(endGame);
   if (!g) return;
   g.endings = next;
-  if (next.length) g.progress = next.filter((e) => e.done).length / next.length;
+  // 删光最后一条时必须归零：否则界面会一直挂着「已通关 100%」
+  g.progress = next.length ? next.filter((e) => e.done).length / next.length : 0;
   renderEndings();
   void import('./screens/library').then((m) => m.renderRail());
   void import('./screens/grid').then((m) => m.renderGrid());

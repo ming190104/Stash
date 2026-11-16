@@ -40,8 +40,13 @@ const AUX_EXE: &[&str] = &[
 /// - 一个目录多个 exe 时取体积最大的；辅助程序（卸载 / 安装 / 配置 / 崩溃上报）排除。
 pub fn find_games(root: &Path) -> Vec<FoundGame> {
     let mut out = Vec::new();
-    let Ok(rd) = std::fs::read_dir(root) else {
-        return out;
+    // 读不动目录（权限 / IO / 盘掉线）不能伪装成「0 个候选」：用户会以为库是空的
+    let rd = match std::fs::read_dir(root) {
+        Ok(rd) => rd,
+        Err(e) => {
+            tracing::warn!("扫描目录失败 {}：{e}", root.display());
+            return out;
+        }
     };
     let mut dirs: Vec<PathBuf> = rd
         .flatten()
@@ -76,7 +81,13 @@ fn is_aux_exe(lower_name: &str) -> bool {
 
 /// 目录本层的 exe，排除辅助程序后取体积最大者
 pub(crate) fn pick_main_exe(dir: &Path) -> Option<PathBuf> {
-    let rd = std::fs::read_dir(dir).ok()?;
+    let rd = match std::fs::read_dir(dir) {
+        Ok(rd) => rd,
+        Err(e) => {
+            tracing::warn!("读取目录失败 {}：{e}", dir.display());
+            return None;
+        }
+    };
     let mut best: Option<(u64, PathBuf)> = None;
     for e in rd.flatten() {
         if !e.file_type().map(|t| t.is_file()).unwrap_or(false) {
@@ -98,7 +109,13 @@ pub(crate) fn pick_main_exe(dir: &Path) -> Option<PathBuf> {
 
 /// 二级兜底：作品目录本身没有 exe 时，下探一层子目录找主程序
 pub(crate) fn second_level_exe(dir: &Path) -> Option<PathBuf> {
-    let rd = std::fs::read_dir(dir).ok()?;
+    let rd = match std::fs::read_dir(dir) {
+        Ok(rd) => rd,
+        Err(e) => {
+            tracing::warn!("读取目录失败 {}：{e}", dir.display());
+            return None;
+        }
+    };
     let mut subs: Vec<PathBuf> = rd
         .flatten()
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
@@ -156,7 +173,14 @@ pub(crate) fn read_meta(dir: &Path) -> LocalMeta {
     }
     // UTF-8 BOM：PowerShell 5 的 `Set-Content -Encoding UTF8` 会写入它，
     // serde_json 见到 BOM 直接报错 → 整份本地元数据被静默丢弃（标签/会社/年份全空）。
-    serde_json::from_str(s.trim_start_matches('\u{feff}')).unwrap_or_default()
+    match serde_json::from_str(s.trim_start_matches('\u{feff}')) {
+        Ok(v) => v,
+        Err(e) => {
+            // 坏文件不再静默：用户手改错一个逗号时，至少要能在日志里看到原因
+            tracing::warn!("meta.json 解析失败 {}：{e}", dir.join("meta.json").display());
+            LocalMeta::default()
+        }
+    }
 }
 
 /// meta.json 里声明的通关进度（0–1）。

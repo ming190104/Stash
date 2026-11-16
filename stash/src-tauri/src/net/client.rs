@@ -1,6 +1,7 @@
 //! 网络层公共设施：串行阀门、限流冷却、超时 / 代理 / 响应大小上限。
 
 use crate::models::{AppError, ErrCode, Settings};
+use reqwest::redirect::Policy;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -33,19 +34,12 @@ static IN_FLIGHT: Mutex<()> = Mutex::new(());
 
 /// 取得发车许可；返回值必须持有到请求结束（`let _turn = wait_turn();`）
 pub(crate) fn wait_turn() -> std::sync::MutexGuard<'static, ()> {
+    // 429 之后的全局冷却最长 60 秒。必须先在锁外等：若持着 IN_FLIGHT 睡觉，
+    // 一个在冷却里的请求会把四个数据源的请求全部堵死（实际并发变成 0）。
+    wait_cooldown();
     let flight = IN_FLIGHT.lock().unwrap_or_else(|e| e.into_inner());
-    // 429 之后的全局冷却：只靠 1req/s 仍然会持续撞限流，最后被站点封 IP。
-    // 分片睡眠 + 每片重读截止时间：用户点「测试连接 / 重新匹配」会 clear_cooldown()，
-    // 不必再干等满 60 秒（旧实现是一觉睡到底，只能等定时器自然到期）。
-    loop {
-        let left = (*COOLDOWN.lock().unwrap_or_else(|e| e.into_inner()))
-            .map(|t| t.saturating_duration_since(Instant::now()))
-            .unwrap_or_default();
-        if left.is_zero() {
-            break;
-        }
-        std::thread::sleep(left.min(std::time::Duration::from_millis(500)));
-    }
+    // 等锁期间可能有别的请求刚触发限流：拿到在途许可后再确认一次
+    wait_cooldown();
     let mut g = GATE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(last) = *g {
         let elapsed = last.elapsed();
@@ -55,6 +49,20 @@ pub(crate) fn wait_turn() -> std::sync::MutexGuard<'static, ()> {
     }
     *g = Some(Instant::now());
     flight
+}
+
+/// 分片睡眠等冷却结束：每片重读截止时间，用户点「测试连接 / 重新匹配」时
+/// `clear_cooldown()` 能立刻生效，不必干等满 60 秒。
+fn wait_cooldown() {
+    loop {
+        let left = (*COOLDOWN.lock().unwrap_or_else(|e| e.into_inner()))
+            .map(|t| t.saturating_duration_since(Instant::now()))
+            .unwrap_or_default();
+        if left.is_zero() {
+            break;
+        }
+        std::thread::sleep(left.min(std::time::Duration::from_millis(500)));
+    }
 }
 
 /// 429 / 403 之后的冷却截止时间
@@ -255,7 +263,10 @@ fn build_client(
     let mut b = reqwest::blocking::Client::builder()
         .user_agent(UA)
         .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(total);
+        .timeout(total)
+        // 重定向目标同样来自远端（图片 CDN / 元数据跳转）：逐跳校验，防止
+        // 「公网地址 302 到 127.0.0.1」这种绕过首次 URL 检查的 SSRF
+        .redirect(redirect_policy());
     // 跟随 Windows 系统代理；配置异常时按直连处理，避免一个坏值让所有请求都「不可达」
     if let Some(p) = system_proxy() {
         match proxy_url(&p) {
@@ -268,6 +279,88 @@ fn build_client(
         }
     }
     b.build().map_err(|e| AppError::new(ErrCode::NetworkOffline, e.to_string()))
+}
+
+/// 远程 URL 白名单：仅 http/https，且主机不能是本机 / 内网字面量。
+///
+/// 图片地址与重定向目标都来自远端元数据：不设限时恶意条目可以驱动客户端访问
+/// `127.0.0.1`、`192.168.x.x`、`localhost` 等内网地址（SSRF），或用 `file://`
+/// 读本地文件。域名解析到内网的 DNS rebinding 不在此处拦截（需要自定义 resolver），
+/// 但已覆盖常见的字面量、保留域名与 IPv4 映射 / 兼容地址。
+pub(crate) fn check_remote_url(url: &str, what: &str) -> Result<(), AppError> {
+    let u = reqwest::Url::parse(url)
+        .map_err(|_| AppError::new(ErrCode::ConfigInvalid, format!("{what}地址不合法：{url}")))?;
+    if !matches!(u.scheme(), "http" | "https") {
+        return Err(AppError::new(
+            ErrCode::ConfigInvalid,
+            format!("{what}地址协议不受支持：{url}"),
+        ));
+    }
+    let host = u
+        .host_str()
+        .map(|h| h.trim_matches(['[', ']']).to_ascii_lowercase())
+        .filter(|h| !h.is_empty())
+        .ok_or_else(|| {
+            AppError::new(ErrCode::ConfigInvalid, format!("{what}地址缺少主机：{url}"))
+        })?;
+    if host == "localhost"
+        || host.ends_with(".localhost")
+        || host.ends_with(".local")
+        || host.ends_with(".internal")
+    {
+        return Err(AppError::new(
+            ErrCode::ConfigInvalid,
+            format!("{what}地址指向本机 / 内网，已拒绝：{url}"),
+        ));
+    }
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        let bad = match ip {
+            std::net::IpAddr::V4(v4) => private_v4(v4),
+            std::net::IpAddr::V6(v6) => {
+                // IPv4 映射 / 兼容地址（`::ffff:127.0.0.1`）按内嵌的 v4 判断：
+                // is_loopback / is_private 对它们返回 false，不处理就能绕过限制
+                v6.to_ipv4().is_some_and(private_v4) || {
+                    let seg = v6.segments()[0];
+                    // 手写前缀判断：is_unique_local / is_unicast_link_local 需要 Rust 1.84，
+                    // 项目 MSRV 是 1.77（fc00::/7 与 fe80::/10）
+                    v6.is_loopback()
+                        || v6.is_unspecified()
+                        || v6.is_multicast()
+                        || (seg & 0xfe00) == 0xfc00
+                        || (seg & 0xffc0) == 0xfe80
+                }
+            }
+        };
+        if bad {
+            return Err(AppError::new(
+                ErrCode::ConfigInvalid,
+                format!("{what}地址指向本机 / 内网，已拒绝：{url}"),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn private_v4(v4: std::net::Ipv4Addr) -> bool {
+    v4.is_loopback()
+        || v4.is_private()
+        || v4.is_link_local()
+        || v4.is_unspecified()
+        || v4.is_multicast()
+        || v4.is_broadcast()
+}
+
+/// 重定向逐跳校验：最多 5 跳，每一跳都过 `check_remote_url`。
+fn redirect_policy() -> Policy {
+    Policy::custom(|attempt| {
+        if attempt.previous().len() >= 5 {
+            return attempt.error("重定向次数过多");
+        }
+        if check_remote_url(attempt.url().as_str(), "重定向目标").is_err() {
+            return attempt.stop();
+        }
+        attempt.follow()
+    })
 }
 
 /// Bangumi 一旦整体不可达（国内直连常见），本轮不再为每部作品重复等 30s 超时；

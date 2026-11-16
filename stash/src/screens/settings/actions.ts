@@ -26,6 +26,7 @@ import {
 } from '../../ipc';
 import { promptInput } from '../../prompt';
 import { hideStates } from '../../overlay';
+import type { AppError } from '../../types';
 import { runBaseline } from '../../fps';
 import { renderRail, updateCount, refreshLibrary, openDetail } from '../library';
 import { renderGrid } from '../grid';
@@ -83,9 +84,11 @@ export async function addGameByExe(exe: string, title: string): Promise<boolean>
     toast(`已添加《${esc(g.title)}》${first ? ' · 需要封面 / 简介可在设置 · 元数据开启在线匹配' : ''}`);
     return true;
   } catch (e) {
-    const msg = String((e as { message?: string })?.message ?? e);
-    // 同一目录重复添加：后端拒绝后不弹红条，直接打开库里那部（比让人自己翻更快）
-    if (msg.includes('已在库中')) {
+    const err = e as Partial<AppError>;
+    const msg = String(err?.message ?? e);
+    // 同一目录重复添加：按稳定错误码分支（不匹配中文文案），后端拒绝后不弹红条，
+    // 直接打开库里那部（比让人自己翻更快）
+    if (err?.code === 'alreadyInLibrary') {
       // 库可能已被别处改动：这里读一次最新的，避免定位到内存里的旧数据
       const games = await getLibrary().catch(() => state.games);
       state.games = games;

@@ -16,8 +16,8 @@ html[data-fs="1"] .winbtns,html[data-fs="1"] .fs-hide{display:none}
 .winbtns .winclose:hover{background:rgba(255,110,120,.82);color:#fff;border-color:transparent}
 
 /* ===== 书架主屏（游戏库） ===== */
-.hero{position:absolute;top:54px;left:0;right:0;bottom:298px;display:flex;align-items:center;padding:0 64px 0;gap:46px;z-index:5}
-.hero-art{position:relative;flex:none;width:250px;height:333px;border-radius:13px;overflow:hidden;box-shadow:0 34px 70px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.14);animation:float 7s ease-in-out infinite alternate}
+.hero{position:absolute;top:54px;left:0;right:0;bottom:298px;display:flex;align-items:center;padding:0 64px 0 40px;gap:40px;z-index:5}
+.hero-art{position:relative;flex:none;width:236px;height:315px;border-radius:13px;overflow:hidden;box-shadow:0 34px 70px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.14);animation:float 7s ease-in-out infinite alternate}
 .hero-art .art{border-radius:13px}
 @keyframes float{from{transform:translateY(0)}to{transform:translateY(-7px)}}
 .hero-art.artin{animation:artin .52s cubic-bezier(.16,1,.3,1) both,float 7s ease-in-out .52s infinite alternate}
@@ -56,7 +56,7 @@ html[data-fs="1"] .winbtns,html[data-fs="1"] .fs-hide{display:none}
 .h-play .dot{width:3px;height:3px;border-radius:50%;background:var(--ink3)}
 .h-bar{width:180px;height:3px;background:rgba(255,255,255,.14);border-radius:9px;overflow:hidden}
 .h-bar i{display:block;height:100%;background:var(--accg);border-radius:9px}
-.h-cta{margin-top:24px;display:flex;gap:14px;align-items:center}
+.h-cta{margin-top:18px;display:flex;gap:14px;align-items:center}
 .cta{display:inline-flex;align-items:center;gap:10px;padding:12px 24px;border-radius:999px;background:var(--accg);color:var(--acc-on);font-weight:700;font-size:calc(14.5px * var(--fs,1));letter-spacing:1px;border:none;cursor:pointer;box-shadow:0 10px 30px color-mix(in srgb,var(--acc) 40%,transparent);
   transition:transform .16s cubic-bezier(.2,1.1,.3,1)}
 .cta:hover{transform:scale(1.045);box-shadow:0 14px 38px color-mix(in srgb,var(--acc) 55%,transparent)}
@@ -174,7 +174,12 @@ html[data-layout="classic"] .qekey{display:none}
 .d-meta{display:grid;grid-template-columns:auto auto auto;gap:6px 34px;margin-top:14px;font-size:calc(11px * var(--fs,1))}
 .d-meta div{color:var(--ink3);letter-spacing:.5px}
 .d-meta b{color:var(--ink2);font-weight:500;margin-left:8px}
+.d-meta b.na{color:var(--ink3);font-weight:400}
 .d-meta .warn{font-style:normal;color:var(--acc2)}
+/* 同会社作品：详情页横向推荐条，点击切换当前详情 */
+.d-rel{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:calc(11px * var(--fs,1));color:var(--ink3);flex-wrap:wrap}
+.rel-chip{padding:3px 10px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid var(--gline);color:var(--ink2);cursor:pointer;letter-spacing:.5px;transition:background .15s,color .15s}
+.rel-chip:hover{background:rgba(255,255,255,.12);color:var(--ink1)}
 /* 元数据格内的行内动作（结局 / 标签），比 .mini 轻，不撑高 d-meta 两行网格 */
 .linkbtn{color:var(--acc);cursor:pointer;margin-left:8px;font-size:calc(11px * var(--fs,1));letter-spacing:.5px;border-bottom:1px dashed color-mix(in srgb,var(--acc) 50%,transparent)}
 .linkbtn:hover{color:var(--acc2);border-bottom-color:rgba(255,194,140,.7)}
@@ -217,6 +222,13 @@ html[data-layout="classic"] .qekey{display:none}
 .pitem{display:flex;align-items:center;gap:12px;font-size:calc(12px * var(--fs,1));color:var(--ink2)}
 .pitem .pnm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pitem .psc{font-size:calc(11px * var(--fs,1));color:var(--ink3);font-variant-numeric:tabular-nums}
+/* 元数据行：缩略图 + 不收缩的短按钮，避免长文案把按钮压成「改绑…」 */
+.pitem .mini{flex:none;white-space:nowrap;padding:6px 12px}
+.pitem .psc{flex:none}
+.pthumb{position:relative;flex:none;width:26px;height:35px;border-radius:5px;overflow:hidden}
+.pthumb .art,.pthumb .art img{border-radius:5px}
+.pthumb .vt,.pthumb .ro{display:none}
+.pthumb .ph-t{font-size:calc(14px * var(--fs,1))}
 /* 游戏库目录：行内按钮组 + 扫描候选（标题可改、已在库中置灰） */
 .lacts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .lcands{max-height:320px}
@@ -420,6 +432,8 @@ input::placeholder,textarea::placeholder{color:var(--ink3);opacity:1}
 .flt-opt.on{background:color-mix(in srgb,var(--acc) 16%,transparent);border-color:color-mix(in srgb,var(--acc) 40%,transparent);color:var(--acc-ink)}
 .flt-opt.focus{outline:var(--focus-w) solid var(--focus-ring);outline-offset:1px}
 .flt-opt.zero{opacity:.4;cursor:not-allowed}
+/* 口径说明：短篇按时长、标签按标签，两者不是同一套计数 */
+.flt-note{margin:-2px 0 4px;font-size:calc(10px * var(--fs,1));line-height:1.5;color:var(--ink3);letter-spacing:.3px}
 #fltClear{padding:6px 12px;font-size:calc(11px * var(--fs,1));letter-spacing:.5px;flex:none;background:rgba(255,255,255,.07);border-color:var(--gline);color:var(--ink2)}
 #fltClear:hover{background:rgba(255,255,255,.13);color:var(--ink1)}
 .flt-nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -470,18 +484,22 @@ input::placeholder,textarea::placeholder{color:var(--ink3);opacity:1}
 .snap-act:hover{color:var(--acc2)}
 .snap-act.del{color:#ff9a9a;border-bottom-color:rgba(255,120,120,.5)}
 .snap-empty{padding:10px 2px;font-size:calc(12.5px * var(--fs,1));line-height:1.9;color:var(--ink2)}
-/* 快捷键总览（F1 / ?）：四组键位两列排布，720 高内可完整显示，不做滚动 */
-.help-box{width:1000px;display:flex;flex-direction:column;gap:14px;padding:22px 24px 10px;
+/* 快捷键总览（F1 / ?）：四组键位两列排布；先压缩行距保证 720 高一屏放下，极端字号时盒内可滚动 */
+.help-box{width:1000px;max-height:calc(100% - 36px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  display:flex;flex-direction:column;gap:14px;padding:22px 24px 10px;
   background:var(--glass);border:1px solid var(--gline);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.6);
   transform:translateY(12px) scale(.986);transition:transform .36s cubic-bezier(.16,1,.3,1)}
 .state.show .help-box{transform:translateY(0) scale(1)}
-.help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 30px}
-.help-grid section{display:flex;flex-direction:column;gap:2px;min-width:0}
+.help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 30px}
+.help-grid section{display:flex;flex-direction:column;gap:1px;min-width:0}
 .help-grid h4{margin:0 0 5px;font:500 calc(11.5px * var(--fs,1))/1 var(--sans);letter-spacing:.14em;color:var(--ink3)}
-.help-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:5.5px 0;
+.help-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:4px 0;line-height:1.35;
   border-bottom:1px solid var(--gline);font-size:calc(12.5px * var(--fs,1));color:var(--ink1)}
+/* 特大字号下再收一层，保证 30 条键位仍能一屏放下 */
+html[data-fs-scale="1.25"] .help-box{padding:14px 24px 6px;gap:8px}
+html[data-fs-scale="1.25"] .help-grid h4{margin-bottom:3px}
 .help-row>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink2)}
-.hk{display:flex;gap:4px;flex:none}
+.hk{display:flex;align-items:center;gap:4px;height:20px;flex:none}
 /* 结局 / 路线行：圆点即状态（空心未达成 / 实心已达成） */
 .end-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);
   border:1px solid transparent;font-size:calc(12px * var(--fs,1));color:var(--ink2);cursor:pointer}
@@ -611,15 +629,16 @@ html[data-layout="list"] .navkey{display:none}
 html[data-layout="wall"] .wall-zone{display:block;position:absolute;top:60px;left:0;right:0;bottom:48px;
   overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;z-index:10}
 html[data-layout="wall"] .wall-zone::-webkit-scrollbar{display:none}
-.wall-grid{display:grid;grid-template-columns:repeat(6,176px);gap:20px 18px;justify-content:center;
-  padding:16px 56px 30px}
+/* 6 列是方向键导航契约，这里只让列宽随舞台流式伸缩，避免宽屏两侧留白 */
+.wall-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:20px 18px;justify-content:center;
+  width:100%;max-width:1320px;margin:0 auto;box-sizing:border-box;padding:16px 56px 30px}
 .wall-cell{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer}
-.wall-cell .card{width:176px;height:234px;content-visibility:auto;contain-intrinsic-size:176px 234px}
+.wall-cell .card{width:100%;height:auto;aspect-ratio:176/234;content-visibility:auto;contain-intrinsic-size:auto 234px}
 .wall-cell .card:hover{transform:translateY(-4px) scale(1.02)}
 .wall-cell .card.focus{transform:translateY(-8px) scale(1.05);content-visibility:visible;
   box-shadow:0 0 0 2.5px var(--acc),0 18px 40px color-mix(in srgb,var(--acc) 32%,transparent),0 12px 30px rgba(0,0,0,.45)}
-.wt{max-width:176px;font-size:calc(11px * var(--fs,1));line-height:14px;letter-spacing:.5px;color:var(--ink3);text-align:center;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s}
+.wt{max-width:100%;min-height:calc(17px * var(--fs,1));font-size:calc(12.5px * var(--fs,1));line-height:1.4;letter-spacing:.5px;color:var(--ink2);text-align:center;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;transition:color .15s}
 .wall-cell.on .wt{color:var(--acc-ink);font-weight:700}
 /* 阶梯入场：只在进入海报墙时播一次（纯 transform/opacity），库内重绘由 JS 摘掉 .cascade */
 .wall-grid.cascade .wall-cell{animation:cascadeIn .46s cubic-bezier(.16,1,.3,1) both}
@@ -661,7 +680,10 @@ html[data-layout="list"] .list-zone{display:block;position:absolute;top:54px;lef
   box-shadow:0 6px 14px rgba(0,0,0,.45)}
 .lthumb .art,.lthumb .art img{border-radius:7px}
 .lthumb .vt{font-size:calc(9px * var(--fs,1));letter-spacing:2px;top:6px;right:5px}
-.lthumb .ro{font-size:calc(6px * var(--fs,1));left:5px;bottom:4px;letter-spacing:1.5px}
+/* 6px 的引擎角标在任何字号下都不可读，直接隐藏；特大字号再隐藏竖排标题并放大缩略图 */
+.lthumb .ro{display:none}
+html[data-fs-scale="1.12"] .lthumb .vt,html[data-fs-scale="1.25"] .lthumb .vt{display:none}
+html[data-fs-scale="1.25"] .lthumb{width:64px;height:84px}
 .lmain{flex:1;min-width:0}
 .lt{font-size:calc(13.5px * var(--fs,1));font-weight:500;letter-spacing:.6px;line-height:1.3;color:var(--ink1);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

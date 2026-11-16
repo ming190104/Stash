@@ -7,7 +7,7 @@ import type { NavIntent, PadMap } from '../types';
 import { TAURI, autostartEnabled, getSettings, onEvent } from '../ipc';
 import { state, setScreen } from '../state';
 import { registerHandler } from '../nav';
-import { toast, esc, ringActivate } from '../ui';
+import { toast, esc, ringActivate, ringClear, ringEls } from '../ui';
 import { setRawHTML } from '../html';
 import { refreshPadHints } from '../keybar';
 import { PAD_DEFAULT, PAD_KEY_LABEL, padGlyph } from '../padmap';
@@ -105,7 +105,16 @@ export async function renderSettings(): Promise<void> {
   }
 
   wire(body);
-  applyRing(); // 面板重建后重新挂焦点环（DOM 换了，旧引用已失效）
+  // 面板重建后重新挂焦点环（DOM 换了，旧引用已失效）。
+  // 但用户正在输入框里打字时不能挂：applyRing 会把焦点抢到面板第一个控件上，
+  // 表现为「每敲一下 / 后台刷新一次就跳出输入框」。
+  if (keep) {
+    const nav = document.getElementById('snav');
+    ringClear(nav ? ringEls(nav) : []);
+    ringClear(panelEls());
+  } else {
+    applyRing();
+  }
   if (sui.tab === 3) void syncBootState();
   if (sui.tab === 7) void loadLogIssues();
 

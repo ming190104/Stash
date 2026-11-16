@@ -59,22 +59,30 @@ function cycleView(): void {
 }
 
 /** 一次物理按键可能被两条通道同时投递（手柄线程 + 系统的键盘模拟设备）：
- *  同一瞬间收到「手柄 accept」和「键盘 accept」时只认先到的那条。
- *  只拦跨通道、且间隔极短的重复；同通道连按（键盘连点 / 手柄连按）不受影响。 */
-const ACCEPT_GAP_MS = 180;
-let lastAccept: { at: number; from: NavSource } | null = null;
+ *  跨通道、间隔极短的同一意图只认先到的那条。同通道连按（键盘连点 / 手柄连按）不受影响。
+ *  B / Start 也会被重复投递（连退两层、菜单开了又关），所以按 intent 统一去重；
+ *  move 是长按连发，不参与。 */
+const DUP_GAP_MS = 180;
+let lastIntent: { key: string; at: number; from: NavSource } | null = null;
 
-function duplicateAccept(from: NavSource): boolean {
+function intentKey(n: NavIntent): string {
+  return n.intent === 'move' ? `move:${n.dir}` : n.intent;
+}
+
+function duplicateIntent(n: NavIntent, from: NavSource): boolean {
+  if (n.intent === 'move') return false;
+  const key = intentKey(n);
   const now = performance.now();
-  const dup = lastAccept !== null && lastAccept.from !== from && now - lastAccept.at < ACCEPT_GAP_MS;
+  const dup =
+    lastIntent !== null && lastIntent.key === key && lastIntent.from !== from && now - lastIntent.at < DUP_GAP_MS;
   // 被丢弃时不刷新时间戳：真正的那次按键仍以先到者为起点
-  if (!dup) lastAccept = { at: now, from };
+  if (!dup) lastIntent = { key, at: now, from };
   return dup;
 }
 
 export function dispatchNav(n: NavIntent, from: NavSource = 'key'): void {
-  if (n.intent === 'accept' && duplicateAccept(from)) {
-    console.debug('[nav] 丢弃重复 accept（同一按键的双通道投递）', from);
+  if (duplicateIntent(n, from)) {
+    console.debug('[nav] 丢弃重复意图（同一按键的双通道投递）', n.intent, from);
     return;
   }
   // 交互音效：导航类动作统一在这里出声，各屏不必重复接

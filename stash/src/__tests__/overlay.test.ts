@@ -17,6 +17,8 @@ import {
   openHelp,
   openSearch,
   renderSearch,
+  scheduleSearchRender,
+  cancelSearchRender,
   searchList,
   searchShown,
   showEmpty,
@@ -24,6 +26,7 @@ import {
   showState,
 } from '../overlay';
 import { state } from '../state';
+import { promptConfirm } from '../prompt';
 import { renderGrid, setFilter } from '../screens/grid';
 
 vi.mock('../ipc', () => ({
@@ -113,6 +116,22 @@ describe('搜索 · 排序', () => {
     expect(document.querySelectorAll('#spList .sp-item').length).toBe(12);
   });
 
+  it('面板关闭后作废挂起的防抖重绘', () => {
+    vi.useFakeTimers();
+    try {
+      state.games = [game('a', { title: '千恋万花' })];
+      openSearch();
+      const before = el('spList').innerHTML;
+      state.query = '千恋';
+      scheduleSearchRender();
+      cancelSearchRender();
+      vi.advanceTimersByTime(500);
+      expect(el('spList').innerHTML).toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('焦点在搜索框：Esc 关闭、Enter 选中候选并写入历史', () => {
     openSearch();
     const inp = el('spInput') as HTMLInputElement;
@@ -134,6 +153,34 @@ describe('搜索 · 排序', () => {
     expect(handleOverlayKey(enter)).toBe(true);
     expect(click).toHaveBeenCalledTimes(1);
     expect(JSON.parse(localStorage.getItem('vnSearchHistory') ?? '[]')).toContain('miko');
+  });
+
+  it('输入法组合态：Enter 上屏不会选中候选 / 关闭面板', () => {
+    openSearch();
+    const inp = el('spInput') as HTMLInputElement;
+    const item = document.createElement('div');
+    item.className = 'sp-item on';
+    const click = vi.fn();
+    item.addEventListener('click', click);
+    el('spList').appendChild(item);
+    state.query = 'qianlian';
+    const enter = key('Enter', { isComposing: true });
+    inp.dispatchEvent(enter);
+    expect(handleOverlayKey(enter)).toBe(true);
+    expect(click).not.toHaveBeenCalled();
+    expect(searchShown()).toBe(true);
+  });
+
+  it('纯确认弹层：焦点还在背后输入框时 Enter 也能确认', async () => {
+    const bg = document.createElement('input');
+    document.body.appendChild(bg);
+    bg.focus();
+    const p = promptConfirm({ title: '移除出库' });
+    const enter = key('Enter');
+    bg.dispatchEvent(enter);
+    expect(handleOverlayKey(enter)).toBe(true);
+    await expect(p).resolves.toBe(true);
+    bg.remove();
   });
 
   it('历史词行末尾有「清空」，点掉后历史与 chips 一起消失', () => {
@@ -182,6 +229,20 @@ describe('筛选面板', () => {
     const esc = key('Escape');
     expect(handleOverlayKey(esc)).toBe(true);
     expect(filterShown()).toBe(false);
+  });
+
+  it('集合列计数走预聚合：同会社 2 部才算系列，隐藏作品不计', () => {
+    state.games = [
+      game('a', { developer: 'Key' }),
+      game('b', { developer: 'Key' }),
+      game('c', { developer: 'Leaf' }),
+      game('h', { developer: 'Leaf', hidden: true }),
+    ];
+    openFilter();
+    const rows = [...document.querySelectorAll<HTMLElement>('#fltCols .flt-opts')[0].querySelectorAll('.flt-opt')];
+    const cnt = (i: number): string | null | undefined => rows[i].querySelector('.flt-ct')?.textContent;
+    expect(cnt(0)).toBe('3'); // 全部 = 可见 3 部（隐藏的 h 不算）
+    expect(cnt(3)).toBe('2'); // 同会社系列 = 只有 Key 的两部
   });
 });
 

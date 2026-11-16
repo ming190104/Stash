@@ -239,6 +239,8 @@ async function boot(): Promise<void> {
 
     let idleTimer = 0;
     let wakeTimer = 0;
+    /** 一帧内只续一次 idle 计时（pointermove 这类高频事件合并用） */
+    let wakeQueued = false;
     // 预热非当前屏：opacity:.001 才会真正触发一次栅格化（0 / visibility:hidden 都被跳过）。
     // 预热后第一次切过去只有图层合成（实测最大帧间隔 24ms → 6ms），不会再「卡一下」。
     // 每次进入 idle 再补一次：屏被隐藏久了栅格缓存会被回收，需要重新烘一遍。
@@ -276,14 +278,21 @@ async function boot(): Promise<void> {
       prewarm();
     };
     const wake = () => {
-      clearTimeout(idleTimer);
-      idleTimer = window.setTimeout(sleep, 4000);
-      // idle 推迟 180ms 再解除：让切屏那一帧先保持静止，避免「恢复呼吸动画的样式重算」
-      // 与切屏合成撞在同一帧（实测多 6~10ms）；用户按下键到动画恢复只有 0.18s，无感。
-      if (app?.classList.contains('idle')) {
-        clearTimeout(wakeTimer);
-        wakeTimer = window.setTimeout(() => app?.classList.remove('idle'), 180);
-      }
+      // 输入事件只负责给 idle 计时续命：pointermove 一秒能来上百条，
+      // 每条都清 / 设一遍定时器纯属白烧，合并到一帧里只做一次。
+      if (wakeQueued) return;
+      wakeQueued = true;
+      requestAnimationFrame(() => {
+        wakeQueued = false;
+        clearTimeout(idleTimer);
+        idleTimer = window.setTimeout(sleep, 4000);
+        // idle 推迟 180ms 再解除：让切屏那一帧先保持静止，避免「恢复呼吸动画的样式重算」
+        // 与切屏合成撞在同一帧（实测多 6~10ms）；用户按下键到动画恢复只有 0.18s，无感。
+        if (app?.classList.contains('idle')) {
+          clearTimeout(wakeTimer);
+          wakeTimer = window.setTimeout(() => app?.classList.remove('idle'), 180);
+        }
+      });
     };
     // 键盘 / 鼠标 / 滚轮 / 手柄（手柄走 nav://intent，不产生 DOM 输入事件）
     for (const t of ['keydown', 'pointerdown', 'pointermove', 'wheel'])

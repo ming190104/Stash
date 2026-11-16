@@ -6,7 +6,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { game, key, mountSkeleton, resetState } from './dom-skeleton';
 import { state, setScreen } from '../state';
 import { dispatchNav } from '../nav';
-import { hideStates } from '../overlay';
+import { hideStates, openEndings } from '../overlay';
 import { handleQuickKey } from '../quick';
 
 const H = vi.hoisted(() => ({
@@ -439,6 +439,20 @@ describe('导航与快捷键', () => {
     expect(document.querySelectorAll('#dSide .focus').length).toBe(before);
     dispatchNav({ intent: 'move', dir: 'right' });
     expect(state.detailId).toBe('b');
+  });
+
+  it('删除最后一条结局时进度归零，不会残留「已通关 100%」', () => {
+    state.games = [game('a', { endings: [{ name: 'END1', done: true }], progress: 1 })];
+    state.detailId = 'a';
+    setScreen('detail');
+    openEndings('a');
+    expect(document.getElementById('endTitle')!.textContent).toContain('1/1 达成');
+    document
+      .querySelector<HTMLElement>('#endList .snap-act.del[data-act="del"]')!
+      .click();
+    expect(state.games[0].endings).toEqual([]);
+    expect(state.games[0].progress).toBe(0);
+    expect(document.getElementById('endTitle')!.textContent).toContain('尚未记录');
   });
 
   it('Y 打开结局面板但不会同一次事件里新增 END；R 收藏', async () => {

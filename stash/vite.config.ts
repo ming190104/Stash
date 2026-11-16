@@ -43,9 +43,9 @@ export default defineConfig({
       reporter: ["text-summary"],
       include: ["src/**/*.ts"],
       exclude: ["src/__tests__/**", "src/mock.ts", "src/types.ts"],
-      // 门槛略低于当前实测（64.1 / 56.0 / 62.1 / 67.4），用于阻止覆盖率继续下滑；
-      // 提升测试后请同步上调，而不是让它长期贴着地板。
-      thresholds: { statements: 63, branches: 55, functions: 61, lines: 66 },
+      // 门槛贴着当前实测（67.2 / 57.4 / 64.7 / 70.4）设，只留 0.2~0.4pp 余量：
+      // 原来留 1pp 的「地板」等于允许覆盖率悄悄回退而不报警。补测试后请同步上调。
+      thresholds: { statements: 67, branches: 57, functions: 64, lines: 70 },
     },
   },
 });

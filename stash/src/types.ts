@@ -3,6 +3,25 @@
 export type FpsMode = 'auto' | '120' | '90' | '60';
 export type SortMode = 'lastPlayed' | 'title' | 'year' | 'progress';
 
+/** 引擎枚举：与后端 `EngineKind` 的 camelCase 序列化值保持一致（含未知兜底） */
+export type EngineKind =
+  | 'kirikiri'
+  | 'renPy'
+  | 'nScripter'
+  | 'oNScripter'
+  | 'artemis'
+  | 'majiro'
+  | 'bgi'
+  | 'catSystem2'
+  | 'yuRis'
+  | 'siglus'
+  | 'cmvs'
+  | 'qlie'
+  | 'wolfRpg'
+  | 'rpgMaker'
+  | 'unity'
+  | 'unknown';
+
 /** 一条结局（END）标记：玩家手动维护的路线清单 */
 export interface EndMark {
   name: string;
@@ -22,7 +41,11 @@ export interface Game {
   romaji: string | null;
   dir: string;
   exe: string;
-  engine: string;
+  /**
+   * 引擎枚举：与 `src-tauri/src/models.rs::EngineKind` 的 camelCase 序列化值一一对应。
+   * 后端遇到未知值会降级为 `unknown`，前端不要写入其它字符串。
+   */
+  engine: EngineKind;
   engineLabel: string;
   engineEvidence: string;
   cover: string | null;
@@ -61,12 +84,12 @@ export interface Game {
   titleOverride?: string | null;
   /** 用户封面覆盖（H1） */
   coverOverride?: string | null;
-  /** 隐藏（默认视图不显示） */
-  hidden?: boolean;
-  /** 自定义标签（H2） */
-  userTags?: string[];
-  /** 备注（M6） */
-  notes?: string;
+  /** 隐藏（默认视图不显示）；后端恒返回，不用 undefined 代替 false */
+  hidden: boolean;
+  /** 自定义标签（H2）；后端恒返回空数组而不是缺省 */
+  userTags: string[];
+  /** 备注（M6）；后端恒返回空串而不是缺省 */
+  notes: string;
   /** 评分 0–5（M6） */
   rating?: number;
   /** 最近游玩场次（M6） */
@@ -111,10 +134,21 @@ export type ThemeName =
   | 'iris'
   | 'moss'
   | 'crimson'
-  | 'daybreak';
+  | 'daybreak'
+  | 'eva01'
+  | 'eva02'
+  | 'nerv';
 
-/** 冷启动动画：core = 核心启动（S-01，5.0s）/ warp = 流光跃迁（S-03，5.0s）/ off = 关闭 */
-export type BootAnim = 'core' | 'warp' | 'off';
+/** 冷启动动画：warp = 流光跃迁（5.0s）/ eva01·eva02·evaNerv = EVA 起动序列（5.0s）/ off = 关闭。
+ *  全屏切换复用同一段完整动画，速度与冷启动共用一个倍率。 */
+export type BootAnim = 'warp' | 'eva01' | 'eva02' | 'evaNerv' | 'off';
+
+/** 后端命令错误（Rust AppError）。code 是稳定分类（camelCase），
+ *  message 是可直接展示的文案；前端只按 code 分支，绝不匹配 message。 */
+export interface AppError {
+  code?: string;
+  message: string;
+}
 
 /** 库体检（无 AI）：失效条目 / 重复项 / 未识别引擎 / 孤儿缓存 */
 export interface HealthIssue {
@@ -150,7 +184,7 @@ export interface Settings {
   fontScale?: number;
   /** 启动与全屏转场速度：1 标准 / 1.5 快 / 2 很快（只缩放转场时长） */
   animSpeed?: number;
-  /** 冷启动动画：core 核心启动 / warp 流光跃迁 / off 关闭（全屏切换固定用核心压缩段） */
+  /** 冷启动动画：warp 流光跃迁 / off 关闭（全屏切换复用同一段完整跃迁） */
   bootAnim?: BootAnim;
   /** 竖排原文名 */
   verticalTitle: boolean;

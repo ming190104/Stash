@@ -280,10 +280,13 @@ fn pick_cover(d: &Detail) -> Option<String> {
 
 fn year_of(date: Option<&str>) -> Option<u32> {
     let d = date?.trim();
-    if d.len() < 4 {
+    // 按 char 取前 4 位：日文 / 全角日期按字节切会落在 UTF-8 边界外直接 panic，
+    // 并让整轮候选报错（一条脏数据毁掉整次匹配）
+    let head: String = d.chars().take(4).collect();
+    if head.chars().count() != 4 || !head.chars().all(|c| c.is_ascii_digit()) {
         return None;
     }
-    d[..4].parse().ok()
+    head.parse().ok()
 }
 
 /// 简介语言优先级：简体 > 繁体 > 日文 > 英文 > 第一条
@@ -413,6 +416,16 @@ mod tests {
 
     fn detail(json: &str) -> Detail {
         serde_json::from_str(json).unwrap()
+    }
+
+    /// 全角 / 日文日期按字节切会 panic（char_boundary），必须按 char 安全提取
+    #[test]
+    fn year_of_handles_non_ascii_prefix() {
+        assert_eq!(year_of(Some("2025-09-26")), Some(2025));
+        assert_eq!(year_of(Some("２０２５年")), None);
+        assert_eq!(year_of(Some("二〇二五年")), None);
+        assert_eq!(year_of(Some("abc")), None);
+        assert_eq!(year_of(None), None);
     }
 
     /// 中文标题优先；简介按简中 > 繁中 > 日 > 英；评分 ×10；时长取 EGS 聚合

@@ -19,6 +19,9 @@ pub enum EngineKind {
     WolfRpg,
     RpgMaker,
     Unity,
+    /// 未识别 / 新版本新增但当前不认识的引擎。
+    /// `other` 是兜底：一个未知枚举值不能让它所在的整个 library.json 解析失败。
+    #[serde(other)]
     #[default]
     Unknown,
 }
@@ -373,6 +376,7 @@ impl Default for SoundSettings {
 pub struct Settings {
     pub version: u32,
     /// 界面主题：cinema / oled / sakura / frost / contrast / amber / iris / moss / crimson / daybreak
+    /// + eva01 / eva02 / nerv
     #[serde(default = "default_theme")]
     pub theme: String,
     /// 界面布局：classic（大海报 + 封面轨道）/ list / wall
@@ -391,7 +395,8 @@ pub struct Settings {
     /// 启动与全屏转场速度：1 标准 / 1.5 快 / 2 很快（只缩放转场时长）
     #[serde(default = "default_anim_speed")]
     pub anim_speed: f64,
-    /// 冷启动动画：core 核心启动 / warp 流光跃迁 / off 关闭（全屏切换固定用核心压缩段）
+    /// 冷启动动画：warp 流光跃迁 / eva01·eva02·evaNerv EVA 起动序列 / off 关闭
+    /// （全屏切换复用同一段动画；旧版的 core 档与前端一致收敛为 warp）
     #[serde(default = "default_boot_anim")]
     pub boot_anim: String,
     /// 竖排原文名（旧文件缺字段时默认开启，与设计一致）
@@ -468,7 +473,7 @@ fn default_anim_speed() -> f64 {
 }
 
 fn default_boot_anim() -> String {
-    "core".into()
+    "warp".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -522,7 +527,7 @@ impl Settings {
     pub fn normalized(mut self) -> Self {
         const THEMES: &[&str] = &[
             "cinema", "oled", "sakura", "frost", "contrast", "amber", "iris", "moss", "crimson",
-            "daybreak",
+            "daybreak", "eva01", "eva02", "nerv",
         ];
         const LAYOUTS: &[&str] = &["classic", "list", "wall"];
         // v2：掌机优先，升级后默认全屏；用户之后仍可在设置里关掉（version 已是 2，不会反复改）
@@ -551,10 +556,26 @@ impl Settings {
         if !self.anim_speed.is_finite() {
             self.anim_speed = 1.0;
         }
-        self.anim_speed = self.anim_speed.clamp(1.0, 2.0);
-        // 启动动画只认三档，旧文件 / 手改的未知值按核心启动兜底
-        if !matches!(self.boot_anim.as_str(), "core" | "warp" | "off") {
-            self.boot_anim = "core".into();
+        // 前端只提供 1 / 1.5 / 2 三档。后端若接受任意实数，存量 1.7 会在界面上
+        // 显示成 1×，保存时又被改写成 1（用户看到的值和落盘值长期不一致）。
+        // 读盘即收敛到最近档，两端只认同一组值。
+        let v = self.anim_speed;
+        self.anim_speed = [1.0, 1.5, 2.0]
+            .into_iter()
+            .min_by(|a, b| {
+                (*a - v)
+                    .abs()
+                    .partial_cmp(&(*b - v).abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .unwrap_or(1.0);
+        // 启动动画只认已知档位；旧版的 core（后端独有）与未知值统一收敛为 warp，
+        // 与前端 normalizeBootAnim 的兜底保持一致
+        if !matches!(
+            self.boot_anim.as_str(),
+            "warp" | "eva01" | "eva02" | "evaNerv" | "off"
+        ) {
+            self.boot_anim = "warp".into();
         }
         if !self.sound.gain.is_finite() {
             self.sound.gain = SoundSettings::default().gain;
@@ -596,7 +617,7 @@ impl Default for Settings {
             motion: 0,
             font_scale: 1.0,
             anim_speed: 1.0,
-            boot_anim: "core".into(),
+            boot_anim: "warp".into(),
             vertical_title: true,
             autostart: false,
             fullscreen: true,
@@ -683,23 +704,27 @@ pub struct RootScanOut {
     pub report: ScanReport,
 }
 
-/// 错误模型（总案 10.1）：前端按 code 分支，禁止字符串匹配 message。
+/// 错误模型（总案 10.1）：`code` 是稳定分类（日志 / 埋点 / 需要语义分支时使用），
+/// `message` 是直接展示给用户的中文文案——前端目前一律展示 message，不按文案做分支。
 #[derive(Debug, Clone, Serialize)]
 pub struct AppError {
     pub code: ErrCode,
     pub message: String,
     /// 「连不上主机」类错误（DNS 失败 / 连接超时 / TLS 握手失败）。
     /// 同域名的备用接口必然也连不上，调用方据此短路重试。只在进程内使用，
-    /// 不参与序列化——前端仍然只按 code 分支。
+    /// 不参与序列化——前端不依赖 transport。
     #[serde(skip)]
     pub(crate) transport: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ErrCode {
     NotFound,
     NotScanned,
     AlreadyRunning,
+    /// 同一目录重复入库：前端据此直接打开库里那部，而不是弹红条
+    AlreadyInLibrary,
     LaunchFailed,
     NetworkOffline,
     /// 主机可达但服务端返回错误（5xx）：不等于「断网」，不能触发整轮离线短路
@@ -757,6 +782,54 @@ mod tests {
         assert_eq!(g.engine_label, "未知引擎");
         assert!(g.endings.is_empty() && g.user_tags.is_empty());
         assert!(g.cover.is_none() && g.title_override.is_none());
+    }
+
+    /// 未知 engine 只降级为 Unknown：一个手改/新版本值不能让整库解析失败
+    #[test]
+    fn unknown_engine_falls_back_instead_of_failing_library() {
+        let json = r#"{"id":"0123456789abcdef","title":"X","engine":"brandNewEngine"}"#;
+        let g: Game = serde_json::from_str(json).unwrap();
+        assert_eq!(g.engine, EngineKind::Unknown);
+    }
+
+    /// 旧的 core 档（后端独有）必须收敛为 warp，与前端 normalizeBootAnim 一致
+    #[test]
+    fn legacy_core_boot_anim_falls_back_to_warp() {
+        let legacy = Settings { boot_anim: "core".into(), ..Settings::default() };
+        assert_eq!(legacy.normalized().boot_anim, "warp");
+
+        let known = Settings { boot_anim: "evaNerv".into(), ..Settings::default() };
+        assert_eq!(known.normalized().boot_anim, "evaNerv");
+    }
+
+    /// 前端只有 1 / 1.5 / 2 三档：后端必须收敛到最近档，
+    /// 否则 1.7 会「界面显示 1×、保存写回 1」，两端长期不一致
+    #[test]
+    fn anim_speed_snaps_to_design_steps() {
+        let snap = |v: f64| Settings { anim_speed: v, ..Settings::default() }.normalized().anim_speed;
+        assert_eq!(snap(1.7), 1.5);
+        assert_eq!(snap(1.8), 2.0);
+        assert_eq!(snap(2.6), 2.0);
+        assert_eq!(snap(0.3), 1.0);
+        assert_eq!(snap(f64::NAN), 1.0);
+        assert_eq!(snap(f64::INFINITY), 1.0);
+        // 正好落在档位上时不得漂移
+        assert_eq!(snap(1.5), 1.5);
+        assert_eq!(snap(2.0), 2.0);
+    }
+
+    /// 契约：错误码序列化为 camelCase，transport 不外泄
+    #[test]
+    fn err_code_serializes_camel_case() {
+        let e = AppError::new(ErrCode::AlreadyRunning, "游戏已在运行");
+        let v = serde_json::to_value(&e).unwrap();
+        assert_eq!(v["code"], "alreadyRunning");
+        assert_eq!(v["message"], "游戏已在运行");
+        assert!(v.get("transport").is_none());
+
+        // 前端重复入库分支依赖这个稳定值，改名前先看 actions.ts
+        let dup = serde_json::to_value(AppError::new(ErrCode::AlreadyInLibrary, "已在库中")).unwrap();
+        assert_eq!(dup["code"], "alreadyInLibrary");
     }
 
     /// 写出再读回必须完全保真（library.json 是唯一不可再生数据）
@@ -833,6 +906,43 @@ mod tests {
         assert_eq!(
             n.library_roots,
             vec!["D:\\Games\\".to_string(), "E:\\VN".to_string()]
+        );
+    }
+
+    /// 契约快照：Game / Settings 的序列化字段名必须与 contract/fields.json 完全一致。
+    /// 48 / 22 个字段本来全靠人眼在 Rust 与 types.ts 之间同步：任何一侧加字段、改名或删字段
+    /// 都会让前端静默拿 undefined。这里与前端 src/__tests__/contract.test.ts 共用同一份清单。
+    #[test]
+    fn serialized_fields_match_shared_contract() {
+        let raw: serde_json::Value =
+            serde_json::from_str(include_str!("../../contract/fields.json")).expect("契约清单不是合法 JSON");
+        let keys = |v: &serde_json::Value, name: &str| -> Vec<String> {
+            let mut k: Vec<String> = v
+                .as_object()
+                .unwrap_or_else(|| panic!("{name} 序列化结果不是对象"))
+                .keys()
+                .cloned()
+                .collect();
+            k.sort();
+            k
+        };
+        let want = |name: &str| -> Vec<String> {
+            let mut k: Vec<String> = raw[name]
+                .as_array()
+                .unwrap_or_else(|| panic!("contract/fields.json 缺少 {name} 数组"))
+                .iter()
+                .map(|x| x.as_str().unwrap_or_else(|| panic!("{name} 里混入了非字符串")).to_string())
+                .collect();
+            k.sort();
+            k
+        };
+        assert_eq!(
+            keys(&serde_json::to_value(Game::default()).unwrap(), "Game"),
+            want("game")
+        );
+        assert_eq!(
+            keys(&serde_json::to_value(Settings::default()).unwrap(), "Settings"),
+            want("settings")
         );
     }
 

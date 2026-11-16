@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   addLibraryRoot: vi.fn(),
   previewLibraryRoot: vi.fn(),
   importLibraryRoot: vi.fn(),
+  getSettings: vi.fn(),
   addGameByExe: vi.fn(),
   suggestTitle: vi.fn(),
   refreshLibrary: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('../ipc', () => ({
   addLibraryRoot: mocks.addLibraryRoot,
   previewLibraryRoot: mocks.previewLibraryRoot,
   importLibraryRoot: mocks.importLibraryRoot,
+  getSettings: mocks.getSettings,
 }));
 
 vi.mock('../prompt', () => ({
@@ -101,6 +103,8 @@ describe('文件浏览器：加入游戏库', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.state.screen = 'files';
+    mocks.state.settings.libraryRoots = [];
+    mocks.getSettings.mockResolvedValue({ libraryRoots: [] });
     mocks.fsList.mockImplementation(async (p?: string | null) =>
       p ? listing(p, []) : DRIVES
     );
@@ -227,6 +231,22 @@ describe('文件浏览器：加入游戏库', () => {
     expect(mocks.addLibraryRoot).toHaveBeenCalledWith('C:\\Games');
     expect(mocks.refreshLibrary).toHaveBeenCalled();
     expect(mocks.toast).toHaveBeenCalledWith('已加入库根，导入 1 部');
+  });
+
+  it('G：新库根写入后回读设置，后续不再误判为已在库根', async () => {
+    mocks.state.settings.libraryRoots = [];
+    mocks.fsList.mockImplementation(async (p?: string | null) => (p ? listing(p, []) : DRIVES));
+    mocks.promptConfirm.mockResolvedValue(true);
+    mocks.addLibraryRoot.mockResolvedValue([]);
+    mocks.getSettings.mockResolvedValue({ libraryRoots: ['C:\\Games'] });
+
+    await openFiles('C:\\Games');
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyG' }));
+
+    await vi.waitFor(() => expect(mocks.addLibraryRoot).toHaveBeenCalledWith('C:\\Games'));
+    await vi.waitFor(() => expect(mocks.getSettings).toHaveBeenCalled());
+    // 不回读的话 settings.libraryRoots 仍是旧的空数组，下次同一目录会走 preview 分支
+    expect(mocks.state.settings).toEqual({ libraryRoots: ['C:\\Games'] });
   });
 
   it('Y：手柄「整目录入库」与 G 等价', async () => {

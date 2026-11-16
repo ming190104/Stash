@@ -35,6 +35,15 @@ function ac(): AudioContext | null {
   return ctx;
 }
 
+/** 启动动画音效复用同一个上下文与总增益：
+ *  另开一个 AudioContext 会和交互音效各走一套音量，用户调音量时只关掉一半声音。
+ *  音效总开关关闭时返回 null，启动音同样静默。 */
+export function audioBus(): { ctx: AudioContext; master: GainNode } | null {
+  const c = ac();
+  if (!c || !master) return null;
+  return { ctx: c, master };
+}
+
 /** 单个音：可选从 freq 滑到 to，delay 用于两三个音组成短动机 */
 function tone(
   freq: number,

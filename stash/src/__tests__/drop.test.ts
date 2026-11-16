@@ -101,7 +101,7 @@ describe('拖入后入库', () => {
 
   it('重复目录：不弹红条，直接打开库里那部', async () => {
     state.games = [game('old', { title: '旧作', dir: 'D:\\VN\\Old' })];
-    H.addGame.mockRejectedValueOnce({ message: '该目录已在库中' });
+    H.addGame.mockRejectedValueOnce({ code: 'alreadyInLibrary', message: '该目录已在库中' });
     await importDropped(['D:\\VN\\Old\\game.exe']);
     await vi.waitFor(() => expect(state.detailId).toBe('old'));
     expect(toastLog()).toContain('已在库中，已打开详情');

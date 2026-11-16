@@ -1,0 +1,502 @@
+/* EVA 三套主题的「结构皮肤」（P12）：形状 / 字体 / 装饰。
+   颜色只走 tokens.css 的 html[data-theme] 令牌，与布局皮肤（data-layout）正交。
+   作用域严格限定 eva01 / eva02 / nerv，其余 10 套主题不受影响。 */
+
+/* ============================================================
+   01 · 初号机：长圆角 + 紫色内环 + 荧光绿呼吸
+   ============================================================ */
+html[data-theme="eva01"] #app::before{
+  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.55;
+  background-image:
+    repeating-linear-gradient(90deg,rgba(242,238,227,.035) 0 1px,transparent 1px 64px),
+    repeating-linear-gradient(0deg,rgba(242,238,227,.035) 0 1px,transparent 1px 64px);
+}
+html[data-theme="eva01"] #app::after{
+  content:'';position:absolute;inset:0;z-index:55;pointer-events:none;opacity:.035;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.55) 0 1px,transparent 1px 3px);
+}
+
+html[data-theme="eva01"] .hero-art{
+  border-radius:16px;
+  box-shadow:0 34px 70px rgba(0,0,0,.55),0 0 0 1px color-mix(in srgb,var(--acc) 46%,transparent),
+    0 0 60px color-mix(in srgb,var(--acc) 14%,transparent);
+}
+html[data-theme="eva01"] .hero-art .art{border-radius:16px}
+html[data-theme="eva01"] .hero-art::after{
+  content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:3;
+  background:radial-gradient(90% 70% at 50% 110%,color-mix(in srgb,var(--acc2) 14%,transparent),transparent 64%);
+  animation:eva-ui-breathe 6.4s ease-in-out infinite;transform-origin:50% 58%;
+}
+html[data-theme="eva01"] .eyebrow{font-family:var(--mono);letter-spacing:.22em;color:var(--acc-ink)}
+html[data-theme="eva01"] .h-rule{height:2px;border-radius:2px}
+html[data-theme="eva01"] .h-bar{overflow:visible}
+html[data-theme="eva01"] .h-bar i{position:relative}
+html[data-theme="eva01"] .h-bar i::after{
+  content:'';position:absolute;right:-4px;top:50%;width:6px;height:6px;margin-top:-3px;
+  border-radius:50%;background:var(--acc2);box-shadow:0 0 10px 2px var(--acc2);
+  animation:eva-ui-pulse 1.9s ease-out infinite;
+}
+/* 0% 时 i 宽度为 0，伪元素仍会渲染在条起点左侧；内联宽度由 Math.round 生成，0 必为 "0%" */
+html[data-theme="eva01"] .h-bar i[style*="width:0%"]::after{display:none}
+html[data-theme="eva01"] .cta{background:linear-gradient(135deg,#c7a4ff,#9a6bff);color:#1a0b2e}
+html[data-theme="eva01"] .tbtn{border-radius:10px}
+html[data-theme="eva01"] .tbtn:hover{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc-ink)}
+html[data-theme="eva01"] .pill{border-color:color-mix(in srgb,var(--acc) 22%,transparent)}
+html[data-theme="eva01"] .card{border-radius:12px}
+html[data-theme="eva01"] .card .art,
+html[data-theme="eva01"] .card .dim,
+html[data-theme="eva01"] .card .lift,
+html[data-theme="eva01"] .card .sheen,
+html[data-theme="eva01"] .card::after{border-radius:12px}
+html[data-theme="eva01"] .card .sheen{border-radius:12px;overflow:hidden}
+html[data-theme="eva01"] .ring{border-radius:14px}
+html[data-theme="eva01"] .card.focus::before{
+  content:'';position:absolute;left:6px;top:6px;width:13px;height:13px;z-index:5;pointer-events:none;
+  border-left:1px solid var(--acc2);border-top:1px solid var(--acc2);
+}
+html[data-theme="eva01"] .np{border-radius:99px}
+html[data-theme="eva01"] .np i{animation:eva-ui-pulse 2.2s ease-out infinite}
+html[data-theme="eva01"] .keybar::before{
+  content:'';position:absolute;left:0;right:0;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--gline) 18%,var(--gline) 82%,transparent);
+}
+html[data-theme="eva01"] .kk{border-radius:6px}
+html[data-theme="eva01"] .tstat{font-family:var(--mono);letter-spacing:.14em;color:var(--acc-ink)}
+html[data-theme="eva01"] .gh small{font-family:var(--mono);letter-spacing:.18em}
+
+/* 详情 / 列表 / 海报：同一套长圆角与内环 */
+html[data-theme="eva01"] .dcover{
+  border-radius:16px;
+  box-shadow:0 26px 54px rgba(0,0,0,.55),inset 0 0 0 1.5px color-mix(in srgb,var(--acc) 70%,transparent),
+    inset 0 0 34px color-mix(in srgb,var(--acc) 18%,transparent);
+}
+html[data-theme="eva01"] .dcover .art{border-radius:16px}
+html[data-theme="eva01"] .lp-art{border-radius:16px}
+html[data-theme="eva01"] .lp-art .art{border-radius:16px}
+html[data-theme="eva01"] .lthumb{border-radius:8px}
+html[data-theme="eva01"] .lthumb .art{border-radius:8px}
+html[data-theme="eva01"] .lrow{border-radius:10px}
+html[data-theme="eva01"] .spanel{border-radius:16px}
+html[data-theme="eva01"] .seg{border-radius:12px}
+html[data-theme="eva01"] .seg b{border-radius:9px}
+html[data-theme="eva01"] .snav button{border-radius:10px}
+html[data-theme="eva01"] .snav button.on::before{width:2.5px;border-radius:2px;background:var(--accg)}
+html[data-theme="eva01"] .back{border-radius:99px}
+html[data-theme="eva01"] .sp-box{border-radius:18px}
+html[data-theme="eva01"] .flt-box,
+html[data-theme="eva01"] .bg-box,
+html[data-theme="eva01"] .snap-box,
+html[data-theme="eva01"] .help-box,
+html[data-theme="eva01"] .cand-box{border-radius:18px}
+html[data-theme="eva01"] .mini{border-radius:99px}
+html[data-theme="eva01"] .gselbar{border-radius:99px}
+
+/* ============================================================
+   02 · 明日香：全直边 + 切角 + 上下危险条 + 白色高热边
+   ============================================================ */
+/* 上下危险条：与设计稿一样是顶层装饰（z70），画在 #app 背景上会被 .shade 底部
+   不透明区与顶栏 / 键位条的渐变整条盖掉 */
+html[data-theme="eva02"] #app::before{
+  content:'';position:absolute;inset:0;z-index:70;pointer-events:none;opacity:.7;
+  background-image:
+    repeating-linear-gradient(-45deg,#ff6a00 0 8px,#0a0a0b 8px 16px),
+    repeating-linear-gradient(-45deg,#ff6a00 0 8px,#0a0a0b 8px 16px);
+  background-size:100% 4px,100% 4px;
+  background-position:top left,bottom left;
+  background-repeat:no-repeat;
+}
+html[data-theme="eva02"] #app::after{
+  content:'';position:absolute;inset:0;z-index:55;pointer-events:none;opacity:.04;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.55) 0 1px,transparent 1px 3px);
+}
+
+/* 全直边：圆角一律归零 */
+html[data-theme="eva02"] .tbtn,
+html[data-theme="eva02"] .pill,
+html[data-theme="eva02"] .fchip,
+html[data-theme="eva02"] .mini,
+html[data-theme="eva02"] .back,
+html[data-theme="eva02"] .seg,
+html[data-theme="eva02"] .seg b,
+html[data-theme="eva02"] .tg,
+html[data-theme="eva02"] .tg::after,
+html[data-theme="eva02"] .inp,
+html[data-theme="eva02"] .spanel,
+html[data-theme="eva02"] .snav button,
+html[data-theme="eva02"] .card,
+html[data-theme="eva02"] .card .art,
+html[data-theme="eva02"] .card .dim,
+html[data-theme="eva02"] .card .lift,
+html[data-theme="eva02"] .card .sheen,
+html[data-theme="eva02"] .card::after,
+html[data-theme="eva02"] .ring,
+html[data-theme="eva02"] .np,
+html[data-theme="eva02"] .kk,
+html[data-theme="eva02"] .lrow,
+html[data-theme="eva02"] .lthumb .art,
+html[data-theme="eva02"] .lbar,
+html[data-theme="eva02"] .lbar i,
+html[data-theme="eva02"] .lp-bar,
+html[data-theme="eva02"] .lp-bar i,
+html[data-theme="eva02"] .h-bar,
+html[data-theme="eva02"] .h-bar i,
+html[data-theme="eva02"] .gselbar,
+html[data-theme="eva02"] .sp-box,
+html[data-theme="eva02"] .flt-box,
+html[data-theme="eva02"] .bg-box,
+html[data-theme="eva02"] .snap-box,
+html[data-theme="eva02"] .help-box,
+html[data-theme="eva02"] .cand-box,
+html[data-theme="eva02"] .sp-field,
+html[data-theme="eva02"] .sp-item,
+html[data-theme="eva02"] .end-row,
+html[data-theme="eva02"] .sk,
+html[data-theme="eva02"] .pmrow,
+html[data-theme="eva02"] .snap-list{
+  border-radius:0;
+}
+/* 切角：按钮 8px / 封面 20px */
+html[data-theme="eva02"] .cta,
+html[data-theme="eva02"] .ghost,
+html[data-theme="eva02"] .mini{
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%);
+}
+html[data-theme="eva02"] .cta{box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+html[data-theme="eva02"] .ghost:hover{background:rgba(255,255,255,.12)}
+html[data-theme="eva02"] .hero-art,
+html[data-theme="eva02"] .dcover,
+html[data-theme="eva02"] .lp-art{
+  border-radius:0;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 20px),calc(100% - 20px) 100%,0 100%);
+  box-shadow:none;
+  filter:drop-shadow(0 28px 46px rgba(0,0,0,.55)) drop-shadow(0 0 30px color-mix(in srgb,var(--acc) 16%,transparent));
+}
+html[data-theme="eva02"] .hero-art .art,
+html[data-theme="eva02"] .dcover .art,
+html[data-theme="eva02"] .lp-art .art{border-radius:0}
+html[data-theme="eva02"] .hero-art::before,
+html[data-theme="eva02"] .dcover::before,
+html[data-theme="eva02"] .lp-art::before{
+  content:'';position:absolute;inset:0;z-index:3;pointer-events:none;border-radius:0;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 65%,transparent);
+}
+
+/* 标题：粗黑无衬线；标题下的短斜切红线 */
+html[data-theme="eva02"] .h-cn,
+html[data-theme="eva02"] .d-cn,
+html[data-theme="eva02"] .lp-t{font-family:var(--sans);font-weight:800;letter-spacing:-.5px}
+html[data-theme="eva02"] .h-rule{
+  width:74px;height:3px;border-radius:0;transform:skewX(-24deg);
+  background:linear-gradient(90deg,var(--acc),var(--acc2) 62%,transparent);
+}
+html[data-theme="eva02"] .lp-rule{width:74px;height:3px;border-radius:0;transform:skewX(-24deg)}
+html[data-theme="eva02"] .h-jp{letter-spacing:.22em}
+html[data-theme="eva02"] .eyebrow{font-family:var(--mono);letter-spacing:.2em}
+
+/* 进度：虚线刻度 + 白色高热端点 */
+html[data-theme="eva02"] .h-bar,
+html[data-theme="eva02"] .lp-bar,
+html[data-theme="eva02"] .lbar,
+html[data-theme="eva02"] .card .prog{overflow:visible;border-radius:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.16) 0 14px,transparent 14px 18px)}
+html[data-theme="eva02"] .h-bar{height:4px}
+html[data-theme="eva02"] .h-bar i,
+html[data-theme="eva02"] .lp-bar i,
+html[data-theme="eva02"] .lbar i,
+html[data-theme="eva02"] .card .prog i{position:relative;border-radius:0;background:var(--acc)}
+html[data-theme="eva02"] .h-bar i::after,
+html[data-theme="eva02"] .lp-bar i::after,
+html[data-theme="eva02"] .lbar i::after,
+html[data-theme="eva02"] .card .prog i::after{
+  content:'';position:absolute;right:-2px;top:50%;width:4px;height:10px;margin-top:-5px;
+  border-radius:50%;background:#fff;box-shadow:0 0 12px 3px var(--acc);
+}
+/* 0% 时端点会落在条起点左侧；内联宽度为 0 时直接不画 */
+html[data-theme="eva02"] .h-bar i[style*="width:0%"]::after,
+html[data-theme="eva02"] .lp-bar i[style*="width:0%"]::after,
+html[data-theme="eva02"] .lbar i[style*="width:0%"]::after{display:none}
+
+/* 胶囊 → 平行切角标签 */
+html[data-theme="eva02"] .pill{
+  clip-path:polygon(5px 0,100% 0,calc(100% - 5px) 100%,0 100%);
+  font-family:var(--mono);font-size:calc(10px * var(--fs,1));letter-spacing:.06em;
+}
+html[data-theme="eva02"] .fchip{clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%)}
+html[data-theme="eva02"] .np{
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);
+  background:rgba(30,6,8,.6);color:var(--acc-ink);
+}
+html[data-theme="eva02"] .tstat{font-family:var(--mono);letter-spacing:.14em;color:var(--warn)}
+
+/* 卡片：焦点时左侧红条 + 右上白色高热短线 */
+html[data-theme="eva02"] .card.focus .ring{
+  border-radius:0;
+  box-shadow:0 0 0 2px var(--acc),0 18px 40px color-mix(in srgb,var(--acc) 26%,transparent);
+}
+html[data-theme="eva02"] .card.focus::before{
+  content:'';position:absolute;right:0;top:0;width:34px;height:2px;z-index:5;pointer-events:none;
+  background:#fff;box-shadow:0 0 10px var(--acc);
+}
+html[data-theme="eva02"] .gcell.sel .card,
+html[data-theme="eva02"] .wall-cell.sel .card{box-shadow:inset 4px 0 0 var(--acc),0 18px 40px rgba(0,0,0,.5)}
+html[data-theme="eva02"] .tbtn:hover{background:color-mix(in srgb,var(--acc) 18%,transparent);color:#fff}
+
+/* 设置页：选中页签左侧红条 */
+html[data-theme="eva02"] .snav button.on{
+  box-shadow:inset 3px 0 0 var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent);color:var(--ink1);
+}
+html[data-theme="eva02"] .snav button.on::before{display:none}
+html[data-theme="eva02"] .seg b.on{background:var(--acc);color:var(--acc-on);box-shadow:none}
+html[data-theme="eva02"] .tg.on{background:var(--acc)}
+html[data-theme="eva02"] .tg::after{border-radius:0}
+html[data-theme="eva02"] .keybar::before{
+  content:'';position:absolute;left:0;right:0;top:0;height:2px;
+  background:repeating-linear-gradient(-45deg,var(--acc) 0 6px,transparent 6px 12px);opacity:.5;
+}
+html[data-theme="eva02"] .np i{background:#fff;box-shadow:0 0 8px var(--acc)}
+
+/* ============================================================
+   NERV · 设施 / 测绘：直边 + 1px 橙框 + 四角刻度 + 等宽标签 + 刻度进度
+   ============================================================ */
+/* 网格画在 #app 背景（与设计稿一致），保证永远在内容之下 */
+html[data-theme="nerv"] #app{
+  background-image:
+    repeating-linear-gradient(90deg,rgba(255,122,26,.05) 0 1px,transparent 1px 64px),
+    repeating-linear-gradient(0deg,rgba(255,122,26,.05) 0 1px,transparent 1px 64px),
+    repeating-linear-gradient(90deg,rgba(246,238,224,.02) 0 1px,transparent 1px 16px),
+    repeating-linear-gradient(0deg,rgba(246,238,224,.02) 0 1px,transparent 1px 16px);
+}
+/* 四角刻度：顶层装饰（设计稿 .cr 为 z62 / inset 8px），否则会被顶栏与键位条的渐变压掉 */
+html[data-theme="nerv"] #app::before{
+  content:'';position:absolute;inset:8px;z-index:62;pointer-events:none;
+  background-image:
+    linear-gradient(var(--acc),var(--acc)),linear-gradient(var(--acc),var(--acc)),
+    linear-gradient(var(--acc),var(--acc)),linear-gradient(var(--acc),var(--acc)),
+    linear-gradient(var(--acc),var(--acc)),linear-gradient(var(--acc),var(--acc)),
+    linear-gradient(var(--acc),var(--acc)),linear-gradient(var(--acc),var(--acc));
+  background-size:14px 1px,1px 14px,14px 1px,1px 14px,14px 1px,1px 14px,14px 1px,1px 14px;
+  background-position:left top,left top,right top,right top,left bottom,left bottom,right bottom,right bottom;
+  background-repeat:no-repeat;
+}
+html[data-theme="nerv"] #app::after{
+  content:'';position:absolute;left:0;right:0;top:54px;height:1px;z-index:55;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,transparent,var(--acc) 18%,var(--acc) 82%,transparent);
+  box-shadow:0 0 18px 2px color-mix(in srgb,var(--acc) 42%,transparent);
+  animation:eva-ui-scan 7s cubic-bezier(.45,0,.55,1) infinite;
+}
+
+/* 全直边 + 1px 橙框 */
+html[data-theme="nerv"] .tbtn,
+html[data-theme="nerv"] .pill,
+html[data-theme="nerv"] .fchip,
+html[data-theme="nerv"] .mini,
+html[data-theme="nerv"] .back,
+html[data-theme="nerv"] .seg,
+html[data-theme="nerv"] .seg b,
+html[data-theme="nerv"] .tg,
+html[data-theme="nerv"] .tg::after,
+html[data-theme="nerv"] .inp,
+html[data-theme="nerv"] .spanel,
+html[data-theme="nerv"] .snav button,
+html[data-theme="nerv"] .card,
+html[data-theme="nerv"] .card .art,
+html[data-theme="nerv"] .card .dim,
+html[data-theme="nerv"] .card .lift,
+html[data-theme="nerv"] .card .sheen,
+html[data-theme="nerv"] .card::after,
+html[data-theme="nerv"] .ring,
+html[data-theme="nerv"] .np,
+html[data-theme="nerv"] .kk,
+html[data-theme="nerv"] .lrow,
+html[data-theme="nerv"] .lthumb .art,
+html[data-theme="nerv"] .lbar,
+html[data-theme="nerv"] .lbar i,
+html[data-theme="nerv"] .lp-bar,
+html[data-theme="nerv"] .lp-bar i,
+html[data-theme="nerv"] .h-bar,
+html[data-theme="nerv"] .h-bar i,
+html[data-theme="nerv"] .gselbar,
+html[data-theme="nerv"] .sp-box,
+html[data-theme="nerv"] .flt-box,
+html[data-theme="nerv"] .bg-box,
+html[data-theme="nerv"] .snap-box,
+html[data-theme="nerv"] .help-box,
+html[data-theme="nerv"] .cand-box,
+html[data-theme="nerv"] .sp-field,
+html[data-theme="nerv"] .sp-item,
+html[data-theme="nerv"] .end-row,
+html[data-theme="nerv"] .sk,
+html[data-theme="nerv"] .pmrow,
+html[data-theme="nerv"] .snap-list,
+html[data-theme="nerv"] .tg.on::after{
+  border-radius:0;
+}
+html[data-theme="nerv"] .tbtn{background:rgba(255,122,26,.05);border-color:color-mix(in srgb,var(--acc) 32%,transparent);color:var(--acc-ink)}
+html[data-theme="nerv"] .tbtn:hover{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--ink1)}
+html[data-theme="nerv"] .topbar::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:1px;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--acc) 34%,transparent) 18%,color-mix(in srgb,var(--acc) 34%,transparent) 82%,transparent);
+}
+
+html[data-theme="nerv"] .hero-art{
+  border-radius:0;box-shadow:0 0 0 1px var(--acc),0 30px 70px rgba(0,0,0,.6);
+}
+html[data-theme="nerv"] .hero-art .art{border-radius:0}
+html[data-theme="nerv"] .hero-art::before{
+  content:'';position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;z-index:4;
+  border:1px solid rgba(246,238,225,.28);pointer-events:none;
+  background:
+    linear-gradient(rgba(246,238,225,.34),rgba(246,238,225,.34)) 50% 50%/100% 1px no-repeat,
+    linear-gradient(rgba(246,238,225,.34),rgba(246,238,225,.34)) 50% 50%/1px 100% no-repeat;
+  animation:eva-ui-lock 3.4s ease-in-out infinite;
+}
+html[data-theme="nerv"] .dcover,
+html[data-theme="nerv"] .lp-art{
+  border-radius:0;box-shadow:0 0 0 1px var(--acc),0 26px 54px rgba(0,0,0,.6);
+}
+html[data-theme="nerv"] .dcover .art,
+html[data-theme="nerv"] .lp-art .art{border-radius:0}
+html[data-theme="nerv"] .card{border:1px solid color-mix(in srgb,var(--acc) 26%,transparent)}
+html[data-theme="nerv"] .card.focus .ring{
+  border-radius:0;box-shadow:0 0 0 1px var(--acc),0 18px 40px rgba(0,0,0,.55);
+}
+html[data-theme="nerv"] .card.focus::before{
+  content:'';position:absolute;left:6px;top:6px;width:12px;height:12px;z-index:5;pointer-events:none;
+  border-left:1px solid var(--acc2);border-top:1px solid var(--acc2);
+}
+html[data-theme="nerv"] .spanel{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 26%,transparent)}
+
+/* 标题：中文标题拉开字距，副题更暗 */
+html[data-theme="nerv"] .h-cn,
+html[data-theme="nerv"] .d-cn,
+html[data-theme="nerv"] .lp-t{letter-spacing:5px}
+html[data-theme="nerv"] .h-jp{letter-spacing:.3em;color:rgba(246,238,225,.38)}
+html[data-theme="nerv"] .h-rule{
+  width:180px;height:1px;border-radius:0;background:linear-gradient(90deg,var(--acc),transparent);
+}
+html[data-theme="nerv"] .lp-rule{width:180px;height:1px;border-radius:0;background:linear-gradient(90deg,var(--acc),transparent)}
+html[data-theme="nerv"] .eyebrow{font-family:var(--mono);letter-spacing:.24em}
+
+/* 等宽标签 */
+html[data-theme="nerv"] .tstat,
+html[data-theme="nerv"] .tr,
+html[data-theme="nerv"] .pill,
+html[data-theme="nerv"] .kk,
+html[data-theme="nerv"] .fchip,
+html[data-theme="nerv"] .gt,
+html[data-theme="nerv"] .gs,
+html[data-theme="nerv"] .ls,
+html[data-theme="nerv"] .d-meta,
+html[data-theme="nerv"] .seg b,
+html[data-theme="nerv"] .snav button,
+html[data-theme="nerv"] .srow .lab span,
+html[data-theme="nerv"] .h-play{font-family:var(--mono)}
+
+html[data-theme="nerv"] .pill{position:relative;padding-left:15px;font-size:calc(10px * var(--fs,1))}
+html[data-theme="nerv"] .pill::before{
+  content:'';position:absolute;left:6px;top:50%;width:3px;height:3px;margin-top:-1.5px;background:var(--acc);
+}
+html[data-theme="nerv"] .np{
+  background:rgba(20,10,2,.64);color:var(--acc2);font-family:var(--mono);font-size:calc(9.5px * var(--fs,1));
+}
+html[data-theme="nerv"] .cta{
+  background:var(--acc);color:#180a01;font-family:var(--mono);font-size:calc(11px * var(--fs,1));letter-spacing:.08em;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc2) 55%,transparent);
+}
+html[data-theme="nerv"] .ghost,
+html[data-theme="nerv"] .mini{font-family:var(--mono);font-size:calc(10.5px * var(--fs,1));border-color:color-mix(in srgb,var(--acc) 38%,transparent)}
+html[data-theme="nerv"] .kk{background:rgba(255,122,26,.07);border-color:color-mix(in srgb,var(--acc) 30%,transparent)}
+html[data-theme="nerv"] .wm{font-family:var(--mono);color:color-mix(in srgb,var(--acc) 7%,transparent)}
+html[data-theme="nerv"] .gh small{font-family:var(--mono);letter-spacing:.18em}
+
+/* 刻度式进度条：底线刻度 + 4px 实心填充 + 右端楔形 */
+html[data-theme="nerv"] .h-bar,
+html[data-theme="nerv"] .lp-bar,
+html[data-theme="nerv"] .lbar,
+html[data-theme="nerv"] .card .prog{
+  background-color:transparent;overflow:visible;position:relative;border-radius:0;
+  background-image:repeating-linear-gradient(90deg,rgba(246,238,225,.26) 0 1px,transparent 1px 10px);
+}
+html[data-theme="nerv"] .h-bar{height:12px}
+html[data-theme="nerv"] .lp-bar{height:11px}
+html[data-theme="nerv"] .lbar{height:10px}
+html[data-theme="nerv"] .card .prog{height:9px;left:9px;right:9px;bottom:7px}
+html[data-theme="nerv"] .h-bar i,
+html[data-theme="nerv"] .lp-bar i,
+html[data-theme="nerv"] .lbar i,
+html[data-theme="nerv"] .card .prog i{
+  position:absolute;left:0;bottom:0;height:4px;border-radius:0;background:var(--acc);
+}
+html[data-theme="nerv"] .h-bar i::after,
+html[data-theme="nerv"] .lp-bar i::after,
+html[data-theme="nerv"] .lbar i::after,
+html[data-theme="nerv"] .card .prog i::after{
+  content:'';position:absolute;right:-5px;top:-5px;width:0;height:0;
+  border-left:5px solid var(--acc2);border-top:4px solid transparent;border-bottom:4px solid transparent;
+}
+/* 0% 时楔形会露在条起点左侧；内联宽度为 0 时直接不画 */
+html[data-theme="nerv"] .h-bar i[style*="width:0%"]::after,
+html[data-theme="nerv"] .lp-bar i[style*="width:0%"]::after,
+html[data-theme="nerv"] .lbar i[style*="width:0%"]::after{display:none}
+
+/* 序号：列表 01 / 02；网格与海报墙同理 */
+html[data-theme="nerv"] .list-col{counter-reset:eva-row}
+html[data-theme="nerv"] .lrow{counter-increment:eva-row}
+html[data-theme="nerv"] .lrow::before{
+  content:counter(eva-row,decimal-leading-zero);flex:none;width:18px;
+  font-family:var(--mono);font-size:calc(10px * var(--fs,1));letter-spacing:.1em;color:var(--acc);
+}
+html[data-theme="nerv"] .gwrap{counter-reset:eva-cell}
+html[data-theme="nerv"] .gcell{counter-increment:eva-cell}
+html[data-theme="nerv"] .gcell::before{
+  content:counter(eva-cell,decimal-leading-zero);align-self:flex-start;margin:-1px 0 -5px;
+  font-family:var(--mono);font-size:calc(9px * var(--fs,1));letter-spacing:.14em;color:var(--acc);
+  pointer-events:none;
+}
+html[data-theme="nerv"] .wall-grid{counter-reset:eva-wall}
+html[data-theme="nerv"] .wall-cell{counter-increment:eva-wall}
+html[data-theme="nerv"] .wall-cell::before{
+  content:counter(eva-wall,decimal-leading-zero);align-self:flex-start;margin:-1px 0 -5px;
+  font-family:var(--mono);font-size:calc(9px * var(--fs,1));letter-spacing:.14em;color:var(--acc);
+  pointer-events:none;
+}
+
+/* 设置页：选中页签描边，而不是填充 */
+html[data-theme="nerv"] .snav button.on{
+  box-shadow:inset 0 0 0 1px var(--acc);background:color-mix(in srgb,var(--acc) 8%,transparent);color:var(--ink1);
+}
+html[data-theme="nerv"] .snav button.on::before{display:none}
+html[data-theme="nerv"] .seg b.on{background:var(--acc);color:var(--acc-on)}
+html[data-theme="nerv"] .tg.on{background:color-mix(in srgb,var(--acc) 70%,transparent)}
+html[data-theme="nerv"] .tg::after{background:var(--acc2)}
+html[data-theme="nerv"] .keybar::before{
+  content:'';position:absolute;left:0;right:0;top:0;height:1px;
+  background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--acc) 34%,transparent) 0 14px,transparent 14px 22px);
+}
+
+/* ============================================================
+   动效：三套各自的呼吸 / 扫描；柔和档与系统减弱动效统一停掉
+   ============================================================ */
+@keyframes eva-ui-breathe{
+  0%,100%{opacity:.55;transform:scale(1)}
+  50%{opacity:1;transform:scale(1.02)}
+}
+@keyframes eva-ui-pulse{
+  0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc2) 60%,transparent)}
+  70%{box-shadow:0 0 0 7px transparent}
+  100%{box-shadow:0 0 0 0 transparent}
+}
+@keyframes eva-ui-lock{
+  0%,100%{opacity:.55}
+  50%{opacity:1}
+}
+@keyframes eva-ui-scan{
+  0%{transform:translateY(0);opacity:0}
+  8%{opacity:.5}
+  92%{opacity:.5}
+  100%{transform:translateY(610px);opacity:0}
+}
+#app.motion-soft::after,
+#app.motion-soft .hero-art::after,
+#app.motion-soft .hero-art::before,
+#app.motion-soft .h-bar i::after,
+#app.motion-soft .np i{animation:none!important}

@@ -10,8 +10,19 @@ interface Folded {
   ini: string;
 }
 
-/** 按字符串缓存：库里的标题是固定集合，缓存不会随打字增长 */
+/** 按字符串缓存：库里的标题是固定集合，但搜索框每敲一个字都会产生新串。
+ *  设上限并在超限时按插入序淘汰最旧的一半，避免长时间使用后无界增长。 */
 const cache = new Map<string, Folded>();
+const CACHE_MAX = 2000;
+
+function remember(s: string, v: Folded): void {
+  cache.set(s, v);
+  if (cache.size <= CACHE_MAX) return;
+  for (const k of cache.keys()) {
+    cache.delete(k);
+    if (cache.size <= CACHE_MAX / 2) break;
+  }
+}
 
 function foldOne(s: string): Folded {
   // 系统缺少 zh-CN 排序数据时（极少数精简 WebView）直接退化为无拼音，不影响原有检索
@@ -33,6 +44,6 @@ export function pinyinHay(s: string): string {
   const hit = cache.get(s);
   if (hit) return `${hit.flat} ${hit.ini}`;
   const v = foldOne(s);
-  cache.set(s, v);
+  remember(s, v);
   return `${v.flat} ${v.ini}`;
 }

@@ -10,8 +10,9 @@ use windows_sys::Win32::System::Diagnostics::ToolHelp::{
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JobObjectBasicAccountingInformation,
-    JobObjectExtendedLimitInformation, QueryInformationJobObject, SetInformationJobObject,
-    JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectBasicProcessIdList, JobObjectExtendedLimitInformation, QueryInformationJobObject,
+    SetInformationJobObject, JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
+    JOBOBJECT_BASIC_PROCESS_ID_LIST, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
     JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
 };
 use windows_sys::Win32::System::Threading::{
@@ -311,6 +312,77 @@ pub unsafe fn wait_job_empty(job: isize, limit: Duration) -> bool {
     }
 }
 
+/// Job 里是否还有「游戏本体」进程：镜像路径等于启动的 exe，或位于游戏目录下。
+///
+/// 启动壳退出后用它判断游戏是否仍在玩：旧实现固定等 60 秒就 close(job)，
+/// 而 Job 带 KILL_ON_JOB_CLOSE，会把启动壳拉起的真游戏一起杀掉。
+/// 只有确认 Job 里只剩辅助进程（更新器 / 崩溃上报）时，调用方才会提前收尾。
+/// 读不到进程信息时返回 Some(true)（宁可不收，也不误杀）。
+pub unsafe fn job_has_game_process(job: isize, game_dir: &str, game_exe: &str) -> Option<bool> {
+    if job == 0 {
+        return Some(false);
+    }
+    let want_exe = normalize_image_path(game_exe);
+    // 去掉末尾分隔符再补一个：目录比较必须按「目录前缀」而不是字符串前缀（AIR vs AIR2）
+    let want_dir = format!(
+        "{}\\",
+        normalize_image_path(game_dir.trim_end_matches(['\\', '/']))
+    );
+    let mut cap: usize = 32;
+    for _ in 0..4 {
+        let bytes = std::mem::size_of::<JOBOBJECT_BASIC_PROCESS_ID_LIST>()
+            + (cap - 1) * std::mem::size_of::<usize>();
+        // 用 usize 缓冲保证 8 字节对齐：Vec<u8> 的对齐只有 1，直接转结构体指针是 UB
+        let mut buf = vec![0usize; bytes.div_ceil(std::mem::size_of::<usize>())];
+        let ptr = buf.as_mut_ptr() as *mut JOBOBJECT_BASIC_PROCESS_ID_LIST;
+        let ok = QueryInformationJobObject(
+            job as _,
+            JobObjectBasicProcessIdList,
+            buf.as_mut_ptr() as *mut core::ffi::c_void,
+            bytes as u32,
+            std::ptr::null_mut(),
+        );
+        if ok == 0 {
+            return None;
+        }
+        let assigned = (*ptr).NumberOfAssignedProcesses as usize;
+        if assigned > cap {
+            cap = assigned + 8;
+            continue;
+        }
+        let count = (*ptr).NumberOfProcessIdsInList as usize;
+        if count == 0 {
+            return Some(false);
+        }
+        // 结构体头部是两个 u32（8 字节），之后是变长 pid 数组
+        let ids_ptr = buf.as_ptr().add(1);
+        for &pid in std::slice::from_raw_parts(ids_ptr, count) {
+            let ph = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid as u32);
+            if ph.is_null() {
+                // 更高完整性级别读不到句柄：保守当作游戏还在跑
+                return Some(true);
+            }
+            let mut path_buf = [0u16; 512];
+            let mut len = path_buf.len() as u32;
+            let got = QueryFullProcessImageNameW(ph, 0, path_buf.as_mut_ptr(), &mut len);
+            CloseHandle(ph);
+            if got == 0 {
+                return Some(true);
+            }
+            let path = normalize_image_path(&String::from_utf16_lossy(&path_buf[..len as usize]));
+            if path == want_exe || path.starts_with(&want_dir) {
+                return Some(true);
+            }
+        }
+        return Some(false);
+    }
+    None
+}
+
+fn normalize_image_path(p: &str) -> String {
+    p.replace('/', "\\").to_lowercase()
+}
+
 /// 转区游戏可能以更高完整性级别运行（读不到句柄/权限不足）：
 /// 这时退回「轮询进程表直到 pid 消失」，至少让运行状态与游玩时长是对的。
 pub unsafe fn wait_process_exit(pid: u32, handle: isize) -> Option<i32> {
@@ -344,4 +416,41 @@ unsafe fn pid_alive(pid: u32) -> bool {
     }
     CloseHandle(snap);
     alive
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// KILL_ON_JOB_CLOSE 的核心保证：关掉 Job 句柄等于树内进程全灭。
+    /// 这条特性是「游戏退出后不留残留、结束游戏时能杀干净」的地基。
+    #[test]
+    fn closing_job_kills_assigned_child() {
+        unsafe {
+            let job = create_job();
+            assert_ne!(job, 0, "Job 创建失败");
+            let mut child = std::process::Command::new("cmd")
+                .args(["/C", "ping -n 30 127.0.0.1"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("无法启动测试子进程");
+            let pid = child.id();
+            if !assign(job, pid) {
+                // 测试进程自身可能已在某个 Job 里（CI / 容器）：挂不上就跳过，不算失败
+                close(job);
+                let _ = child.kill();
+                let _ = child.wait();
+                return;
+            }
+            assert!(pid_alive(pid), "挂上 Job 后子进程应仍在运行");
+            close(job);
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while pid_alive(pid) {
+                assert!(Instant::now() < deadline, "关闭 Job 后 5 秒内子进程仍未退出");
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            let _ = child.wait();
+        }
+    }
 }

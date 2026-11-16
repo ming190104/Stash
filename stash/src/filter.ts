@@ -4,11 +4,13 @@
 import type { Game, SavedView } from './types';
 import {
   state,
-  sortedGames,
+  visibleGames,
   facetCount,
+  collectionCtx,
   clearFacets,
   COLLECTIONS,
   collectionMatch,
+  type CollectionCtx,
   type GridFilter,
   type CollectionId,
 } from './state';
@@ -54,12 +56,12 @@ function facetMatch(g: Game, skip: FacetCol | null): boolean {
 }
 
 /** 保存视图里的条件是否命中（视图自带筛选，不依赖当前面板状态） */
-function viewMatch(g: Game, v: SavedView): boolean {
+function viewMatch(g: Game, v: SavedView, ctx: CollectionCtx): boolean {
   if (!statusMatch(g, v.filter)) return false;
   if (v.tag && !g.tags.includes(v.tag) && !(g.userTags ?? []).includes(v.tag)) return false;
   if (v.dev && g.developer !== v.dev) return false;
   if (v.year !== null && g.year !== v.year) return false;
-  return collectionMatch(g, (v.collection as CollectionId | null) ?? null);
+  return collectionMatch(g, (v.collection as CollectionId | null) ?? null, ctx);
 }
 
 function currentOf(col: FacetCol): string | number | null {
@@ -104,23 +106,27 @@ function choose(col: FacetCol, v: string | number | null): void {
   else state.yearFilter = v as number | null;
 }
 
-/** 某列可选项：计数时排除本列自身条件（分面计数的通行做法，选中项不会自己把自己算成 0） */
+/** 某列可选项：计数时排除本列自身条件（分面计数的通行做法，选中项不会自己把自己算成 0）。
+ *  计数只要集合不要顺序，所以走 visibleGames 而不是 sortedGames：
+ *  面板每动一步要算四列，重排全库在这儿纯属浪费。 */
 function options(col: FacetCol): Opt[] {
+  const all = visibleGames();
+  const ctx = collectionCtx();
   if (col === 'set') {
     // 集合列：本列不参与「排除自身」——每个集合都要看全量池子里的命中数
-    const pool = sortedGames().filter((g) => statusMatch(g) && facetMatch(g, null));
+    const pool = all.filter((g) => statusMatch(g) && facetMatch(g, null));
     const list: Opt[] = [{ v: null, label: '全部', count: pool.length }];
     for (const c of COLLECTIONS) {
-      list.push({ v: `smart:${c.v}`, label: c.label, count: pool.filter((g) => collectionMatch(g, c.v)).length });
+      list.push({ v: `smart:${c.v}`, label: c.label, count: pool.filter((g) => collectionMatch(g, c.v, ctx)).length });
     }
     for (const v of state.settings?.views ?? []) {
-      list.push({ v: `view:${v.name}`, label: `视图 · ${v.name}`, count: pool.filter((g) => viewMatch(g, v)).length });
+      list.push({ v: `view:${v.name}`, label: `视图 · ${v.name}`, count: pool.filter((g) => viewMatch(g, v, ctx)).length });
     }
     return list;
   }
-  const pool = sortedGames().filter((g) => {
+  const pool = all.filter((g) => {
     if (!statusMatch(g)) return false;
-    if (state.collection && !collectionMatch(g, state.collection)) return false;
+    if (state.collection && !collectionMatch(g, state.collection, ctx)) return false;
     return facetMatch(g, col);
   });
   const n = new Map<string | number, number>();
@@ -158,6 +164,7 @@ export function renderFilter(): void {
     frow[ci] = Math.min(Math.max(0, frow[ci]), opts.length - 1);
     return `<div class="flt-col${ci === fcol ? ' on' : ''}">
       <div class="flt-lab">${COL_TITLE[col]}<b>${opts.length - 1}</b></div>
+      ${col === 'set' ? '<div class="flt-note">短篇按参考时长（≤10h）统计，与「短篇」标签口径不同；0 项分类已置灰</div>' : ''}
       <div class="flt-opts" data-col="${ci}">${opts
         .map(
           (o, i) => `<div class="flt-opt${o.v === sel ? ' on' : ''}${ci === fcol && i === frow[ci] ? ' focus' : ''}${o.count === 0 && o.v !== null && o.v !== sel ? ' zero' : ''}" data-i="${i}"${o.count === 0 && o.v !== null && o.v !== sel ? ' data-zero="1"' : ''}>

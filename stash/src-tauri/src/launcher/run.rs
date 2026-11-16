@@ -72,9 +72,10 @@ struct RunningGame {
 
 /// 转区接管超时：LEProc 正常 1~3 秒内拉起游戏，等太久只会让前端停在「启动中」。
 const LOCALE_TAKEOVER: Duration = Duration::from_secs(8);
-/// 等 Job 清空的上限：正常游戏退出后 1 秒内就空了；挂常驻辅助进程时不能无限等，
-/// 否则 watcher 线程卡住、「运行中」永不结束、游玩时长也不落盘。
-const JOB_DRAIN_TIMEOUT: Duration = Duration::from_secs(60);
+/// 启动壳退出后，先给 Job 一个短暂宽限让子进程自然排空
+const JOB_DRAIN_GRACE: Duration = Duration::from_secs(2);
+/// Job 里仍有游戏进程时每轮等待的步长（只用于确认，不做超时强杀）
+const JOB_DRAIN_POLL: Duration = Duration::from_secs(5);
 
 static RUNNING: Mutex<Vec<RunningGame>> = Mutex::new(Vec::new());
 /// 正在启动（spawn 到 RUNNING 落位之间）的 id：转区接管最长 8 秒，
@@ -239,19 +240,16 @@ pub fn launch(app: AppHandle, store: Store, game: Game) -> Result<(), AppError> 
     // GUI 进程本身没有控制台，子进程继承到的 stdin 是无效句柄，read_line 立刻 EOF
     // → 演示游戏「一闪就退」。CREATE_NEW_CONSOLE 对 GUI 子系统（真实 Galgame）无副作用。
     //
-    // 非转区再加 CREATE_SUSPENDED：先挂起创建，等 Job 挂上再恢复主线程（见
-    // `win::attach_and_resume`）。否则启动壳可能在我们拿到 pid 之前就拉起真正的
-    // 游戏，孙进程不在 Job 里，退出应用 / 停止游戏都杀不掉它。
+    // 两种模式都加 CREATE_SUSPENDED：先挂起创建，等 Job 挂上再恢复主线程（见
+    // `win::attach_and_resume`）。转区模式下启动器拉起游戏后自己会退出，只有让
+    // 启动器在 Job 内运行，游戏和它后续拉起的孙进程才会天然继承 Job；否则接管前
+    // 创建的子进程不在 Job 里，stop / 退出应用都杀不掉。
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
         const CREATE_SUSPENDED: u32 = 0x0000_0004;
-        cmd.creation_flags(if locale_launch {
-            CREATE_NEW_CONSOLE
-        } else {
-            CREATE_NEW_CONSOLE | CREATE_SUSPENDED
-        });
+        cmd.creation_flags(CREATE_NEW_CONSOLE | CREATE_SUSPENDED);
     }
     // 转区接管要按 exe 名反查进程：先记下启动前已存在的同名进程，
     // 否则用户自己早就开着的一份会被当成本次启动的游戏（stop 会误杀它）
@@ -267,11 +265,12 @@ pub fn launch(app: AppHandle, store: Store, game: Game) -> Result<(), AppError> 
         .spawn()
         .map_err(|e| AppError::new(ErrCode::LaunchFailed, format!("启动失败（{e}）：{}", game.exe)))?;
 
-    // 非转区：子进程是挂起创建的，先挂 Job 再放行；失败就回收，绝不放一个逃出监控的进程出去
+    // 两种模式都必须「先挂 Job 再放行」：转区时启动器拉起的游戏会继承 Job，
+    // 晚到的子进程也跑不掉；非转区则防止启动壳抢先拉起孙进程。
     #[cfg(windows)]
-    let mut early_job: isize = 0;
+    let early_job: isize;
     #[cfg(windows)]
-    if !locale_launch {
+    {
         match unsafe { win::attach_and_resume(&child) } {
             Ok(job) => early_job = job,
             Err(e) => {
@@ -306,17 +305,19 @@ pub fn launch(app: AppHandle, store: Store, game: Game) -> Result<(), AppError> 
                 // 超时说明转区工具没把游戏拉起来（配置损坏 / 被杀软拦截 / 弹了 LEGUI 等人操作）。
                 // 不能把启动器留在后台、更不能先报「运行中」再无声退出：收掉进程直接报错。
                 let _ = child.kill();
-                let _ = child.wait();
-                // 但也要防「晚一步才起来」：启动器超时后游戏进程可能刚好出现，
-                // 不收掉就会留下一个没人跟踪的游戏窗口（界面显示未运行、也停不掉）。
+                // 有超时地回收：启动器若以管理员权限驻留，kill 不掉时不能把命令永久挂住
+                let _ = reap_child(&mut child, Duration::from_secs(3));
+                // 启动器仍在 Job 里：关句柄按 KILL_ON_JOB_CLOSE 回收整树，
+                // 包括晚一步才被拉起的游戏进程。不能再按「同名进程」全量杀——
+                // 那会误杀用户自己并行启动的另一份同名游戏。
                 #[cfg(windows)]
-                for p in unsafe { win::pids_named(&game.exe) } {
-                    if preexisting.contains(&p) {
-                        continue;
-                    }
-                    if unsafe { win::kill_pid(p) } {
-                        tracing::warn!("launch: 转区接管超时，已回收残留进程 pid={p}");
-                    }
+                if early_job != 0 {
+                    unsafe { win::close(early_job) };
+                } else {
+                    tracing::warn!(
+                        "launch: 转区接管超时且无 Job 可回收，可能存在残留进程：{}",
+                        game.exe
+                    );
                 }
                 return Err(AppError::new(
                     ErrCode::LaunchFailed,
@@ -359,6 +360,9 @@ pub fn launch(app: AppHandle, store: Store, game: Game) -> Result<(), AppError> 
     let started = now_secs();
 
     let id = game.id.clone();
+    // watcher 线程用：判断 Job 里残留的是游戏本体还是辅助进程
+    #[cfg(windows)]
+    let (game_dir, game_exe) = (game.dir.clone(), game.exe.clone());
     RUNNING
         .lock()
         .unwrap_or_else(|e| e.into_inner())
@@ -386,20 +390,31 @@ pub fn launch(app: AppHandle, store: Store, game: Game) -> Result<(), AppError> 
         };
         #[cfg(not(windows))]
         let game_code: Option<i32> = None;
-        // 转区启动器（LEProc）可能在游戏结束后仍驻留：主动收掉，避免留下后台进程
-        if locale_launch {
+        // 转区启动器（LEProc）可能在游戏结束后仍驻留：主动收掉，避免留下后台进程。
+        // 收掉后必须有超时地 wait：启动器若以更高权限驻留、kill 不掉，
+        // 无超时的 wait() 会让 watcher 永久挂起（界面永远「运行中」、时长也不落盘）。
+        let status = if locale_launch {
             let _ = local_child.kill();
-        }
-        // 非转区：主进程可能是「启动壳」（Ren'Py 常见），真正的游戏在 Job 里。
-        // 先收主进程（启动壳几十毫秒就退出），再等 Job 空掉；close(job) 时若游戏还在
-        // Job 里会被一起杀掉，所以这一步必须在关闭 Job 之前、且带超时兜底。
-        let status = local_child.wait();
+            reap_child(&mut local_child, Duration::from_secs(3))
+        } else {
+            local_child.wait().ok()
+        };
+        // 启动壳退出后，真正的游戏可能还在 Job 里跑：只要 Job 里还有游戏本体进程就继续等，
+        // 绝不按固定超时 close(job)——Job 带 KILL_ON_JOB_CLOSE，会把正在玩的游戏整树杀掉。
+        // 只有确认只剩辅助进程（更新器 / 崩溃上报）时，才在短暂宽限后关闭回收。
         #[cfg(windows)]
-        if !locale_launch && job != 0 && !unsafe { win::wait_job_empty(job, JOB_DRAIN_TIMEOUT) } {
-            tracing::warn!(
-                "launch: Job 内仍有进程未退出（超过 {:?}），关闭 Job 一并回收",
-                JOB_DRAIN_TIMEOUT
-            );
+        if !locale_launch && job != 0 {
+            let mut empty = unsafe { win::wait_job_empty(job, JOB_DRAIN_GRACE) };
+            while !empty {
+                match unsafe { win::job_has_game_process(job, &game_dir, &game_exe) } {
+                    Some(false) => {
+                        tracing::info!("launch: 主进程已退出，Job 只剩辅助进程，关闭回收");
+                        break;
+                    }
+                    // Some(true)：游戏仍在运行；None：枚举失败，保守继续等
+                    _ => empty = unsafe { win::wait_job_empty(job, JOB_DRAIN_POLL) },
+                }
+            }
         }
         #[cfg(windows)]
         unsafe {
@@ -463,7 +478,7 @@ pub fn launch(app: AppHandle, store: Store, game: Game) -> Result<(), AppError> 
         }
 
         let code = game_code
-            .or_else(|| status.ok().and_then(|s| s.code()))
+            .or_else(|| status.and_then(|s| s.code()))
             .unwrap_or(-1);
         tracing::info!("game exited: {id} code={code}");
         // 分辨率 / DPI 多半被游戏改过：把主窗口放回启动前的位置，别让用户找不到它
@@ -475,6 +490,24 @@ pub fn launch(app: AppHandle, store: Store, game: Game) -> Result<(), AppError> 
     });
 
     Ok(())
+}
+
+/// 有超时的子进程回收：`kill()` 之后最多等 `limit`，超时就放弃。
+///
+/// 启动器 / 保护进程可能以管理员权限驻留，`kill()` 成功返回但进程迟迟不退出；
+/// 此时无超时的 `wait()` 会让 watcher 线程永久挂起，界面一直停在「运行中」。
+fn reap_child(child: &mut Child, limit: Duration) -> Option<std::process::ExitStatus> {
+    let deadline = std::time::Instant::now() + limit;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Some(status),
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(25))
+            }
+            Ok(None) => return None,
+            Err(_) => return None,
+        }
+    }
 }
 
 /// 停止游戏：终止 Job 整树。退出回报与记录更新由监控线程收尾。

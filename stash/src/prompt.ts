@@ -26,6 +26,8 @@ function el(): HTMLElement | null {
 function wireSingle(m: HTMLElement): void {
   m.querySelector('#pInput')?.addEventListener('keydown', (e) => {
     const ke = e as KeyboardEvent;
+    // 输入法组合态：Enter 是「上屏」而不是「提交」，否则拼音会直接提交半截文本
+    if (ke.isComposing || ke.keyCode === 229) return;
     if (ke.code === 'Enter' || ke.code === 'NumpadEnter') {
       // 多行模式：Enter 换行，Ctrl/⌘+Enter 才提交
       if (multiline && !ke.ctrlKey && !ke.metaKey) return;
@@ -36,6 +38,8 @@ function wireSingle(m: HTMLElement): void {
   // Esc 在整层兜住：无输入框的确认弹层焦点不在 textarea 上，也要能取消
   m.addEventListener('keydown', (e) => {
     const ke = e as KeyboardEvent;
+    // 组合态下的 Esc 是「取消输入法候选」，不能把弹层关掉
+    if (ke.isComposing || ke.keyCode === 229) return;
     if (ke.code === 'Escape') {
       finish(false);
       ke.preventDefault();
@@ -109,11 +113,20 @@ export function promptInput(o: {
   inp.classList.toggle('multi', multiline);
   inp.value = o.value ?? '';
   inp.maxLength = o.cap ?? 240;
+  // 模态焦点接管：设置页的输入框可能还聚焦着。不主动失焦的话，纯确认弹层
+  // （没有自己的输入框）按 Enter / A 会被 overlay 的 isField 分支吞掉，永远确认不了，
+  // 字母也会继续写进背后的输入框。
+  const active = document.activeElement as HTMLElement | null;
+  if (active && !m.contains(active)) active.blur();
   m.classList.add('show');
   clearTimeout(focusTimer);
   focusTimer = window.setTimeout(() => {
     if (!m.classList.contains('show')) return; // 已按 A/B 收起：别让隐藏的输入框偷走焦点
-    if (noInput) return; // 纯确认弹层没有输入框：焦点留在层上，由 overlay 接管 A/B
+    if (noInput) {
+      // 纯确认弹层：把焦点放到主按钮上，键盘 / 读屏都有明确落点
+      (m.querySelector('#pOk') as HTMLElement | null)?.focus();
+      return;
+    }
     inp.focus();
     inp.setSelectionRange(inp.value.length, inp.value.length);
   }, 60);

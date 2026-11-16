@@ -34,13 +34,19 @@ pub fn open_in_explorer(dir: &std::path::Path) -> Result<(), AppError> {
 }
 
 #[tauri::command]
-pub fn open_dir(store: State<'_, Store>, id: String) -> Result<(), AppError> {
-    let games = store.load_library();
-    let g = games
-        .into_iter()
-        .find(|g| g.id == id)
-        .ok_or_else(|| AppError::new(ErrCode::NotFound, "游戏不在库中"))?;
-    open_in_explorer(std::path::Path::new(&g.dir))
+pub async fn open_dir(store: State<'_, Store>, id: String) -> Result<(), AppError> {
+    // 读整库 + 起 explorer 都是阻塞操作，必须离开主线程
+    let st = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let games = st.load_library();
+        let g = games
+            .into_iter()
+            .find(|g| g.id == id)
+            .ok_or_else(|| AppError::new(ErrCode::NotFound, "游戏不在库中"))?;
+        open_in_explorer(std::path::Path::new(&g.dir))
+    })
+    .await
+    .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
 }
 
 /// 关于页自助排障：打开数据目录 / 日志目录（`kind = "logs"` 时后者）
@@ -85,6 +91,10 @@ pub async fn recent_log_issues(limit: Option<usize>) -> Vec<LogIssue> {
 /// 前端 `performance.now()` 的起点是页面加载，进程耗时由后端自己算，两者都记便于区分瓶颈。
 #[tauri::command]
 pub fn report_timing(name: String, ms: Option<f64>) {
+    // 前端传入的字符串原样落日志会带换行，可伪造出 WARN / ERROR 行来混淆排障；
+    // 去掉控制字符并限长，保持一行一条
+    let name: String = name.chars().filter(|c| !c.is_control()).take(64).collect();
+    let name = if name.trim().is_empty() { "?" } else { name.as_str() };
     match ms {
         Some(ms) => tracing::info!("timing: {name} 前端 {ms:.0} ms / 进程 {:.0} ms", crate::boot_ms()),
         None => tracing::info!("timing: {name} 进程 {:.0} ms", crate::boot_ms()),
@@ -635,6 +645,10 @@ pub async fn export_data(store: State<'_, Store>, path: String) -> Result<usize,
 }
 
 pub fn export_data_sync(store: &Store, path: &str) -> Result<usize, AppError> {
+    let target = std::path::Path::new(path);
+    // 一个错误路径就能把 library.json / settings.json 覆盖成备份结构，
+    // 下次启动解析失败 → quarantine → 空库，所以先拦在数据目录外
+    ensure_export_target_ok(&store.dir, target)?;
     // 备份文件会被拷来拷去：搜索 Key 一律不写进去，导入后由用户在设置页重填。
     let mut settings = store.load_settings();
     settings.network.sgdb_key = None;
@@ -646,9 +660,31 @@ pub fn export_data_sync(store: &Store, path: &str) -> Result<usize, AppError> {
     };
     let json = serde_json::to_string_pretty(&bundle)
         .map_err(|e| AppError::new(ErrCode::IoError, format!("序列化失败：{e}")))?;
-    std::fs::write(path, json)?;
+    std::fs::write(target, json)?;
     tracing::info!("export: {path} ({} games)", bundle.library.len());
     Ok(bundle.library.len())
+}
+
+/// 导出目标必须在数据目录之外：否则备份会覆盖库文件 / 封面缓存。
+/// 只比较父目录（用户可能新建一个还不存在的文件名）。
+fn ensure_export_target_ok(
+    data_dir: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<(), AppError> {
+    let parent = target
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .ok_or_else(|| AppError::new(ErrCode::IoError, "导出路径无效"))?;
+    let target_dir = std::fs::canonicalize(parent)
+        .map_err(|e| AppError::new(ErrCode::IoError, format!("导出目录不可用：{e}")))?;
+    let data = std::fs::canonicalize(data_dir).unwrap_or_else(|_| data_dir.to_path_buf());
+    if target_dir.starts_with(&data) {
+        return Err(AppError::new(
+            ErrCode::IoError,
+            "不能导出到 Stash 数据目录内（会覆盖库或封面缓存），请换一个目录",
+        ));
+    }
+    Ok(())
 }
 
 /// 导入前把现有库与设置另存一份，覆盖后可追溯
@@ -749,6 +785,19 @@ mod tests {
         Store { dir }
     }
 
+    /// 回归：导出路径落在数据目录内必须拒绝，否则一次误选就能把库文件覆盖成备份结构
+    #[test]
+    fn export_refuses_target_inside_data_dir() {
+        let store = temp_store("export-guard");
+        let inside = store.dir.join("library.json");
+        assert!(ensure_export_target_ok(&store.dir, &inside).is_err());
+
+        let outside =
+            std::env::temp_dir().join(format!("stash-export-{}.json", std::process::id()));
+        assert!(ensure_export_target_ok(&store.dir, &outside).is_ok());
+        let _ = std::fs::remove_dir_all(&store.dir);
+    }
+
     #[test]
     fn import_rebinds_media_to_local_cache_names() {
         let store = temp_store("media");
@@ -792,13 +841,18 @@ mod tests {
         let mut settings = Settings::default();
         settings.network.sgdb_key = Some("sgdb-secret".into());
         store.save_settings(&settings).unwrap();
-        let backup = store.dir.join("backup.json");
+        // 导出目标必须在数据目录之外（落在目录内会被 ensure_export_target_ok 拦下）
+        let backup = std::env::temp_dir().join(format!(
+            "stash-export-credentials-{}.json",
+            std::process::id()
+        ));
 
         export_data_sync(&store, &backup.to_string_lossy()).unwrap();
         let text = std::fs::read_to_string(&backup).unwrap();
         assert!(!text.contains("sgdb-secret"), "备份不能包含凭据");
         let value: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert_eq!(value["notice"], "已排除凭据，导入后需重填");
+        let _ = std::fs::remove_file(&backup);
         let _ = std::fs::remove_dir_all(&store.dir);
     }
 

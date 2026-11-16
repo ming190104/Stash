@@ -54,12 +54,21 @@ async function load(id: string, tok: number): Promise<void> {
       paintCards();
       void fillThumbs(tok);
     }
-    // 再补在线候选（SGDB 走 1 req/s 闸门，可能要几秒）；关闭面板后结果直接丢弃
+    // 再补在线候选（SGDB 走 1 req/s 闸门，可能要几秒）；关闭面板后结果直接丢弃。
+    // 不能按「数量是否变化」判断：在线候选与本地候选数量相同时整批会被丢掉。
+    // 以服务端顺序为准，本地独有的候选追加在后面，按 key 去重。
     const all = await backgroundCandidates(id, true);
     if (tok !== token || !settle) return;
-    if (all.length !== items.length) {
-      const keep = items[idx]?.key;
-      items = all;
+    const keep = items[idx]?.key;
+    const merged = [...all];
+    for (const c of items) {
+      if (!merged.some((m) => m.key === c.key)) merged.push(c);
+    }
+    const changed =
+      merged.length !== items.length ||
+      merged.some((c, i) => c.key !== items[i]?.key);
+    if (changed) {
+      items = merged;
       const at = keep ? items.findIndex((c) => c.key === keep) : -1;
       idx = at >= 0 ? at : Math.max(0, items.findIndex((c) => c.current));
       paintCards();

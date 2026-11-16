@@ -5,7 +5,7 @@
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { game, key, mountSkeleton, resetState } from './dom-skeleton';
-import { state } from '../state';
+import { state, setScreen } from '../state';
 import { dispatchNav } from '../nav';
 import { applyLayout } from '../ui';
 import { hideStates, showEmpty } from '../overlay';
@@ -195,6 +195,17 @@ describe('首屏与三套布局', () => {
     expect(document.getElementById('emptyState')!.classList.contains('show')).toBe(false);
     showEmpty('empty');
     updateEmpty();
+  });
+
+  it('空态只属于库 / 网格屏：设置页不弹，回库后自动补上', () => {
+    state.games = [];
+    setScreen('settings');
+    updateEmpty();
+    const empty = document.getElementById('emptyState')!;
+    expect(empty.classList.contains('show')).toBe(false);
+    setScreen('library');
+    expect(empty.classList.contains('show')).toBe(true);
+    hideStates();
   });
 
   it('setFocus 夹紧越界索引并同步焦点锥', () => {
