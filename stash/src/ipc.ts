@@ -2,6 +2,7 @@
  *  mock 模式用于纯 UI 开发与校验，占位美术同样是正式降级设计。 */
 
 import type { EndMark, Game, HealthReport, MetaCandidate, Settings } from './types';
+import type { Update } from '@tauri-apps/plugin-updater';
 import { normalizePadMap, normalizePadTuning } from './padmap';
 
 export const TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -425,20 +426,15 @@ export async function openAppDir(kind: 'data' | 'logs'): Promise<void> {
 
 /* ============ 更新检查 ============ */
 
-export interface UpdateInfo {
-  /** 当前版本（与安装包一致） */
-  current: string;
-  /** 最新 Release 的版本号（已去掉前缀 v） */
-  latest: string;
-  /** 下载页（github.com） */
-  url: string;
-  newer: boolean;
-}
-
-/** 查 GitHub 最新 Release。必须走 Rust：前端 CSP 的 connect-src 不放行外网 */
-export async function checkUpdate(): Promise<UpdateInfo> {
+/**
+ * 查新版本。走 tauri-plugin-updater：Rust 侧拉 latest.json 并校验 ed25519 签名，
+ * 前端 CSP 的 connect-src 只放行 ipc，所以请求必须由插件发。
+ * 返回 null = 已是最新；非 null 时由调用方决定下载 / 安装。
+ */
+export async function checkUpdate(): Promise<Update | null> {
   if (!TAURI) throw new Error('浏览器预览不检查更新');
-  return inv<UpdateInfo>('check_update');
+  const { check } = await import('@tauri-apps/plugin-updater');
+  return check();
 }
 
 /** 用系统默认浏览器打开 http(s) 链接 */

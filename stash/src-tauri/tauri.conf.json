@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Stash",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "identifier": "com.stash.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -35,9 +35,18 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVDMjJBOEQ4OEVGQjQ1MEUKUldRT1JmdU8yS2dpWEhGOThUOEtoak9QZ3ZxQ1djZUlVRExVWlRQVDljVlJnRWQvY1RnWlA1OVkK",
+      "endpoints": [
+        "https://github.com/zhao1171921108-cyber/Stash/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "resources": {
       "binaries/locale-emulator/*.dll": "locale-emulator/",
       "binaries/locale-emulator/*.exe": "locale-emulator/",

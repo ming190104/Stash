@@ -1,6 +1,6 @@
 [package]
 name = "stash"
-version = "1.1.4"
+version = "1.2.0"
 description = "Stash - Galgame 本地库前端"
 authors = ["you"]
 edition = "2021"
@@ -16,6 +16,9 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
+# 自动更新（总案补充）：签名校验后静默安装并重启；process 只用于 relaunch
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 walkdir = "2"

@@ -88,11 +88,15 @@ async function silentUpdateCheck(): Promise<void> {
   const last = Number(localStorage.getItem(UPDATE_CHECK_KEY) ?? 0);
   if (Number.isFinite(last) && Date.now() - last < UPDATE_CHECK_GAP) return;
   try {
-    const r = await checkUpdate();
+    const u = await checkUpdate();
     localStorage.setItem(UPDATE_CHECK_KEY, String(Date.now()));
-    if (r.newer) toast(`发现新版本 ${r.latest} · 设置 → 关于 可下载`);
+    if (u) {
+      toast(`发现新版本 ${u.version} · 设置 → 关于 可更新`);
+      // Update 在 Rust 侧持有资源：只提示不安装，读完立刻释放
+      void u.close();
+    }
   } catch {
-    // 离线 / 限流 / 仓库没有 Release 都是常态：启动阶段不打扰用户
+    // 离线 / 被拦 / 仓库没有 Release 都是常态：启动阶段不打扰用户
   }
 }
 

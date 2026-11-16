@@ -1,7 +1,7 @@
 {
   "name": "stash",
   "private": true,
-  "version": "1.1.4",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "smoke": "node scripts/smoke.cjs",
+    "latest-json": "node scripts/latest-json.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "verify:code": "eslint src && tsc --noEmit && vitest run --coverage && vite build",
@@ -19,6 +20,8 @@
   "dependencies": {
     "@tauri-apps/api": "^2.1.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.14.1",
     "tiny-pinyin": "^1.3.2"
   },
   "devDependencies": {

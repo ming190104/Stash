@@ -122,6 +122,9 @@ pub fn run() {
     migrate_webview_dir();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // 自动更新：查 latest.json → 校验签名 → 静默安装；process 提供重启
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             single::bind(app.handle());
             let store = Store::open();
@@ -226,8 +229,7 @@ pub fn run() {
             settings_cmd::autostart_enabled,
             settings_cmd::set_fullscreen,
             settings_cmd::set_power60,
-            // 更新检查 / 外部链接
-            update::check_update,
+            // 外部链接（更新失败时的手动下载页兜底）
             update::open_url,
             // 库记录（library.json 单条读写）
             records::set_favorite,
