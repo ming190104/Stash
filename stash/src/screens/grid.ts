@@ -38,7 +38,7 @@ function buildGrid(animate = false): void {
         <div class="ring"></div>
         ${g.favorite ? '<span class="fav">★</span>' : ''}
         ${isNew ? '<span class="new">NEW</span>' : ''}
-        ${g.progress > 0 ? `<div class="prog"><i style="width:${Math.round(g.progress * 100)}%"></i></div>` : ''}
+        ${g.progress > 0 ? `<div class="prog" title="通关进度 ${Math.round(g.progress * 100)}%"><i style="width:${Math.round(g.progress * 100)}%"></i></div>` : ''}
         <span class="selmk">✓</span>
       </div>
       <div class="gt${g.progress >= 1 ? ' done' : ''}">${esc(g.title)}</div>

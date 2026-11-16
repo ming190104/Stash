@@ -172,6 +172,9 @@ export async function renderDetail(): Promise<void> {
     ? '本地目录'
     : ({ bangumi: 'Bangumi', moegirl: '萌娘百科', kungal: '鲲 Galgame', vndb: 'VNDB', igdb: 'IGDB' } as Record<string, string>)[g.metaSource ?? ''] ?? '在线';
   const ref = refText(g);
+  // 原名与标题相同（未匹配到日文原名）时不再重复一行；有罗马字时仍保留该行
+  const orig = g.titleOriginal && g.titleOriginal !== g.title ? esc(g.titleOriginal) : '';
+  const jpLine = [orig, g.romaji ? esc(g.romaji) : ''].filter(Boolean).join(' · ');
   // 同会社作品：只从当前库里取，用于详情页的横向推荐条
   const related = g.developer
     ? state.games.filter((x) => x.id !== g.id && !x.hidden && x.developer === g.developer).slice(0, 6)
@@ -181,7 +184,7 @@ export async function renderDetail(): Promise<void> {
     info,
     `
     <div class="d-cn">${esc(g.title)}</div>
-    <div class="d-jp">${esc(g.titleOriginal || g.title)}${g.romaji ? ' · ' + esc(g.romaji) : ''}</div>
+    ${jpLine ? `<div class="d-jp">${jpLine}</div>` : ''}
     <div class="d-pills">${pills.join('')}</div>
     <p class="d-sum">${esc(cnFirst(g.summary ?? '') || '尚未匹配元数据——当前信息来自本地目录。可在「设置 · 元数据」里运行 Bangumi 匹配。')}</p>
     <div class="d-meta">

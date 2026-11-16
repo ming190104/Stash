@@ -38,15 +38,22 @@ function heroInfoHTML(g: Game): string {
   const tags = g.tags.length
     ? g.tags.map((t, j) => `<span class="pill${j === 0 ? ' hot' : ''}">${esc(t)}</span>`).join('')
     : `<span class="pill">${esc(g.engineLabel)}</span>`;
+  // 从未游玩时不渲染「累计 —」：整段隐藏，避免句子中间出现占位符
+  const dur = g.playSeconds > 0 ? `<span class="dot"></span><span>累计 ${fmtDuration(g.playSeconds)}</span>` : '';
+  // 原名与标题相同（未匹配到日文原名）时不再重复一行
+  const jp =
+    g.titleOriginal && g.titleOriginal !== g.title
+      ? `<div class="h-jp row">${esc(g.titleOriginal)}</div>`
+      : '';
   return `
   <div class="eyebrow row">${esc([g.developer, g.year, 'VISUAL NOVEL'].filter(Boolean).join(' · '))}</div>
   <h1 class="h-cn row">${esc(g.title)}</h1>
-  <div class="h-jp row">${esc(g.titleOriginal || g.title)}</div>
+  ${jp}
   <div class="h-rule row"></div>
   <div class="h-pills row">${tags}</div>
   <p class="h-sum row">${esc(cnFirst(g.summary ?? '') || '尚未匹配元数据——当前信息来自本地目录。可在「设置 · 元数据」里运行 Bangumi 匹配。')}</p>
   <div class="h-meta row">
-    <div class="h-play"><span>${fmtRelative(g.lastPlayed)}</span><span class="dot"></span><span>累计 ${fmtDuration(g.playSeconds)}</span><span class="dot"></span><span>通关进度 ${pct}</span></div>
+    <div class="h-play"><span>${fmtRelative(g.lastPlayed)}</span>${dur}<span class="dot"></span><span>通关进度 ${pct}</span></div>
     <div class="h-bar enter"><i style="width:${w}%"></i></div>
   </div>
   <div class="h-cta row">

@@ -134,6 +134,8 @@ html[data-layout="classic"] .qekey{display:none}
 .gbar{display:flex;align-items:center;gap:16px;min-width:0}
 .gh{font-family:var(--serif);font-size:calc(22px * var(--fs,1));font-weight:700;letter-spacing:3px;line-height:1;margin:0}
 .gh small{font-family:var(--sans);font-size:calc(10.5px * var(--fs,1));letter-spacing:2px;color:var(--ink3);font-weight:400;margin-left:14px}
+/* 作品数并入标题：原来挤在右侧时钟/窗口按钮之间，信息层级与状态区混在一起 */
+.gh .gcount{font-family:var(--sans);font-size:calc(11px * var(--fs,1));letter-spacing:1px;color:var(--ink3);font-weight:400;margin-left:16px}
 .fchips{display:flex;gap:8px;align-items:center}
 .fchip{padding:6px 14px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid var(--gline);font-size:calc(11px * var(--fs,1));color:var(--ink3);cursor:pointer;letter-spacing:1px}
 .fchip.on{background:color-mix(in srgb,var(--acc) 16%,transparent);border-color:color-mix(in srgb,var(--acc) 40%,transparent);color:var(--acc-ink)}
@@ -143,7 +145,7 @@ html[data-layout="classic"] .qekey{display:none}
 .gwrap::-webkit-scrollbar{display:none}
 .gcell{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer}
 .gcell .card{width:164px;height:219px}
-.gt{font-size:calc(12px * var(--fs,1));color:var(--ink2);letter-spacing:.5px;max-width:164px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gt{font-size:calc(12px * var(--fs,1));color:var(--ink1);letter-spacing:.5px;max-width:164px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gt.done{color:var(--ink3)}
 .gs{font-size:calc(10px * var(--fs,1));color:var(--ink3);margin-top:-5px;letter-spacing:.5px}
 /* 多选：卡片右上角勾选标记 + 选中描边 */

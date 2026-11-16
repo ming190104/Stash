@@ -50,7 +50,7 @@ describe('cssUrl', () => {
 describe('fmtDuration', () => {
   it('未游玩 / 不足一分钟 / 分钟 / 小时分档', () => {
     expect(fmtDuration(0)).toBe('—');
-    expect(fmtDuration(30)).toBe('不足 1 分');
+    expect(fmtDuration(30)).toBe('<1 分钟');
     expect(fmtDuration(3540)).toBe('59 分');
   });
 

@@ -347,10 +347,10 @@ export function fmtRelative(ts: number | null): string {
   return new Date(ts * 1000).toLocaleDateString('zh-CN');
 }
 
-/** 累计时长（秒 → 「12 小时 6 分」）。不足 1 分钟显示「不足 1 分」，未游玩显示「—」 */
+/** 累计时长（秒 → 「12 小时 6 分」）。不足 1 分钟显示「<1 分钟」，未游玩显示「—」 */
 export function fmtDuration(secs: number): string {
   if (!secs || secs <= 0) return '—';
-  if (secs < 60) return '不足 1 分';
+  if (secs < 60) return '<1 分钟';
   const h = Math.floor(secs / 3600);
   let m = Math.round((secs % 3600) / 60);
   let hh = h;

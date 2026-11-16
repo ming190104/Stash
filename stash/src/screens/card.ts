@@ -81,7 +81,7 @@ export function buildCard(g: Game, i: number, lastId: string | null): HTMLElemen
     ${np}
     ${isNew ? '<span class="new">NEW</span>' : ''}
     ${multi ? `<span class="ver">+${multi} 版</span>` : ''}
-    ${g.progress > 0 ? `<div class="prog"><i style="width:${Math.round(g.progress * 100)}%"></i></div>` : ''}`,
+    ${g.progress > 0 ? `<div class="prog" title="通关进度 ${Math.round(g.progress * 100)}%"><i style="width:${Math.round(g.progress * 100)}%"></i></div>` : ''}`,
   );
   el.dataset.id = g.id;
   el.addEventListener('click', () => activateCard(g, i));

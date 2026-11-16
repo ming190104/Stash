@@ -122,7 +122,7 @@
     <!-- 顶栏合并：标题 + 分类 chips + 计数/时钟/窗口按钮同一排（原来标题行在 60px 下方，
          白占一条横向空隙，卡片整体上移 36px） -->
     <div class="ghead" data-tauri-drag-region>
-      <h1 class="gh">游戏库<small>GRID VIEW</small></h1>
+      <h1 class="gh">游戏库<small>GRID VIEW</small><span class="gcount" id="gameCount2">-- 部作品</span></h1>
       <div class="gbar">
         <div class="fchips" id="fchips">
           <span class="fchip on" data-filter="all">全部</span><span class="fchip" data-filter="playing">进行中</span><span class="fchip" data-filter="done">已通关</span><span class="fchip" data-filter="new">未开始</span><span class="fchip" data-filter="fav">★ 收藏</span><span class="fchip flt" id="fBtn" title="按标签 / 会社 / 年份筛选">筛选</span>
@@ -130,7 +130,7 @@
         </div>
         <div class="tr">
           <button class="mini gback" data-go="library">← 返回轨道</button>
-          <span class="tstat" id="gameCount2">-- 部作品</span><span id="clock2">--:--</span>
+          <span id="clock2">--:--</span>
           <button class="tbtn" data-quick="menu" title="快捷菜单（Start / ☰）">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></svg>
           </button>
@@ -390,7 +390,7 @@
     <div class="help-box">
       <div class="flt-head">
         <b>快捷键总览</b>
-        <span class="flt-sub">键盘 · 手柄 · 系统热键（游戏运行中也生效）</span>
+        <span class="flt-sub">键盘 · 手柄（游戏运行中也可用）</span>
         <span class="kk">Esc</span>
       </div>
       <div class="help-grid">
@@ -431,7 +431,7 @@
           <div class="help-row"><span>返回库</span><span class="hk"><b class="kk">B</b></span></div>
         </section>
         <section>
-          <h4>系统热键</h4>
+          <h4>设置 / 游戏运行中</h4>
           <div class="help-row"><span>设置页签</span><span class="hk"><b class="kk">↑</b><b class="kk">↓</b><b class="kk">→</b></span></div>
           <div class="help-row"><span>确认 / 返回</span><span class="hk"><b class="kk acc">A</b><b class="kk">B</b></span></div>
           <div class="help-row"><span>结束游戏并回书架（长按 1.2 秒）</span><span class="hk"><b class="kk">Start</b><b class="kk">Select</b></span></div>
