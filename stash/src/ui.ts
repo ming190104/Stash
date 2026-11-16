@@ -17,15 +17,13 @@ const TOAST_SHOW_MS = 1800;
 /** 队列上限：极端连点不把提示排到十几秒后，超出丢最早的一条 */
 const TOAST_QUEUE_MAX = 5;
 
-const THEMES: ThemeName[] = ['cinema', 'oled', 'sakura', 'frost', 'contrast', 'amber', 'iris', 'moss', 'crimson', 'daybreak', 'eva01', 'eva02', 'nerv'];
+const THEMES: ThemeName[] = ['cinema', 'oled', 'sakura', 'frost', 'amber', 'iris', 'moss', 'crimson', 'eva01', 'eva02', 'nerv'];
 const LAYOUTS: LayoutName[] = ['classic', 'list', 'wall'];
 
 /** 应用主题：写 html[data-theme]，并缓存一份用于下次启动首帧（避免设置读盘前的闪色） */
 export function applyTheme(name: string | undefined): void {
   const t = (THEMES as string[]).includes(name ?? '') ? (name as ThemeName) : 'cinema';
-  if (document.documentElement.dataset.theme !== t) {
-    document.documentElement.dataset.theme = t;
-  }
+  document.documentElement.dataset.theme = t;
   try {
     localStorage.setItem('vnTheme', t);
   } catch {

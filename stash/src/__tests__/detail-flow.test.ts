@@ -157,7 +157,6 @@ describe('详情渲染', () => {
       notes: '已通关',
       rating: 3,
       playSeconds: 7200,
-      progress: 0.5,
       sessions: [
         { at: Date.now() / 1000 - 3600, seconds: 600 },
         { at: Date.now() / 1000 - 7200, seconds: 900 },
@@ -441,8 +440,8 @@ describe('导航与快捷键', () => {
     expect(state.detailId).toBe('b');
   });
 
-  it('删除最后一条结局时进度归零，不会残留「已通关 100%」', () => {
-    state.games = [game('a', { endings: [{ name: 'END1', done: true }], progress: 1 })];
+  it('删除最后一条结局时不会残留已通关状态', () => {
+    state.games = [game('a', { endings: [{ name: 'END1', done: true }] })];
     state.detailId = 'a';
     setScreen('detail');
     openEndings('a');
@@ -451,7 +450,6 @@ describe('导航与快捷键', () => {
       .querySelector<HTMLElement>('#endList .snap-act.del[data-act="del"]')!
       .click();
     expect(state.games[0].endings).toEqual([]);
-    expect(state.games[0].progress).toBe(0);
     expect(document.getElementById('endTitle')!.textContent).toContain('尚未记录');
   });
 

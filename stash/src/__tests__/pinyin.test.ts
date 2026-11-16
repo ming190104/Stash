@@ -14,7 +14,7 @@ function game(id: string, title: string, over: Partial<Game> = {}): Game {
     developer: null, sizeGb: 0, lastPlayed: null, playCount: 0, playSeconds: 0, endings: [],
     favorite: false, addedAt: 0, needsLocale: false, matched: true, launchArgs: [], bangumiId: null,
     matchScore: null, pending: false, summary: null, tags: [], aliases: [], year: null,
-    progress: 0, hidden: false, userTags: [], notes: '', ...over,
+    hidden: false, userTags: [], notes: '', ...over,
   };
 }
 

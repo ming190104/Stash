@@ -38,7 +38,6 @@ export function game(id: string, over: Partial<Game> = {}): Game {
     tags: [],
     aliases: [],
     year: null,
-    progress: 0,
     hidden: false,
     userTags: [],
     notes: '',
@@ -61,7 +60,7 @@ export function mountSkeleton(): void {
       <div id="searchPanel" class="state">
         <input id="spInput" />
         <div id="spList"></div>
-        <div id="spSort"><b></b><b></b><b></b><b></b></div>
+        <div id="spSort"><b></b><b></b><b></b></div>
       </div>
       <div id="filterPanel" class="state"><div id="fltCols"></div><button id="saveView"></button></div>
       <div id="endPanel" class="state"><div id="endTitle"></div><div id="endList"></div></div>

@@ -1,6 +1,6 @@
 /* EVA 三套主题的「结构皮肤」（P12）：形状 / 字体 / 装饰。
    颜色只走 tokens.css 的 html[data-theme] 令牌，与布局皮肤（data-layout）正交。
-   作用域严格限定 eva01 / eva02 / nerv，其余 10 套主题不受影响。 */
+   作用域严格限定 eva01 / eva02 / nerv，其余 8 套主题不受影响。 */
 
 /* ============================================================
    01 · 初号机：长圆角 + 紫色内环 + 荧光绿呼吸
@@ -29,15 +29,6 @@ html[data-theme="eva01"] .hero-art::after{
 }
 html[data-theme="eva01"] .eyebrow{font-family:var(--mono);letter-spacing:.22em;color:var(--acc-ink)}
 html[data-theme="eva01"] .h-rule{height:2px;border-radius:2px}
-html[data-theme="eva01"] .h-bar{overflow:visible}
-html[data-theme="eva01"] .h-bar i{position:relative}
-html[data-theme="eva01"] .h-bar i::after{
-  content:'';position:absolute;right:-4px;top:50%;width:6px;height:6px;margin-top:-3px;
-  border-radius:50%;background:var(--acc2);box-shadow:0 0 10px 2px var(--acc2);
-  animation:eva-ui-pulse 1.9s ease-out infinite;
-}
-/* 0% 时 i 宽度为 0，伪元素仍会渲染在条起点左侧；内联宽度由 Math.round 生成，0 必为 "0%" */
-html[data-theme="eva01"] .h-bar i[style*="width:0%"]::after{display:none}
 html[data-theme="eva01"] .cta{background:linear-gradient(135deg,#c7a4ff,#9a6bff);color:#1a0b2e}
 html[data-theme="eva01"] .tbtn{border-radius:10px}
 html[data-theme="eva01"] .tbtn:hover{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc-ink)}
@@ -134,12 +125,6 @@ html[data-theme="eva02"] .np,
 html[data-theme="eva02"] .kk,
 html[data-theme="eva02"] .lrow,
 html[data-theme="eva02"] .lthumb .art,
-html[data-theme="eva02"] .lbar,
-html[data-theme="eva02"] .lbar i,
-html[data-theme="eva02"] .lp-bar,
-html[data-theme="eva02"] .lp-bar i,
-html[data-theme="eva02"] .h-bar,
-html[data-theme="eva02"] .h-bar i,
 html[data-theme="eva02"] .gselbar,
 html[data-theme="eva02"] .sp-box,
 html[data-theme="eva02"] .flt-box,
@@ -192,28 +177,6 @@ html[data-theme="eva02"] .h-rule{
 html[data-theme="eva02"] .lp-rule{width:74px;height:3px;border-radius:0;transform:skewX(-24deg)}
 html[data-theme="eva02"] .h-jp{letter-spacing:.22em}
 html[data-theme="eva02"] .eyebrow{font-family:var(--mono);letter-spacing:.2em}
-
-/* 进度：虚线刻度 + 白色高热端点 */
-html[data-theme="eva02"] .h-bar,
-html[data-theme="eva02"] .lp-bar,
-html[data-theme="eva02"] .lbar,
-html[data-theme="eva02"] .card .prog{overflow:visible;border-radius:0;background:repeating-linear-gradient(90deg,rgba(255,255,255,.16) 0 14px,transparent 14px 18px)}
-html[data-theme="eva02"] .h-bar{height:4px}
-html[data-theme="eva02"] .h-bar i,
-html[data-theme="eva02"] .lp-bar i,
-html[data-theme="eva02"] .lbar i,
-html[data-theme="eva02"] .card .prog i{position:relative;border-radius:0;background:var(--acc)}
-html[data-theme="eva02"] .h-bar i::after,
-html[data-theme="eva02"] .lp-bar i::after,
-html[data-theme="eva02"] .lbar i::after,
-html[data-theme="eva02"] .card .prog i::after{
-  content:'';position:absolute;right:-2px;top:50%;width:4px;height:10px;margin-top:-5px;
-  border-radius:50%;background:#fff;box-shadow:0 0 12px 3px var(--acc);
-}
-/* 0% 时端点会落在条起点左侧；内联宽度为 0 时直接不画 */
-html[data-theme="eva02"] .h-bar i[style*="width:0%"]::after,
-html[data-theme="eva02"] .lp-bar i[style*="width:0%"]::after,
-html[data-theme="eva02"] .lbar i[style*="width:0%"]::after{display:none}
 
 /* 胶囊 → 平行切角标签 */
 html[data-theme="eva02"] .pill{
@@ -308,12 +271,6 @@ html[data-theme="nerv"] .np,
 html[data-theme="nerv"] .kk,
 html[data-theme="nerv"] .lrow,
 html[data-theme="nerv"] .lthumb .art,
-html[data-theme="nerv"] .lbar,
-html[data-theme="nerv"] .lbar i,
-html[data-theme="nerv"] .lp-bar,
-html[data-theme="nerv"] .lp-bar i,
-html[data-theme="nerv"] .h-bar,
-html[data-theme="nerv"] .h-bar i,
 html[data-theme="nerv"] .gselbar,
 html[data-theme="nerv"] .sp-box,
 html[data-theme="nerv"] .flt-box,
@@ -408,36 +365,6 @@ html[data-theme="nerv"] .kk{background:rgba(255,122,26,.07);border-color:color-m
 html[data-theme="nerv"] .wm{font-family:var(--mono);color:color-mix(in srgb,var(--acc) 7%,transparent)}
 html[data-theme="nerv"] .gh small{font-family:var(--mono);letter-spacing:.18em}
 
-/* 刻度式进度条：底线刻度 + 4px 实心填充 + 右端楔形 */
-html[data-theme="nerv"] .h-bar,
-html[data-theme="nerv"] .lp-bar,
-html[data-theme="nerv"] .lbar,
-html[data-theme="nerv"] .card .prog{
-  background-color:transparent;overflow:visible;position:relative;border-radius:0;
-  background-image:repeating-linear-gradient(90deg,rgba(246,238,225,.26) 0 1px,transparent 1px 10px);
-}
-html[data-theme="nerv"] .h-bar{height:12px}
-html[data-theme="nerv"] .lp-bar{height:11px}
-html[data-theme="nerv"] .lbar{height:10px}
-html[data-theme="nerv"] .card .prog{height:9px;left:9px;right:9px;bottom:7px}
-html[data-theme="nerv"] .h-bar i,
-html[data-theme="nerv"] .lp-bar i,
-html[data-theme="nerv"] .lbar i,
-html[data-theme="nerv"] .card .prog i{
-  position:absolute;left:0;bottom:0;height:4px;border-radius:0;background:var(--acc);
-}
-html[data-theme="nerv"] .h-bar i::after,
-html[data-theme="nerv"] .lp-bar i::after,
-html[data-theme="nerv"] .lbar i::after,
-html[data-theme="nerv"] .card .prog i::after{
-  content:'';position:absolute;right:-5px;top:-5px;width:0;height:0;
-  border-left:5px solid var(--acc2);border-top:4px solid transparent;border-bottom:4px solid transparent;
-}
-/* 0% 时楔形会露在条起点左侧；内联宽度为 0 时直接不画 */
-html[data-theme="nerv"] .h-bar i[style*="width:0%"]::after,
-html[data-theme="nerv"] .lp-bar i[style*="width:0%"]::after,
-html[data-theme="nerv"] .lbar i[style*="width:0%"]::after{display:none}
-
 /* 序号：列表 01 / 02；网格与海报墙同理 */
 html[data-theme="nerv"] .list-col{counter-reset:eva-row}
 html[data-theme="nerv"] .lrow{counter-increment:eva-row}
@@ -498,7 +425,6 @@ html[data-theme="nerv"] .keybar::before{
 #app.motion-soft::after,
 #app.motion-soft .hero-art::after,
 #app.motion-soft .hero-art::before,
-#app.motion-soft .h-bar i::after,
 #app.motion-soft .np i{animation:none!important}
 
 /* ============================================================

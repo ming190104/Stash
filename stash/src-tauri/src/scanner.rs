@@ -140,7 +140,7 @@ pub(crate) fn find_main_exe(dir: &Path) -> Option<PathBuf> {
 }
 
 /// 游戏目录内的本地元数据（可选）。纯离线的元数据来源：目录名当标题之外，
-/// 允许玩家在游戏目录放 meta.json 补齐原名 / 会社 / 标签 / 简介 / 通关进度。
+/// 允许玩家在游戏目录放 meta.json 补齐原名 / 会社 / 标签 / 简介。
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub(crate) struct LocalMeta {
@@ -154,8 +154,6 @@ pub(crate) struct LocalMeta {
     /// 每游戏启动参数（原样追加到命令行）
     pub(crate) launch_args: Vec<String>,
     pub(crate) summary: Option<String>,
-    /// 通关进度 0–1（演示数据）
-    pub(crate) progress: f64,
 }
 
 /// meta.json 的读取上限。本机文件也要防「网络盘上的 GB 级文件」整份进内存。
@@ -181,12 +179,6 @@ pub(crate) fn read_meta(dir: &Path) -> LocalMeta {
             LocalMeta::default()
         }
     }
-}
-
-/// meta.json 里声明的通关进度（0–1）。
-/// 取消 END 清单后要回退到「本地声明的进度」，而不是「上一次按清单推导出的百分比」。
-pub(crate) fn local_progress(dir: &Path) -> f64 {
-    read_meta(dir).progress.clamp(0.0, 1.0)
 }
 
 /// 手动添加：按用户指定的 exe + 标题组装一条记录。
@@ -222,7 +214,6 @@ pub fn detect_manual(dir: &Path, exe: &Path, title: &str) -> DetectedGame {
         tags: meta.tags,
         aliases: meta.aliases,
         year: meta.year,
-        progress: meta.progress.clamp(0.0, 1.0),
     }
 }
 
@@ -412,7 +403,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("stash-bom-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let body = "{\n \"titleOriginal\": \"CLANNAD\",\n \"developer\": \"Key\",\n \"year\": 2004,\n \"tags\": [\"催泪\", \"家族\"],\n \"progress\": 0.5\n}";
+        let body = "{\n \"titleOriginal\": \"CLANNAD\",\n \"developer\": \"Key\",\n \"year\": 2004,\n \"tags\": [\"催泪\", \"家族\"]\n}";
         let mut bytes = vec![0xEF, 0xBB, 0xBF];
         bytes.extend_from_slice(body.as_bytes());
         std::fs::write(dir.join("meta.json"), bytes).unwrap();
@@ -422,7 +413,6 @@ mod tests {
         assert_eq!(m.developer.as_deref(), Some("Key"));
         assert_eq!(m.year, Some(2004));
         assert_eq!(m.tags, vec!["催泪", "家族"]);
-        assert!((m.progress - 0.5).abs() < 1e-9);
     }
 
     /// meta.json 超过 1MB 时不整份读入：截断后解析失败，回落到默认值

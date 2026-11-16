@@ -29,7 +29,7 @@ export function wireAppearance(body: HTMLElement): void {
           state.settings.theme = t.v;
           applyTheme(t.v);
           // 先落盘再报成功：persist() 失败时已按磁盘值把主题回滚，
-          // 此时再弹「主题 · 白昼」会让人以为切换成功了
+          // 此时再弹「主题 · 樱夜」会让人以为切换成功了
           try {
             await persist();
             toast(`主题 · ${THEME_LABEL[t.v]}`);

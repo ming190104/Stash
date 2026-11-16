@@ -216,10 +216,9 @@ pub async fn set_rating(store: State<'_, Store>, id: String, rating: u8) -> Resu
 }
 
 /// END / 路线清单：前端算好整份列表回写（增删改勾选都走这一条，避免索引漂移）。
-/// 进度由清单推导：`done / total`；清单清空后回到 meta.json 的进度值。
 /// 上限 50 条——手滑连续点「新增」也不会把 library.json 撑坏。
 #[tauri::command]
-pub async fn update_endings(store: State<'_, Store>, id: String, endings: Vec<EndMark>) -> Result<f64, AppError> {
+pub async fn update_endings(store: State<'_, Store>, id: String, endings: Vec<EndMark>) -> Result<(), AppError> {
     if endings.len() > 50 {
         return Err(AppError::new(ErrCode::ConfigInvalid, "END 清单最多 50 条"));
     }
@@ -229,19 +228,7 @@ pub async fn update_endings(store: State<'_, Store>, id: String, endings: Vec<En
         .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
 }
 
-fn update_endings_sync(store: &Store, id: &str, endings: Vec<EndMark>) -> Result<f64, AppError> {
-    // 回退进度要读游戏目录的 meta.json：慢盘上可达数十秒。
-    // 必须在取库写锁之前算好，否则整段时间都占着锁，收藏 / 启动记录全被堵住。
-    let fallback_meta = if endings.is_empty() {
-        store
-            .load_library()
-            .into_iter()
-            .find(|g| g.id == id)
-            .map(|g| crate::scanner::local_progress(std::path::Path::new(&g.dir)))
-            .unwrap_or(0.0)
-    } else {
-        0.0
-    };
+fn update_endings_sync(store: &Store, id: &str, endings: Vec<EndMark>) -> Result<(), AppError> {
     let _lock = crate::store::lock_library();
     let mut games = store.load_library();
     let g = games
@@ -256,19 +243,11 @@ fn update_endings_sync(store: &Store, id: &str, endings: Vec<EndMark>) -> Result
             done: e.done,
         });
     }
+    let count = clean.len();
     g.endings = clean;
-    // 清单被清空时回退到 meta.json 声明的进度：fallback 若用 g.progress，
-    // 进度会冻结在上一次「done / total」上，与上面注释承诺的行为不一致
-    let fallback = if g.endings.is_empty() {
-        fallback_meta
-    } else {
-        g.progress
-    };
-    g.progress = crate::models::progress_from_endings(&g.endings, fallback);
-    let (count, progress) = (g.endings.len(), g.progress);
     store.save_library(&games)?;
-    tracing::info!("endings {id}: {count} 条，进度 {progress:.2}");
-    Ok(progress)
+    tracing::info!("endings {id}: {count} 条");
+    Ok(())
 }
 
 #[cfg(test)]

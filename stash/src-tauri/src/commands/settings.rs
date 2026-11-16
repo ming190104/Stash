@@ -20,10 +20,10 @@ pub async fn update_settings(store: State<'_, Store>, settings: Settings) -> Res
     if !["auto", "120", "90", "60"].contains(&settings.fps_mode.as_str()) {
         return Err(AppError::new(ErrCode::ConfigInvalid, "fpsMode 仅支持 auto/120/90/60"));
     }
-    if !["lastPlayed", "title", "year", "progress"].contains(&settings.sort.as_str()) {
+    if !["lastPlayed", "title", "year"].contains(&settings.sort.as_str()) {
         return Err(AppError::new(
             ErrCode::ConfigInvalid,
-            "sort 仅支持 lastPlayed/title/year/progress",
+            "sort 仅支持 lastPlayed/title/year",
         ));
     }
     if settings.motion > 1 {
@@ -37,13 +37,14 @@ pub async fn update_settings(store: State<'_, Store>, settings: Settings) -> Res
     {
         let valid = [
             "south", "east", "west", "north", "start", "select", "mode", "lb", "rb", "lt", "rt",
+            "l3", "r3",
         ];
         let m = &settings.pad_map;
         for v in [&m.accept, &m.back, &m.menu, &m.x, &m.y, &m.r, &m.lb] {
             if !valid.contains(&v.as_str()) {
                 return Err(AppError::new(
                     ErrCode::ConfigInvalid,
-                    "手柄键位仅支持 south/east/west/north/start/select/mode/lb/rb/lt/rt",
+                    "手柄键位仅支持 south/east/west/north/start/select/mode/lb/rb/lt/rt/l3/r3",
                 ));
             }
         }

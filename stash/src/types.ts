@@ -1,7 +1,7 @@
 /** 与 Rust models.rs 的 serde camelCase 输出一一对应 */
 
 export type FpsMode = 'auto' | '120' | '90' | '60';
-export type SortMode = 'lastPlayed' | 'title' | 'year' | 'progress';
+export type SortMode = 'lastPlayed' | 'title' | 'year';
 
 /** 引擎枚举：与后端 `EngineKind` 的 camelCase 序列化值保持一致（含未知兜底） */
 export type EngineKind =
@@ -59,7 +59,7 @@ export interface Game {
   playCount: number;
   /** 累计游玩秒数（P2） */
   playSeconds: number;
-  /** 手动 END 清单（P2）；非空时进度由它推导 */
+  /** 手动 END 清单（P2）：全部勾选即视为已通关 */
   endings: EndMark[];
   favorite: boolean;
   addedAt: number;
@@ -79,7 +79,6 @@ export interface Game {
   /** 搜索别名（meta.json 手填，不展示） */
   aliases: string[];
   year: number | null;
-  progress: number;
   /** 用户标题覆盖（H1） */
   titleOverride?: string | null;
   /** 用户封面覆盖（H1） */
@@ -129,12 +128,10 @@ export type ThemeName =
   | 'oled'
   | 'sakura'
   | 'frost'
-  | 'contrast'
   | 'amber'
   | 'iris'
   | 'moss'
   | 'crimson'
-  | 'daybreak'
   | 'eva01'
   | 'eva02'
   | 'nerv';
@@ -232,7 +229,7 @@ export type NavIntent =
 
 export type Screen = 'library' | 'grid' | 'detail' | 'settings' | 'files';
 
-/** 手柄键位：动作 → 物理键名。方向键与摇杆是固定导航，不参与改键。 */
+/** 手柄键位：动作 → 物理键名。方向键与摇杆推动是固定导航，不参与改键；摇杆按下（l3/r3）可改键。 */
 export interface PadMap {
   /** 确认 / 启动（默认 south = A） */
   accept: string;

@@ -46,9 +46,10 @@ fn current_tuning() -> crate::models::PadTuning {
     PAD_TUNING.lock().ok().and_then(|g| *g).unwrap_or_default()
 }
 
-/// 物理键名 → gilrs 按键。方向键与摇杆是固定导航输入，不参与改键；
+/// 物理键名 → gilrs 按键。方向键与摇杆推动是固定导航输入，不参与改键；
 /// `lt` / `rt` 是 XInput 的两个扳机（LeftTrigger2 / RightTrigger2），
 /// 掌机的背键常被驱动映射成这两颗，因此一并开放给改键。
+/// `l3` / `r3` 是左右摇杆按下（LeftThumb / RightThumb），与摇杆推动互不影响。
 fn named_button(name: &str) -> Option<Button> {
     Some(match name {
         "south" => Button::South,
@@ -62,6 +63,8 @@ fn named_button(name: &str) -> Option<Button> {
         "rb" => Button::RightTrigger,
         "lt" => Button::LeftTrigger2,
         "rt" => Button::RightTrigger2,
+        "l3" => Button::LeftThumb,
+        "r3" => Button::RightThumb,
         _ => return None,
     })
 }
@@ -555,8 +558,8 @@ pub fn spawn(app: AppHandle) {
         let mut btn_prev = [false; 7]; // accept / back / menu / X / Y / RB / LB
                                        // 物理键上一帧状态：设置页「改键捕获」靠 pad://button 原始事件，
                                        // 不依赖当前映射，否则改键时按下的键会先触发语义动作。
-                                       // 顺序与 raw_names 一致：south/east/west/north/start/select/mode/lb/rb/lt/rt
-        let mut raw_prev = [false; 11];
+                                       // 顺序与 raw_names 一致：south/east/west/north/start/select/mode/lb/rb/lt/rt/l3/r3
+        let mut raw_prev = [false; 13];
         let mut mouse_state = mouse::State::new();
         let mut last_pad: Option<gilrs::GamepadId> = None;
         // 上一帧是否处于鼠标模式：进出切换要预置按键表，避免「仍按住的键」被当成新按下
@@ -683,7 +686,7 @@ pub fn spawn(app: AppHandle) {
                         let _ = app.emit("pad://mouse-blocked", ());
                     }
                     btn_prev = [false; 7];
-                    raw_prev = [false; 11];
+                    raw_prev = [false; 13];
                     std::thread::sleep(Duration::from_millis(8));
                     continue;
                 }
@@ -732,7 +735,7 @@ pub fn spawn(app: AppHandle) {
                 // 原始按键事件（设置页改键捕获用）：不经过映射，按什么报什么
                 let raw_names = [
                     "south", "east", "west", "north", "start", "select", "mode", "lb", "rb", "lt",
-                    "rt",
+                    "rt", "l3", "r3",
                 ];
                 for (i, name) in raw_names.iter().enumerate() {
                     let down = pressed_named(&pad, name);
@@ -780,7 +783,7 @@ pub fn spawn(app: AppHandle) {
                 mouse::release(&mut mouse_state);
                 mouse_mode_prev = false;
                 btn_prev = [false; 7];
-                raw_prev = [false; 11];
+                raw_prev = [false; 13];
                 std::thread::sleep(Duration::from_millis(200));
             }
         }

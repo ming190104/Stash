@@ -190,7 +190,6 @@ export async function renderDetail(): Promise<void> {
     <div class="d-meta">
       <div>开发商<b class="${g.developer ? '' : 'na'}">${esc(g.developer ?? '—')}</b></div><div>发售日<b class="${g.year ? '' : 'na'}">${g.year ?? '—'}</b></div><div>参考<b class="${ref === '—' ? 'na' : ''}">${ref}</b></div><div>元数据<b>${esc(srcLabel)}</b></div><div>引擎<b>${esc(g.engineLabel)}${g.needsLocale ? '<i class="warn"> · 需转区</i>' : ''}</b></div>
       <div>最近游玩<b>${fmtRelative(g.lastPlayed)}</b></div><div>累计时长<b>${fmtDuration(g.playSeconds)}</b></div><div>启动次数<b>${g.playCount} 次</b></div>
-      <div>通关进度<b>${Math.round(g.progress * 100)}%</b></div>
       <div>结局<b class="${g.endings.length ? '' : 'na'}">${g.endings.length ? `${endsDone}/${g.endings.length}` : '—'}</b>${g.endings.length ? `<span class="linkbtn" id="dEnds">管理</span>` : `<span class="linkbtn" id="dEnds">标记…</span>`}</div>
       <div>评分<b class="dstars">${stars}</b></div>
       <div>标签<b>${userTags.length}</b><span class="linkbtn" id="dTagAdd">添加</span></div>

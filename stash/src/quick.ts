@@ -60,6 +60,45 @@ function wireBackdrop(m: HTMLElement): void {
   });
 }
 
+/** 全屏下最小化：进全屏时系统任务栏会被切成自动隐藏，直接 minimize 会让桌面
+ *  「没有任务栏」；先退全屏让任务栏恢复，窗口重新聚焦时再回全屏。
+ *  只临时退全屏，不写 settings.fullscreen —— 用户的全屏偏好保持不变。 */
+let resumeFullscreen = false;
+let focusHooked = false;
+
+async function minimizeWindow(): Promise<void> {
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
+  const w = getCurrentWindow();
+  if (!focusHooked) {
+    focusHooked = true;
+    await w.onFocusChanged(({ payload: focused }: { payload: boolean }) => {
+      if (!focused || !resumeFullscreen) return;
+      resumeFullscreen = false;
+      void setFullscreen(true)
+        .then(() => applyFullscreenUI(true))
+        .catch((err) =>
+          toast(`回到全屏失败：${esc(String((err as { message?: string })?.message ?? err))}`, true),
+        );
+    });
+  }
+  if (!state.settings?.fullscreen) {
+    await w.minimize();
+    return;
+  }
+  await setFullscreen(false);
+  // UI 先同步成窗口模式：万一恢复时焦点事件没到，界面也不会停在「全屏」的假状态
+  applyFullscreenUI(false);
+  try {
+    await w.minimize();
+    // 最小化确认后再置位：避免注册监听时的初始焦点事件误触发「回全屏」
+    resumeFullscreen = true;
+  } catch (err) {
+    // 最小化失败就把全屏补回来，别停在「设置是全屏、窗口不是」的半途状态
+    await setFullscreen(true).catch(() => undefined);
+    throw err;
+  }
+}
+
 function buildItems(): Item[] {
   const items: Item[] = [];
   if (state.running) {
@@ -127,16 +166,6 @@ function buildItems(): Item[] {
       },
     });
   }
-  // 手柄补齐入口：没有 Q/E 键也能切网格视图，没有数字键也能进设置
-  if (state.screen === 'library' || state.screen === 'grid') {
-    items.push({
-      key: 'view',
-      label: state.screen === 'library' ? '切换到网格视图' : '切换到库视图',
-      run: () => {
-        setScreen(state.screen === 'library' ? 'grid' : 'library');
-      },
-    });
-  }
   if (state.screen !== 'settings') {
     items.push({ key: 'settings', label: '设置', run: () => setScreen('settings') });
   }
@@ -145,10 +174,7 @@ function buildItems(): Item[] {
     items.push({
       key: 'min',
       label: '最小化窗口',
-      run: async () => {
-        const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        await getCurrentWindow().minimize();
-      },
+      run: () => minimizeWindow(),
     });
     items.push({
       key: 'quit',
@@ -166,7 +192,6 @@ function buildItems(): Item[] {
       },
     });
   }
-  items.push({ key: 'close', label: '关闭', hint: 'B', run: () => close() });
   return items;
 }
 

@@ -31,10 +31,8 @@ export function scheduleHero(): void {
 }
 
 function heroInfoHTML(g: Game): string {
-  const pct = g.progress === 0 ? '未开始' : Math.round(g.progress * 100) + '%';
-  const w = Math.round(g.progress * 100);
-  // 有进度时按钮改为「继续游玩」，比统一的「启动游戏」更贴近实际动作
-  const playLabel = g.progress > 0 ? '继续游玩' : '启动游戏';
+  // 玩过就显示「继续游玩」，比统一的「启动游戏」更贴近实际动作
+  const playLabel = g.lastPlayed ? '继续游玩' : '启动游戏';
   const tags = g.tags.length
     ? g.tags.map((t, j) => `<span class="pill${j === 0 ? ' hot' : ''}">${esc(t)}</span>`).join('')
     : `<span class="pill">${esc(g.engineLabel)}</span>`;
@@ -53,8 +51,7 @@ function heroInfoHTML(g: Game): string {
   <div class="h-pills row">${tags}</div>
   <p class="h-sum row">${esc(cnFirst(g.summary ?? '') || '尚未匹配元数据——当前信息来自本地目录。可在「设置 · 元数据」里运行 Bangumi 匹配。')}</p>
   <div class="h-meta row">
-    <div class="h-play"><span>${fmtRelative(g.lastPlayed)}</span>${dur}<span class="dot"></span><span>通关进度 ${pct}</span></div>
-    <div class="h-bar enter"><i style="width:${w}%"></i></div>
+    <div class="h-play"><span>${fmtRelative(g.lastPlayed)}</span>${dur}</div>
   </div>
   <div class="h-cta row">
     <button class="cta" id="ctaPlay"><span class="k">A</span>${playLabel}</button>

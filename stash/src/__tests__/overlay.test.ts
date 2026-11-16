@@ -30,7 +30,7 @@ import { promptConfirm } from '../prompt';
 import { renderGrid, setFilter } from '../screens/grid';
 
 vi.mock('../ipc', () => ({
-  updateEndings: vi.fn(async () => 0),
+  updateEndings: vi.fn(async () => undefined),
   updateSettings: vi.fn(async () => undefined),
 }));
 
@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mountSkeleton();
   resetState();
-  vi.mocked(updateEndings).mockResolvedValue(0);
+  vi.mocked(updateEndings).mockResolvedValue(undefined);
 });
 
 describe('层单例与可见性', () => {
@@ -285,7 +285,7 @@ describe('空态 / 加载 / 失败', () => {
 
 describe('结局', () => {
   it('结局面板：Y 新增 END 1，A 勾选达成并串行落盘', async () => {
-    state.games = [game('g', { endings: [], progress: 0 })];
+    state.games = [game('g', { endings: [] })];
     await openEndings('g');
     expect(handleOverlayKey(key('KeyY'))).toBe(true);
     expect(state.games[0].endings.map((e) => e.name)).toEqual(['END 1']);

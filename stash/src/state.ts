@@ -15,12 +15,11 @@ export const COLLECTIONS: { v: CollectionId; label: string }[] = [
   { v: 'recent', label: '最近入库' },
 ];
 
-/** 排序分段四项（UI 规范 5.3）：设置页与搜索面板共用同一份定义与同一 state.sortBy */
+/** 排序分段三项（UI 规范 5.3）：设置页与搜索面板共用同一份定义与同一 state.sortBy */
 export const SORT_MODES: { v: SortMode; label: string }[] = [
   { v: 'lastPlayed', label: '最近游玩' },
   { v: 'title', label: '名称' },
   { v: 'year', label: '发售年' },
-  { v: 'progress', label: '通关进度' },
 ];
 
 export const state = {
@@ -86,9 +85,6 @@ export function sortedGames(): Game[] {
     case 'year':
       g.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
       break;
-    case 'progress':
-      g.sort((a, b) => b.progress - a.progress);
-      break;
     default:
       g.sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || b.addedAt - a.addedAt);
   }
@@ -128,6 +124,11 @@ export function collectionMatch(g: Game, c: CollectionId | null, ctx?: Collectio
   return (ctx ?? collectionCtx()).seriesDevs.has(dev);
 }
 
+/** 通关状态：END 清单非空且全部勾选达成（清单为空不算已通关） */
+export function isFinished(g: Game): boolean {
+  return g.endings.length > 0 && g.endings.every((e) => e.done);
+}
+
 /** 网格筛选后的列表（mockup FILTERS 同款语义 + 标签 / 会社 / 年份分面 + 智能集合） */
 export function gridList(): Game[] {
   const f = state.gridFilter;
@@ -137,12 +138,12 @@ export function gridList(): Game[] {
       f === 'all'
         ? true
         : f === 'playing'
-          ? g.progress > 0 && g.progress < 1
+          ? !!g.lastPlayed && !isFinished(g)
           : f === 'done'
-            ? g.progress >= 1
+            ? isFinished(g)
             : f === 'fav'
               ? g.favorite
-              : g.progress === 0;
+              : !g.lastPlayed;
     if (!byStatus) return false;
     if (state.tagFilter && !g.tags.includes(state.tagFilter) && !(g.userTags ?? []).includes(state.tagFilter)) return false;
     if (state.devFilter && g.developer !== state.devFilter) return false;

@@ -39,10 +39,6 @@ html[data-fs="1"] .winbtns,html[data-fs="1"] .fs-hide{display:none}
 .hero-info.enter>.row:nth-child(6){animation-delay:190ms}
 .hero-info.enter>.row:nth-child(7){animation-delay:228ms}
 .hero-info.enter>.row:nth-child(8){animation-delay:266ms}
-/* 进度条生长用 scaleX 而非 width——width 动画每帧触发 layout（120fps 红线） */
-.h-bar i,.card .prog i{transform-origin:left center}
-.h-bar.enter i,.card .prog.enter i{animation:grow .68s cubic-bezier(.16,1,.3,1) .18s both}
-@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .eyebrow{font-size:calc(10.5px * var(--fs,1));letter-spacing:3.5px;color:var(--acc);font-weight:700;margin-bottom:12px}
 .h-cn{font-family:var(--serif);font-size:calc(40px * var(--fs,1));font-weight:700;letter-spacing:2px;line-height:1.15;text-shadow:0 2px 30px rgba(0,0,0,.5)}
 .h-jp{font-size:calc(12.5px * var(--fs,1));letter-spacing:7px;color:var(--ink3);margin:10px 0 0;font-family:var(--serif)}
@@ -54,8 +50,6 @@ html[data-fs="1"] .winbtns,html[data-fs="1"] .fs-hide{display:none}
 .h-meta{margin-top:16px;display:flex;align-items:center;gap:14px}
 .h-play{font-size:calc(11.5px * var(--fs,1));color:var(--ink3);display:flex;gap:10px;align-items:center;letter-spacing:.5px}
 .h-play .dot{width:3px;height:3px;border-radius:50%;background:var(--ink3)}
-.h-bar{width:180px;height:3px;background:rgba(255,255,255,.14);border-radius:9px;overflow:hidden}
-.h-bar i{display:block;height:100%;background:var(--accg);border-radius:9px}
 .h-cta{margin-top:18px;display:flex;gap:14px;align-items:center}
 .cta{display:inline-flex;align-items:center;gap:10px;padding:12px 24px;border-radius:999px;background:var(--accg);color:var(--acc-on);font-weight:700;font-size:calc(14.5px * var(--fs,1));letter-spacing:1px;border:none;cursor:pointer;box-shadow:0 10px 30px color-mix(in srgb,var(--acc) 40%,transparent);
   transition:transform .16s cubic-bezier(.2,1.1,.3,1)}
@@ -108,10 +102,12 @@ html[data-fs="1"] .winbtns,html[data-fs="1"] .fs-hide{display:none}
 @keyframes sheen{from{transform:rotate(14deg) translateX(-120%)}to{transform:rotate(14deg) translateX(420%)}}
 .ring{position:absolute;inset:-2px;border-radius:13px;box-shadow:0 0 0 calc(var(--focus-w) + .5px) var(--acc),0 16px 44px color-mix(in srgb,var(--acc) 42%,transparent),inset 0 0 0 1px rgba(255,255,255,.22);opacity:0;transition:opacity .14s;pointer-events:none;z-index:3}
 .card::after{content:"";position:absolute;inset:0;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);pointer-events:none;z-index:2}
-.card .prog{position:absolute;left:10px;right:10px;bottom:8px;height:3px;border-radius:99px;background:rgba(0,0,0,.4);z-index:2}
-/* 有进度条的卡片：罗马字副题上移，避免被进度线从字腰穿过 */
-.card:has(.prog) .ro{bottom:17px}
-.card .prog i{display:block;height:100%;border-radius:99px;background:var(--accg)}
+
+
+
+
+
+
 .card .new{position:absolute;top:10px;right:10px;z-index:2;padding:3px 8px;border-radius:99px;background:var(--accg);font-size:calc(8.5px * var(--fs,1));font-weight:700;letter-spacing:1.5px;color:var(--acc-on)}
 /* 轨道卡片上的「最近游玩」角标（np 复用，位置同 mockup 内联样式） */
 .card .np{top:10px;left:10px}
@@ -140,8 +136,10 @@ html[data-layout="classic"] .qekey{display:none}
 .fchip{padding:6px 14px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid var(--gline);font-size:calc(11px * var(--fs,1));color:var(--ink3);cursor:pointer;letter-spacing:1px}
 .fchip.on{background:color-mix(in srgb,var(--acc) 16%,transparent);border-color:color-mix(in srgb,var(--acc) 40%,transparent);color:var(--acc-ink)}
 /* 焦点卡会向上抬 14px 并放大 1.075 倍（连光环约 26px）：滚动容器必须把这部分让出来，
-   否则第一排的选中卡会被 .gwrap 顶边裁掉一截。top/bottom 同步回缩，内容起点仍在 64px。 */
-.gwrap{position:absolute;top:36px;left:0;right:0;bottom:76px;padding-top:28px;padding-bottom:18px;display:grid;grid-template-columns:repeat(6,164px);gap:10px 16px;justify-content:center;z-index:10;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+   否则第一排的选中卡会被 .gwrap 顶边裁掉一截。
+   高度按「两排 + 一条行距 + 内边距」写死（584 = 28 + 262×2 + 10 + 18），
+   整块比顶栏再低 20px；第三排整排留在滚动区外，不露半截卡片。 */
+.gwrap{position:absolute;top:56px;left:0;right:0;bottom:auto;height:584px;padding-top:28px;padding-bottom:18px;display:grid;grid-template-columns:repeat(6,164px);gap:10px 16px;justify-content:center;z-index:10;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
 .gwrap::-webkit-scrollbar{display:none}
 .gcell{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer}
 .gcell .card{width:164px;height:219px}
@@ -692,8 +690,6 @@ html[data-fs-scale="1.25"] .lthumb{width:64px;height:84px}
 .lrow.on .lt{color:var(--acc-ink);font-weight:700}
 .ls{margin-top:3px;font-size:calc(10.5px * var(--fs,1));letter-spacing:.5px;color:var(--ink3);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
-.lbar{margin-top:7px;height:2px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
-.lbar i{display:block;height:100%;border-radius:99px;background:var(--accg)}
 .lfav{flex:none;font-size:calc(11px * var(--fs,1));color:var(--acc);text-shadow:0 2px 6px rgba(0,0,0,.5)}
 
 .list-preview{position:absolute;left:500px;right:56px;top:4px;bottom:4px;display:flex;align-items:center;gap:30px}
@@ -716,9 +712,6 @@ html[data-fs-scale="1.25"] .lthumb{width:64px;height:84px}
   display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .lp-meta{margin-top:14px;display:flex;align-items:center;gap:9px;font-size:calc(11px * var(--fs,1));letter-spacing:.5px;color:var(--ink3)}
 .lp-dot{width:3px;height:3px;border-radius:50%;background:var(--ink3);flex:none}
-.lp-bar{margin-top:10px;height:3px;border-radius:9px;background:rgba(255,255,255,.14);overflow:hidden}
-.lp-bar i{display:block;height:100%;border-radius:9px;background:var(--accg);transform-origin:left center;
-  animation:grow .5s cubic-bezier(.16,1,.3,1) both}
 .lp-cta{margin-top:20px;display:flex;align-items:center;gap:12px}
 /* 入场：与海报墙 cascade 同一判定——只给「刚建出来的空表」播一次。
    库内重绘（缩略图回填 / 收藏 / 快速拨行）不播，否则每按一次方向键都会闪一下 */
@@ -738,8 +731,7 @@ html[data-fs-scale="1.25"] .lthumb{width:64px;height:84px}
 .list-col.lenter .lrow:nth-child(n+13){animation-delay:288ms}
 .list-preview.enter .lp-art{animation:enterIn .5s cubic-bezier(.16,1,.3,1) both}
 .list-preview.enter .lp-info{animation:enterRight .46s cubic-bezier(.16,1,.3,1) 70ms both}
-.motion-soft .lrow,.motion-soft .lp-bar i{transition:none}
-.motion-soft .lp-bar i{animation:none}
+.motion-soft .lrow{transition:none}
 .motion-soft .list-col.lenter .lrow,
 .motion-soft .list-preview.enter .lp-art,
 .motion-soft .list-preview.enter .lp-info{animation:none!important}

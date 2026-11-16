@@ -443,8 +443,6 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
                     // 别名是 meta.json 的手工输入：合并读到就更新，没写就保留旧值
                     aliases: if d.aliases.is_empty() { p.aliases.clone() } else { d.aliases },
                     year: if keep_meta { p.year.or(d.year) } else { d.year },
-                    // 有手动 END 清单时进度由清单推导，不能被 meta.json 的旧值覆盖
-                    progress: crate::models::progress_from_endings(&p.endings, d.progress),
                     // 以下全部是用户手工数据：合并必须原样保留
                     title_override: p.title_override.clone(),
                     cover_override: p.cover_override.clone(),
@@ -499,7 +497,6 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
                     tags: d.tags,
                     aliases: d.aliases,
                     year: d.year,
-                    progress: d.progress,
                     title_override: None,
                     cover_override: None,
                     hidden: false,
@@ -597,7 +594,6 @@ mod tests {
             tags: Vec::new(),
             aliases: Vec::new(),
             year: None,
-            progress: 0.0,
         }
     }
 
@@ -794,14 +790,12 @@ mod tests {
                 crate::models::EndMark { name: "END 1".into(), done: true },
                 crate::models::EndMark { name: "END 2".into(), done: false },
             ];
-            g.progress = 0.5;
         }
         let (after, _) = merge_games(&games, vec![detected(dir)]);
         let g = &after[0];
         assert_eq!(g.play_seconds, 7200, "累计时长不能被合并清零");
         assert_eq!(g.endings.len(), 2);
         assert!(g.endings[0].done);
-        assert_eq!(g.progress, 0.5, "有 END 清单时进度按清单推导，不能被 meta 覆盖");
     }
 
     /// 库根导入只影响本轮扫到的目录：其他库根 / 手动条目必须原样保留

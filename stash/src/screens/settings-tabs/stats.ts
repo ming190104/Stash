@@ -1,12 +1,12 @@
 /** 统计页签：全部由本地记录推导（playSeconds / sessions / endings），不联网、不改数据。 */
-import { state } from '../../state';
+import { state, isFinished } from '../../state';
 import { esc, fmtDuration } from '../../ui';
 
 export function statsHTML(): string {
   const games = state.games.filter((g) => !g.hidden);
   const totalSec = games.reduce((a, g) => a + (g.playSeconds ?? 0), 0);
   const started = games.filter((g) => (g.playSeconds ?? 0) > 0).length;
-  const finished = games.filter((g) => g.progress >= 1).length;
+  const finished = games.filter(isFinished).length;
   const totalEnds = games.reduce((a, g) => a + g.endings.length, 0);
   const doneEnds = games.reduce((a, g) => a + g.endings.filter((e) => e.done).length, 0);
   // 近 7 天：按「场次开始时间」归日（旧记录没有 sessions 时该天计 0，不影响总时长）
@@ -40,7 +40,7 @@ export function statsHTML(): string {
         <div class="stat"><b>${esc(fmtDuration(totalSec))}</b><span>总时长</span></div></div>
       <div class="srow"><div class="lab"><b>近 7 天</b><span>按场次开始时间归日；旧记录没有场次明细时显示 0</span></div>
         <div class="stat"><b>${esc(fmtDuration(weekSec))}</b><span>本周</span></div></div>
-      <div class="srow"><div class="lab"><b>已通关</b><span>通关进度 100% · 进度由结局清单推导</span></div>
+      <div class="srow"><div class="lab"><b>已通关</b><span>结局清单里全部勾选达成即计入</span></div>
         <div class="stat"><b>${finished}</b><span>/ ${games.length} 部</span></div></div>
       <div class="srow"><div class="lab"><b>END 收集</b><span>详情页「结局 · 路线」里勾选的达成数</span></div>
         <div class="stat"><b>${totalEnds ? `${Math.round((doneEnds / totalEnds) * 100)}%` : '—'}</b><span>${totalEnds ? `${doneEnds} / ${totalEnds}` : '尚未记录'}</span></div></div>

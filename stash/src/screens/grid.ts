@@ -2,7 +2,7 @@
  *  焦点夹紧到筛选后实际存在的格子；焦点卡与轨道共用 .card.focus 全套视觉。 */
 
 import type { NavIntent } from '../types';
-import { state, sortedGames, gridList, setScreen, type GridFilter } from '../state';
+import { state, sortedGames, gridList, setScreen, isFinished, type GridFilter } from '../state';
 import { registerHandler, isPadNavEvent } from '../nav';
 import { artHTML, hydrateArts } from './art';
 import { setRawHTML } from '../html';
@@ -30,6 +30,7 @@ function buildGrid(animate = false): void {
       const delay = Math.min(i, 14) * 18;
       // 与轨道卡片同一套语义：只保留 NEW（从未启动）；「新」角标已移除
       const isNew = !g.lastPlayed;
+      const finished = isFinished(g);
       return `
     <div class="gcell${sel ? ' sel' : ''}" data-i="${i}" data-g="${gi}" data-id="${esc(g.id)}" style="--d:${delay}ms">
       <div class="card">
@@ -38,11 +39,10 @@ function buildGrid(animate = false): void {
         <div class="ring"></div>
         ${g.favorite ? '<span class="fav">★</span>' : ''}
         ${isNew ? '<span class="new">NEW</span>' : ''}
-        ${g.progress > 0 ? `<div class="prog" title="通关进度 ${Math.round(g.progress * 100)}%"><i style="width:${Math.round(g.progress * 100)}%"></i></div>` : ''}
         <span class="selmk">✓</span>
       </div>
-      <div class="gt${g.progress >= 1 ? ' done' : ''}">${esc(g.title)}</div>
-      <div class="gs">${esc(sub)}${g.progress >= 1 ? ' · 已通关' : ''}</div>
+      <div class="gt${finished ? ' done' : ''}">${esc(g.title)}</div>
+      <div class="gs">${esc(sub)}${finished ? ' · 已通关' : ''}</div>
     </div>`;
     })
     .join(''),

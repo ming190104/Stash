@@ -25,9 +25,6 @@
     background:linear-gradient(90deg,transparent,#ff9aa6,transparent);
     animation:bootSweep 1.1s ease-in-out infinite}
   #bootCover.gone{opacity:0;pointer-events:none}
-  html[data-theme="daybreak"],html[data-theme="daybreak"] body{background:#e9e2d3}
-  html[data-theme="daybreak"] #bootCover{background:radial-gradient(120% 90% at 50% 42%,#f7f2e6 0%,#e9e2d3 62%,#ded5c2 100%)}
-  html[data-theme="daybreak"] #bootCover i{background:linear-gradient(90deg,transparent,#c9482b,transparent)}
   @keyframes bootSweep{0%{transform:scaleX(.25);opacity:.35}50%{transform:scaleX(1);opacity:1}100%{transform:scaleX(.25);opacity:.35}}
 </style>
 <script type="module" src="/src/main.ts"></script>
@@ -321,7 +318,7 @@
       </div>
       <div>
         <div class="sp-lab">排序</div>
-        <div class="seg" id="spSort"><b class="on">最近游玩</b><b>名称</b><b>发售年</b><b>通关进度</b></div>
+        <div class="seg" id="spSort"><b class="on">最近游玩</b><b>名称</b><b>发售年</b></div>
       </div>
       <div>
         <div class="sp-lab">结果<span class="sp-count" id="spCount"></span></div>

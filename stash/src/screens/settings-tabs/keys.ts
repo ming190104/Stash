@@ -56,7 +56,7 @@ export function keysHTML(s: Settings, captureKey: keyof PadMap | null): string {
         <div class="pmkey" id="padInfoMeta">${esc(meta)}</div></div>
       <div class="srow"><div class="lab"><b>按键测试</b><span>按任意手柄键，这里显示被识别到的物理键</span></div>
         <div class="pmkey" id="padTest">—</div></div>
-      <div class="srow"><div class="lab"><b>手柄键位</b><span>按 A 进入改键，再按想绑定的手柄键 · 与其它动作撞键自动对调 · 方向键与摇杆固定不参与</span></div>
+      <div class="srow"><div class="lab"><b>手柄键位</b><span>按 A 进入改键，再按想绑定的手柄键 · 与其它动作撞键自动对调 · 方向键与摇杆推动固定不参与，摇杆按下（L3 / R3）可绑定</span></div>
         <span class="mini" id="padReset" data-danger="1">恢复默认键位</span></div>
       <div class="padmap" id="padMapRows">${padRowsHTML(s, captureKey, state.padKind)}</div>
       <div class="srow"><div class="lab"><b>手柄手感</b><span>改完立刻生效 · 只影响手柄操作，不改游戏键位</span></div></div>

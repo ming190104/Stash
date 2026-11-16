@@ -552,19 +552,16 @@ export async function runningGame(): Promise<Game | null> {
   return inv<Game | null>('running_game');
 }
 
-/** 整份清单回写（增删改都走这一条，避免索引漂移）；返回推导后的进度 */
-export async function updateEndings(id: string, endings: EndMark[]): Promise<number> {
+/** 整份清单回写（增删改都走这一条，避免索引漂移） */
+export async function updateEndings(id: string, endings: EndMark[]): Promise<void> {
   if (!TAURI) {
-    if (!import.meta.env.DEV) return 0;
-    // 浏览器预览：直接改 mock 数据，刷新后能看到进度联动
+    if (!import.meta.env.DEV) return;
+    // 浏览器预览：直接改 mock 数据
     const g = (await import('./mock')).MOCK_GAMES.find((x) => x.id === id);
-    if (!g) return 0;
-    g.endings = endings;
-    const done = endings.filter((e) => e.done).length;
-    if (endings.length) g.progress = done / endings.length;
-    return g.progress;
+    if (g) g.endings = endings;
+    return;
   }
-  return inv<number>('update_endings', { id, endings });
+  await inv<void>('update_endings', { id, endings });
 }
 
 /* ============ Bangumi 元数据（总案第 7 章） ============ */

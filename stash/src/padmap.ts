@@ -14,7 +14,8 @@ export const PAD_DEFAULT: PadMap = {
 };
 
 /** 物理键名 → 键帽文字（未知值显示 —，不静默当成 A）。
- *  lt / rt 是 XInput 的两个扳机：掌机的背键常被驱动映射成这两颗。 */
+ *  lt / rt 是 XInput 的两个扳机：掌机的背键常被驱动映射成这两颗。
+ *  l3 / r3 是左右摇杆按下（Xbox 标作 LS / RS），与摇杆推动是两回事，可以改键。 */
 export const PAD_KEY_LABEL: Record<string, string> = {
   south: 'A',
   east: 'B',
@@ -27,6 +28,8 @@ export const PAD_KEY_LABEL: Record<string, string> = {
   rb: 'RB',
   lt: 'LT',
   rt: 'RT',
+  l3: 'L3',
+  r3: 'R3',
 };
 
 /** 手柄布局：决定键帽显示 A/B/X/Y 还是 ✕/○/□/△ 或 B/A/Y/X。 */
@@ -34,9 +37,9 @@ export type PadKind = 'xbox' | 'playstation' | 'nintendo';
 
 /** 三套键帽。物理键名不变，只换 glyph——手感与键位表完全一致。 */
 const PAD_GLYPHS: Record<PadKind, Record<string, string>> = {
-  xbox: { south: 'A', east: 'B', west: 'X', north: 'Y', start: '≡', select: '⧉', mode: '◉', lb: 'LB', rb: 'RB', lt: 'LT', rt: 'RT' },
-  playstation: { south: '✕', east: '○', west: '□', north: '△', start: '≡', select: '⧉', mode: 'PS', lb: 'L1', rb: 'R1', lt: 'L2', rt: 'R2' },
-  nintendo: { south: 'B', east: 'A', west: 'Y', north: 'X', start: '+', select: '−', mode: 'Home', lb: 'L', rb: 'R', lt: 'ZL', rt: 'ZR' },
+  xbox: { south: 'A', east: 'B', west: 'X', north: 'Y', start: '≡', select: '⧉', mode: '◉', lb: 'LB', rb: 'RB', lt: 'LT', rt: 'RT', l3: 'LS', r3: 'RS' },
+  playstation: { south: '✕', east: '○', west: '□', north: '△', start: '≡', select: '⧉', mode: 'PS', lb: 'L1', rb: 'R1', lt: 'L2', rt: 'R2', l3: 'L3', r3: 'R3' },
+  nintendo: { south: 'B', east: 'A', west: 'Y', north: 'X', start: '+', select: '−', mode: 'Home', lb: 'L', rb: 'R', lt: 'ZL', rt: 'ZR', l3: 'LS', r3: 'RS' },
 };
 
 /** 按名称猜布局（Windows 上 DualSense 常显示为 "Wireless Controller"）。 */

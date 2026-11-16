@@ -9,18 +9,17 @@
      锁定 36–48% → 读取 48–68% → 落定 68–88% → 交棒 88–100%
    不可动的不变量：闪光峰值 36.5%（= 1.825s），splash.ts 的 0.365 与它同源；
      全屏换边压在 36.5% 的闪光下，任何让峰值漂移的改动都会切在错处。
-   颜色全部取自主题令牌；只动 transform / opacity（120fps 红线）。
-   daybreak（白昼）下加色改正片叠底、闪光降峰、扫描线隐藏、暗角改用墨色。 */
+   颜色全部取自主题令牌；只动 transform / opacity（120fps 红线）。 */
 
 #warpSplash {
   --k: 1;
   --wp-line: color-mix(in srgb, var(--ink1) 30%, transparent);
   --wp-line2: color-mix(in srgb, var(--ink1) 52%, transparent);
-  /* 闪光：中心直接用 ink1（暗色近白、白昼墨爆），外圈才混强调色 */
+  /* 闪光：中心直接用 ink1（暗色主题近白），外圈才混强调色 */
   --wp-glow: color-mix(in srgb, var(--ink1) 46%, var(--acc) 54%);
   --wp-flash: color-mix(in srgb, var(--wp-glow) 60%, transparent);
   --wp-flash-peak: .78;
-  /* 暗角：不能混 bg0 —— 白昼主题的 bg0 比 bg1 更亮，会把暗角翻成亮角 */
+  /* 暗角：混 bg1 而非 bg0 —— bg0 带主题色相，直接混进去会把暗角翻亮 */
   --wp-vig-c: color-mix(in srgb, var(--bg1) 78%, #000);
   --wp-add: plus-lighter;
   --wp-grain-op: .05;
@@ -1547,18 +1546,6 @@
   #warpSplash.mode-core.boot .wv-sub { display: none; }
   .wp-prog, .wv-prog { bottom: 26px; }
 }
-
-/* ===== 白昼：发光失效，改成墨渗；扫描线与暗角都要换算法 ===== */
-html[data-theme="daybreak"] #warpSplash {
-  --wp-add: multiply;
-  --wp-flash-peak: .30;
-  --wp-vig-c: color-mix(in srgb, var(--ink1) 20%, transparent);
-  --wp-grain-op: .03;
-}
-
-html[data-theme="daybreak"] #warpSplash .wp-scanlines { display: none; }
-html[data-theme="daybreak"] #warpSplash .wp-word,
-html[data-theme="daybreak"] #warpSplash .wv-word { text-shadow: none; }
 
 /* 减少动态效果：直接不播（JS 也会跳过，双保险） */
 @media (prefers-reduced-motion: reduce) {

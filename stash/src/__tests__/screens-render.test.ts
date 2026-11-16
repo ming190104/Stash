@@ -38,8 +38,8 @@ function cardActions(over: Partial<CardActions> = {}): CardActions {
 }
 
 describe('封面卡片 buildCard', () => {
-  it('携带序号与 id，并按状态标出收藏 / 最近 / 多版本 / 进度', () => {
-    const a = game('a', { title: '同名作品', favorite: true, progress: 0.4 });
+  it('携带序号与 id，并按状态标出收藏 / 最近 / 多版本', () => {
+    const a = game('a', { title: '同名作品', favorite: true });
     const b = game('b', { title: '同名作品' });
     state.games = [a, b];
     const el = buildCard(a, 2, 'a');
@@ -49,17 +49,15 @@ describe('封面卡片 buildCard', () => {
     expect(el.querySelector('.fav')).toBeTruthy();
     expect(el.querySelector('.np')).toBeTruthy(); // 最近
     expect(el.querySelector('.ver')!.textContent).toBe('+1 版');
-    expect(el.querySelector<HTMLElement>('.prog i')!.style.width).toBe('40%');
   });
 
-  it('没有最近 / 收藏 / 进度时不出对应角标，并给出 NEW', () => {
+  it('没有最近 / 收藏时不出对应角标，并给出 NEW', () => {
     const a = game('a', { title: '新作' });
     state.games = [a];
     const el = buildCard(a, 0, null);
     expect(el.querySelector('.fav')).toBeFalsy();
     expect(el.querySelector('.np')).toBeFalsy();
     expect(el.querySelector('.new')).toBeTruthy();
-    expect(el.querySelector('.prog')).toBeFalsy();
     expect(el.querySelector('.ver')).toBeFalsy();
   });
 
@@ -103,14 +101,13 @@ describe('封面卡片 buildCard', () => {
 
 describe('列表布局渲染', () => {
   it('renderList 建行、夹紧焦点并高亮当前行', () => {
-    state.games = [game('a', { title: 'A', dir: 'D:\\A', progress: 0.5 }), game('b', { title: 'B' })];
+    state.games = [game('a', { title: 'A', dir: 'D:\\A' }), game('b', { title: 'B' })];
     state.focus = 9;
     renderList(state.games, true);
     const rows = document.querySelectorAll<HTMLElement>('#listRows .lrow');
     expect(rows.length).toBe(2);
     expect(state.focus).toBe(1); // 夹到末行
     expect(rows[1].classList.contains('on')).toBe(true);
-    expect(rows[0].querySelector('.lbar i')).toBeTruthy();
   });
 
   it('标题 / 开发商里的尖括号按文本渲染，不注入 HTML', () => {

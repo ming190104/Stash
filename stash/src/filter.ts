@@ -10,6 +10,7 @@ import {
   clearFacets,
   COLLECTIONS,
   collectionMatch,
+  isFinished,
   type CollectionCtx,
   type GridFilter,
   type CollectionId,
@@ -39,12 +40,12 @@ function statusMatch(g: Game, f: string = state.gridFilter): boolean {
   return f === 'all'
     ? true
     : f === 'playing'
-      ? g.progress > 0 && g.progress < 1
+      ? !!g.lastPlayed && !isFinished(g)
       : f === 'done'
-        ? g.progress >= 1
+        ? isFinished(g)
         : f === 'fav'
           ? g.favorite
-          : g.progress === 0;
+          : !g.lastPlayed;
 }
 
 /** 标签 / 会社 / 年份这一层（不含集合）；计数时排除本列自身条件 */

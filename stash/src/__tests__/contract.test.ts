@@ -46,7 +46,6 @@ const GAME: Required<Game> = {
   tags: [],
   aliases: [],
   year: 2000,
-  progress: 0,
   titleOverride: null,
   coverOverride: null,
   hidden: false,

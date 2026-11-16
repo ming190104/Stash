@@ -22,7 +22,7 @@ vi.mock('../ipc', () => ({
   stopGame: vi.fn(async () => undefined),
   setFavorite: vi.fn(async () => undefined),
   detailBackground: vi.fn(async () => null),
-  updateEndings: vi.fn(async () => 0),
+  updateEndings: vi.fn(async () => undefined),
   updateSettings: vi.fn(async () => undefined),
 }));
 

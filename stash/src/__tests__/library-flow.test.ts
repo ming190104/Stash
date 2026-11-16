@@ -536,7 +536,7 @@ describe('运行事件与输入设备兜底', () => {
 
 describe('网格渲染兜底', () => {
   it('renderGrid 按筛选重建单元格，空结果给「无结果」态', () => {
-    state.games = [game('a', { progress: 0.5 }), game('b', { progress: 0 })];
+    state.games = [game('a', { lastPlayed: 100 }), game('b')];
     state.screen = 'grid';
     state.gridFilter = 'playing';
     renderGrid();

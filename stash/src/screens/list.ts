@@ -1,4 +1,4 @@
-/** 列表布局：左列紧凑行（缩略图 / 标题 / 进度）+ 右侧大图与简介。 */
+/** 列表布局：左列紧凑行（缩略图 / 标题）+ 右侧大图与简介。 */
 
 import type { Game } from '../types';
 import { state, sortedGames } from '../state';
@@ -21,7 +21,6 @@ function buildListRow(g: Game, i: number): HTMLElement {
     <div class="lmain">
       <div class="lt">${esc(g.title)}</div>
       <div class="ls">${esc(meta)}</div>
-      <div class="lbar"><i style="width:${Math.round(g.progress * 100)}%"></i></div>
     </div>
     ${g.favorite ? '<span class="lfav">★</span>' : ''}
     <span class="selmk">✓</span>`,
@@ -88,8 +87,6 @@ export function renderListPreview(): void {
     clearHTML(box);
     return;
   }
-  const pct = g.progress === 0 ? '未开始' : Math.round(g.progress * 100) + '%';
-  const w = Math.round(g.progress * 100);
   const tags = g.tags.length
     ? g.tags.map((t, j) => `<span class="pill${j === 0 ? ' hot' : ''}">${esc(t)}</span>`).join('')
     : `<span class="pill">${esc(g.engineLabel)}</span>`;
@@ -106,10 +103,8 @@ export function renderListPreview(): void {
       <p class="lp-sum">${esc(cnFirst(g.summary ?? '') || '尚未匹配元数据——当前信息来自本地目录。可在「设置 · 元数据」里运行 Bangumi 匹配。')}</p>
       <div class="lp-meta">
         <span>${fmtRelative(g.lastPlayed)}</span><span class="lp-dot"></span>
-        <span>累计 ${fmtDuration(g.playSeconds)}</span><span class="lp-dot"></span>
-        <span>进度 ${pct}</span>
+        <span>累计 ${fmtDuration(g.playSeconds)}</span>
       </div>
-      <div class="lp-bar"><i style="width:${w}%"></i></div>
       <div class="lp-cta">
         <button class="cta" id="listPlay"><span class="k">A</span>启动游戏</button>
         <button class="ghost" data-act="detail"><span class="k">Y</span>作品详情</button>

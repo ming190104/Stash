@@ -49,14 +49,7 @@ html[data-theme="frost"]{
   --glass:rgba(13,28,36,.6); --gline:rgba(160,220,255,.14);
   --ink1:#eaf4f7; --ink2:rgba(234,244,247,.7); --ink3:rgba(234,244,247,.55);
 }
-html[data-theme="contrast"]{
-  --bg0:#000; --bg1:#000;
-  --ink1:#fff; --ink2:rgba(255,255,255,.9); --ink3:rgba(255,255,255,.72);
-  --acc:#ffe066; --acc2:#ffb020; --acc-ink:#ffe066; --acc-on:#1a1300;
-  --accg:linear-gradient(135deg,#ffe066,#ffb020);
-  --glass:rgba(8,8,8,.9); --gline:rgba(255,255,255,.38);
-}
-/* ===== 新增五套（P11）：琥珀 / 紫苑 / 苔庭 / 绯红 / 白昼 ===== */
+/* ===== 新增四套（P11）：琥珀 / 紫苑 / 苔庭 / 绯红 ===== */
 html[data-theme="amber"]{
   --bg0:#14100a; --bg1:#080604;
   --acc:#e8b264; --acc2:#ffd79a; --acc-ink:#ffdca8; --acc-on:#2a1a08;
@@ -85,60 +78,6 @@ html[data-theme="crimson"]{
   --glass:rgba(28,12,14,.64); --gline:rgba(255,160,140,.16);
   --ink1:#fbeeea; --ink2:rgba(251,238,234,.68); --ink3:rgba(251,238,234,.52);
 }
-/* 白昼：唯一亮色主题。底色纸白、文字墨黑；玻璃面用「墨色低透明度」而不是白色，
-   否则按钮 / 胶囊 / 输入框会在浅底上消失（见下方 daybreak 覆盖段） */
-html[data-theme="daybreak"]{
-  --bg0:#f4efe4; --bg1:#e9e2d3;
-  --acc:#c9482b; --acc2:#d99a2b; --acc-ink:#9c3418; --acc-on:#fff8ee;
-  --accg:linear-gradient(135deg,#d95536,#e0a33a);
-  --glass:rgba(255,252,246,.78); --gline:rgba(60,44,28,.16);
-  --ink1:#1d1710; --ink2:rgba(29,23,16,.8); --ink3:rgba(29,23,16,.62);
-}
-html[data-theme="daybreak"] .tbtn,
-html[data-theme="daybreak"] .pill,
-html[data-theme="daybreak"] .ghost,
-html[data-theme="daybreak"] .h-bar,
-html[data-theme="daybreak"] .kk,
-html[data-theme="daybreak"] .fchip,
-html[data-theme="daybreak"] .seg,
-html[data-theme="daybreak"] .tg,
-html[data-theme="daybreak"] .inp,
-html[data-theme="daybreak"] .sp-field,
-html[data-theme="daybreak"] .sp-item,
-html[data-theme="daybreak"] .sp-hchip,
-html[data-theme="daybreak"] .end-row,
-html[data-theme="daybreak"] .sk{
-  background:rgba(33,26,18,.06);border-color:rgba(33,26,18,.14);
-}
-html[data-theme="daybreak"] .tbtn:hover,
-html[data-theme="daybreak"] .ghost:hover,
-html[data-theme="daybreak"] .ghost:active,
-html[data-theme="daybreak"] .ghost.kp,
-html[data-theme="daybreak"] .fchip:hover,
-html[data-theme="daybreak"] .flt-opt:hover,
-html[data-theme="daybreak"] .sp-item:hover,
-html[data-theme="daybreak"] .sp-item.on,
-html[data-theme="daybreak"] .snav button.on,
-html[data-theme="daybreak"] .snav button.focus{
-  background:rgba(33,26,18,.11);color:var(--ink1);
-}
-html[data-theme="daybreak"] .snav{border-right-color:rgba(33,26,18,.1)}
-html[data-theme="daybreak"] .srow{border-bottom-color:rgba(33,26,18,.08)}
-html[data-theme="daybreak"] .wm{color:rgba(33,26,18,.07)}
-html[data-theme="daybreak"] .dstar{color:rgba(33,26,18,.28)}
-html[data-theme="daybreak"] .end-dot{border-color:rgba(33,26,18,.32)}
-html[data-theme="daybreak"] .ll-title{text-shadow:none}
-html[data-theme="daybreak"] .logrow .lvl.bad{color:#b5341f}
-html[data-theme="daybreak"] .sk::after{background:linear-gradient(100deg,transparent 18%,rgba(255,255,255,.55) 50%,transparent 82%)}
-/* 布局皮肤：亮色主题下悬停面 / 进度轨道不能用白色叠加，否则在白底上完全看不见 */
-html[data-theme="daybreak"] .lrow:hover{background:rgba(33,26,18,.05)}
-html[data-theme="daybreak"] .lrow.on{background:color-mix(in srgb,var(--acc) 16%,transparent);
-  border-color:color-mix(in srgb,var(--acc) 38%,transparent)}
-html[data-theme="daybreak"] .lbar,
-html[data-theme="daybreak"] .lp-bar{background:rgba(33,26,18,.12)}
-html[data-theme="daybreak"] .lthumb{box-shadow:0 6px 14px rgba(33,26,18,.18)}
-html[data-theme="daybreak"] .lp-art{box-shadow:0 26px 50px rgba(33,26,18,.22),inset 0 0 0 1px rgba(33,26,18,.14)}
-
 /* ===== EVA 三套（P12）：只给令牌，形状 / 字体 / 装饰在 eva-ui.css ===== */
 /* 01 初号机：紫 + 荧光绿，生物质感（长圆角、呼吸光） */
 html[data-theme="eva01"]{

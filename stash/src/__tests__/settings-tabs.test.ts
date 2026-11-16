@@ -195,13 +195,12 @@ describe('元数据页签的数据源可达性', () => {
 });
 
 describe('统计 / 关于 / 共用小工具', () => {
-  it('统计页签按场次与结局推导时长和进度', () => {
+  it('统计页签按场次与结局推导时长和通关数', () => {
     const now = Date.now() / 1000;
     state.games = [
       game('a', {
         title: 'A',
         playSeconds: 7200,
-        progress: 1,
         endings: [
           { name: 'END 1', done: true },
           { name: 'END 2', done: false },
@@ -212,7 +211,7 @@ describe('统计 / 关于 / 共用小工具', () => {
     ];
     const out = statsHTML();
     expect(out).toContain('<b>2 小时</b>');
-    expect(out).toContain('<b>1</b><span>/ 1 部</span>');
+    expect(out).toContain('<b>0</b><span>/ 1 部</span>');
     expect(out).toContain('<b>50%</b>');
     expect(out).toContain('1 / 2');
     expect(out).toContain('玩得最多');
@@ -228,7 +227,7 @@ describe('统计 / 关于 / 共用小工具', () => {
 
   it('关于页签带版本与四个数据入口', () => {
     const out = aboutHTML();
-    expect(out).toContain('版本 1.2.1');
+    expect(out).toContain('版本 1.2.3');
     for (const act of ['opendata', 'openlogs', 'diagnostics']) expect(out).toContain(act);
     expect(out).toContain('openHelpBtn');
   });

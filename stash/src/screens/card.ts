@@ -67,8 +67,7 @@ export function buildCard(g: Game, i: number, lastId: string | null): HTMLElemen
   const np = g.id === lastId ? `<span class="np"${g.favorite ? ' style="left:38px"' : ''}><i></i>最近</span>` : '';
   // B7：同名多版本（汉化 / 生肉 / 不同发行）在卡上标出来，详情页可切
   const multi = versionGroup(g).length;
-  // NEW = 从未启动（玩过一次就消失）；旧实现用 progress===0，导致「已玩过但还没记进度」
-  // 的作品永远挂着 NEW，甚至与左上角的「最近」自相矛盾。
+  // NEW = 从未启动（玩过一次就消失）
   const isNew = !g.lastPlayed;
   setRawHTML(
     el,
@@ -80,8 +79,7 @@ export function buildCard(g: Game, i: number, lastId: string | null): HTMLElemen
     ${g.favorite ? '<span class="fav">★</span>' : ''}
     ${np}
     ${isNew ? '<span class="new">NEW</span>' : ''}
-    ${multi ? `<span class="ver">+${multi} 版</span>` : ''}
-    ${g.progress > 0 ? `<div class="prog" title="通关进度 ${Math.round(g.progress * 100)}%"><i style="width:${Math.round(g.progress * 100)}%"></i></div>` : ''}`,
+    ${multi ? `<span class="ver">+${multi} 版</span>` : ''}`
   );
   el.dataset.id = g.id;
   el.addEventListener('click', () => activateCard(g, i));

@@ -23,7 +23,7 @@ function game(id: string, over: Partial<Game> = {}): Game {
     developer: null, sizeGb: 0, lastPlayed: null, playCount: 0, playSeconds: 0, endings: [],
     favorite: false, addedAt: 0, needsLocale: false, matched: true, launchArgs: [], bangumiId: null,
     matchScore: null, pending: false, summary: null, tags: [], aliases: [], year: null,
-    progress: 0, hidden: false, userTags: [], notes: '', ...over,
+    hidden: false, userTags: [], notes: '', ...over,
   };
 }
 
@@ -65,17 +65,15 @@ describe('排序与隐藏条目', () => {
     expect(ids(visibleGames())).toEqual(['a', 'b']);
   });
 
-  it('名称 / 发售年 / 进度排序', () => {
+  it('名称 / 发售年排序', () => {
     state.games = [
-      game('b', { title: 'Beta', year: 2000, progress: 0.5 }),
-      game('a', { title: 'Alpha', year: 2020, progress: 1 }),
-      game('c', { title: 'Gamma', progress: 0.1 }),
+      game('b', { title: 'Beta', year: 2000 }),
+      game('a', { title: 'Alpha', year: 2020 }),
+      game('c', { title: 'Gamma' }),
     ];
     state.sortBy = 'title';
     expect(ids(sortedGames())).toEqual(['a', 'b', 'c']);
     state.sortBy = 'year';
-    expect(ids(sortedGames())).toEqual(['a', 'b', 'c']);
-    state.sortBy = 'progress';
     expect(ids(sortedGames())).toEqual(['a', 'b', 'c']);
   });
 
@@ -95,14 +93,14 @@ describe('排序与隐藏条目', () => {
 describe('网格筛选与分面', () => {
   it('状态筛选：playing / done / fav / new 且排除隐藏', () => {
     state.games = [
-      game('playing', { progress: 0.4 }),
-      game('done', { progress: 1 }),
-      game('fresh', { progress: 0 }),
-      game('fav', { progress: 0.2, favorite: true }),
-      game('hid', { progress: 0.5, hidden: true }),
+      game('playing', { lastPlayed: 100, endings: [{ name: 'END 1', done: true }, { name: 'END 2', done: false }] }),
+      game('done', { lastPlayed: 200, endings: [{ name: 'END 1', done: true }] }),
+      game('fresh'),
+      game('fav', { lastPlayed: 300, favorite: true, endings: [{ name: 'END 1', done: false }] }),
+      game('hid', { lastPlayed: 400, hidden: true }),
     ];
     state.gridFilter = 'playing';
-    expect(ids(gridList())).toEqual(['playing', 'fav']);
+    expect(ids(gridList())).toEqual(['fav', 'playing']);
     state.gridFilter = 'done';
     expect(ids(gridList())).toEqual(['done']);
     state.gridFilter = 'fav';

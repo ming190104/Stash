@@ -78,9 +78,12 @@ describe('条目构建与执行', () => {
   it('库屏：搜索 / 全屏 / 随机 / 设置入口齐全，再按菜单键收起', async () => {
     await toggleQuickMenu();
     expect(quickShown()).toBe(true);
-    for (const k of ['search', 'full', 'random', 'settings', 'close']) {
+    for (const k of ['search', 'full', 'random', 'settings']) {
       expect(item(k), k).not.toBeNull();
     }
+    // 「关闭」项与「切换到网格视图」项已移除：退出走 B / Esc / 点暗底
+    expect(item('close')).toBeNull();
+    expect(item('view')).toBeNull();
     await toggleQuickMenu();
     expect(quickShown()).toBe(false);
   });
@@ -95,7 +98,7 @@ describe('条目构建与执行', () => {
     expect(quickShown()).toBe(false);
   });
 
-  it('全屏 / 随机 / 视图 / 设置各自生效', async () => {
+  it('全屏 / 随机 / 设置各自生效', async () => {
     await toggleQuickMenu();
     item('full')!.click();
     await vi.waitFor(() => expect(H.setFullscreen).toHaveBeenCalledWith(true));
@@ -108,10 +111,6 @@ describe('条目构建与执行', () => {
     await vi.waitFor(() => expect(lastToast()).toContain('随机'));
     expect(quickShown()).toBe(true); // keepOpen：连续抽
 
-    item('view')!.click();
-    expect(state.screen).toBe('grid');
-    await vi.waitFor(() => expect(quickShown()).toBe(false));
-    await toggleQuickMenu();
     item('settings')!.click();
     expect(state.screen).toBe('settings');
   });

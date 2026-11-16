@@ -71,16 +71,6 @@ pub struct PlaySession {
     pub seconds: u64,
 }
 
-/// 进度由 END 清单推导：`done / total`；清单为空时用兜底值（meta.json）。
-/// 合并入库与 `update_endings` 共用，避免两处算法漂移。
-pub fn progress_from_endings(endings: &[EndMark], fallback: f64) -> f64 {
-    if endings.is_empty() {
-        return fallback;
-    }
-    let done = endings.iter().filter(|e| e.done).count();
-    (done as f64 / endings.len() as f64).clamp(0.0, 1.0)
-}
-
 /// 一部游戏在库中的完整记录。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 // 缺字段按 Default 兜底：library.json 是唯一不可再生的数据（游玩记录），
@@ -161,8 +151,6 @@ pub struct Game {
     pub aliases: Vec<String>,
     /// 发售年份
     pub year: Option<u32>,
-    /// 通关进度 0–1（由 meta.json 或结局清单提供）
-    pub progress: f64,
     /// 用户自定义标题（H1：非空时合并 / 重匹配都不覆盖）
     #[serde(default)]
     pub title_override: Option<String>,
@@ -246,7 +234,6 @@ impl Default for Game {
             tags: Vec::new(),
             aliases: Vec::new(),
             year: None,
-            progress: 0.0,
             title_override: None,
             cover_override: None,
             hidden: false,
@@ -290,12 +277,11 @@ pub struct DetectedGame {
     /// 搜索别名（meta.json 手填）
     pub aliases: Vec<String>,
     pub year: Option<u32>,
-    pub progress: f64,
 }
 
 /// 手柄键位映射：动作 → 物理键名
-/// （south/east/west/north/start/select/mode/lb/rb/lt/rt）。
-/// 方向键与摇杆不参与改键——导航是几何焦点引擎的固定输入。
+/// （south/east/west/north/start/select/mode/lb/rb/lt/rt/l3/r3）。
+/// 方向键与摇杆推动不参与改键——导航是几何焦点引擎的固定输入；摇杆按下（l3/r3）可绑定。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PadMap {
@@ -375,7 +361,7 @@ impl Default for SoundSettings {
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub version: u32,
-    /// 界面主题：cinema / oled / sakura / frost / contrast / amber / iris / moss / crimson / daybreak
+    /// 界面主题：cinema / oled / sakura / frost / amber / iris / moss / crimson
     /// + eva01 / eva02 / nerv
     #[serde(default = "default_theme")]
     pub theme: String,
@@ -384,7 +370,7 @@ pub struct Settings {
     pub layout: String,
     /// auto / 120 / 90 / 60
     pub fps_mode: String,
-    /// lastPlayed / title / year / progress
+    /// lastPlayed / title / year
     pub sort: String,
     /// 动效强度：0 标准 / 1 柔和（旧 settings.json 无此字段时按标准）
     #[serde(default)]
@@ -448,7 +434,7 @@ pub struct SavedView {
     pub year: Option<u32>,
     /// 智能集合 id：unplayed / short / series / recent
     pub collection: Option<String>,
-    /// 排序：lastPlayed / title / year / progress
+    /// 排序：lastPlayed / title / year
     pub sort: String,
 }
 
@@ -526,8 +512,8 @@ impl Settings {
     /// （例如 `fontScale: 99` 会让整套版式崩掉）。读盘与导入共用同一套规则。
     pub fn normalized(mut self) -> Self {
         const THEMES: &[&str] = &[
-            "cinema", "oled", "sakura", "frost", "contrast", "amber", "iris", "moss", "crimson",
-            "daybreak", "eva01", "eva02", "nerv",
+            "cinema", "oled", "sakura", "frost", "amber", "iris", "moss", "crimson", "eva01",
+            "eva02", "nerv",
         ];
         const LAYOUTS: &[&str] = &["classic", "list", "wall"];
         // v2：掌机优先，升级后默认全屏；用户之后仍可在设置里关掉（version 已是 2，不会反复改）
@@ -544,7 +530,7 @@ impl Settings {
         if !["auto", "120", "90", "60"].contains(&self.fps_mode.as_str()) {
             self.fps_mode = "auto".into();
         }
-        if !["lastPlayed", "title", "year", "progress"].contains(&self.sort.as_str()) {
+        if !["lastPlayed", "title", "year"].contains(&self.sort.as_str()) {
             self.sort = "lastPlayed".into();
         }
         self.motion = self.motion.min(1);

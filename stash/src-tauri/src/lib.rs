@@ -694,7 +694,6 @@ mod tests {
             tags: Vec::new(),
             aliases: Vec::new(),
             year: None,
-            progress: 0.0,
         };
         let (mut games, _) = store::merge_games(&[], vec![d]);
         // 模拟「旧版本按原始写法算出」的 id：与新哈希无关，但必须被沿用
