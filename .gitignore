@@ -43,3 +43,12 @@ release/
 
 # 根目录临时预览图（截图产物，不属于源码）
 /*_preview.png
+
+# 评审 / 走查产物：spec 与逐屏截图只在本地保留，避免仓库膨胀
+stash/specs/
+
+# 代码代理导出的 HTML 分享包
+.trae-html-share-packages/
+
+# 单文件设计稿：属于本地开发资料，不随仓库发布
+游戏库图标设计.html
