@@ -30,7 +30,7 @@ const RELEASES = 'https://github.com/zhao1171921108-cyber/Stash/releases';
 function fakeUpdate(over: Record<string, unknown> = {}) {
   return {
     version: '1.3.0',
-    currentVersion: '1.2.0',
+    currentVersion: '1.2.1',
     download: vi.fn(async (cb: (e: unknown) => void) => {
       cb({ event: 'Started', data: { contentLength: 2_000_000 } });
       cb({ event: 'Progress', data: { chunkLength: 1_000_000 } });

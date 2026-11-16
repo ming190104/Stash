@@ -228,7 +228,7 @@ describe('统计 / 关于 / 共用小工具', () => {
 
   it('关于页签带版本与四个数据入口', () => {
     const out = aboutHTML();
-    expect(out).toContain('版本 1.2.0');
+    expect(out).toContain('版本 1.2.1');
     for (const act of ['opendata', 'openlogs', 'diagnostics']) expect(out).toContain(act);
     expect(out).toContain('openHelpBtn');
   });

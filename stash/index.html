@@ -41,6 +41,43 @@
   <div class="detailart" id="detailArt"></div>
   <div class="shade"></div>
 
+  <!-- EVA 三套主题的装饰层（其余主题 display:none）：
+       01 电路 / 02 花瓣与余烬 / NERV 透视地网 + 坐标遥测；全部不接指针事件 -->
+  <div class="eva-deco" aria-hidden="true">
+    <svg class="evd-circuit" viewBox="0 0 1280 720" preserveAspectRatio="none">
+      <path pathLength="100" d="M-10 560 H 170 L 220 510 H 360"/>
+      <path pathLength="100" d="M1290 150 H 1110 L 1060 200 H 930"/>
+      <path pathLength="100" d="M-10 210 H 80 L 130 260 H 240"/>
+      <path pathLength="100" d="M1290 632 H 1160 L 1110 582 H 1010"/>
+      <circle cx="360" cy="510" r="2"/>
+      <circle cx="930" cy="200" r="2"/>
+      <circle cx="240" cy="260" r="2"/>
+      <g class="evd-circuit-pulse">
+        <path pathLength="100" d="M-10 560 H 170 L 220 510 H 360"/>
+        <path pathLength="100" d="M1290 150 H 1110 L 1060 200 H 930"/>
+        <path pathLength="100" d="M-10 210 H 80 L 130 260 H 240"/>
+        <path pathLength="100" d="M1290 632 H 1160 L 1110 582 H 1010"/>
+      </g>
+    </svg>
+    <div class="evd-floor"><i></i></div>
+    <div class="evd-petals"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="evd-embers"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="evd-survey">
+      <span class="c1">35°41'12"N</span>
+      <span class="c2">MAGI · CORE</span>
+      <span class="c3">DEPTH 00240</span>
+      <span class="c4">139°41'28"E</span>
+    </div>
+    <div class="evd-tele">
+      <b>MAGI · LINK</b>
+      <span><i></i>SYNC 100%</span>
+      <span><i></i>DEPTH 00240</span>
+      <span><i></i>CORE STABLE</span>
+    </div>
+    <i class="evd-led"></i>
+  </div>
+  <div class="eva-fx" aria-hidden="true"><div class="evd-slash"></div></div>
+
   <!-- ① 游戏库主屏 -->
   <section class="screen" data-s="library">
     <header class="topbar" data-tauri-drag-region>

@@ -40,7 +40,7 @@ export function aboutHTML(): string {
           <path d="M306 748H718" stroke="#ffc99c" stroke-opacity=".52" stroke-width="6"/>
         </g>
       </svg></div><div><b style="font-size:17px;letter-spacing:3px">STASH</b><br/><span style="font-size:10.5px;letter-spacing:2px">本地游戏库前端</span></div></div>
-      <span>版本 1.2.0 · 正式版</span>
+      <span>版本 1.2.1 · 正式版</span>
       <span>Tauri v2 · WebView2 · Rust</span>
       <span>目标设备 · 掌机 1280×720 @120Hz / 桌面大屏等比放大（≤2×）</span>
       <span>元数据源 · Bangumi / 萌娘百科 / 批评空间（EGS）/ 鲲 Galgame</span>
@@ -53,7 +53,7 @@ export function aboutHTML(): string {
         <span class="mini" data-act="openlogs">打开</span></div>
       <div class="srow"><div class="lab"><b>诊断报告</b><span>版本 / 环境 / 设置（凭据脱敏）/ 库统计 / 最近问题<br/>导成一份文本，便于反馈问题</span></div>
         <span class="mini" data-act="diagnostics">导出</span></div>
-      <div class="srow"><div class="lab"><b>检查更新</b><span id="updTip">从 GitHub 读取最新版本，可一键安装（当前 1.2.0）</span></div>
+      <div class="srow"><div class="lab"><b>检查更新</b><span id="updTip">从 GitHub 读取最新版本，可一键安装（当前 1.2.1）</span></div>
         <span class="mini" id="updBtn">检查</span></div>
       <div class="srow"><div class="lab"><b>快捷键总览</b><span>手柄键位都在「键位」页签里改</span></div>
         <span class="mini" id="openHelpBtn">查看</span></div>

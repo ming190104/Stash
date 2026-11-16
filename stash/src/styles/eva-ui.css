@@ -500,3 +500,226 @@ html[data-theme="nerv"] .keybar::before{
 #app.motion-soft .hero-art::before,
 #app.motion-soft .h-bar i::after,
 #app.motion-soft .np i{animation:none!important}
+
+/* ============================================================
+   装饰层：概念稿 18 组动效全量接入
+   普通主题不渲染；只在 EVA 三套下显示，不接指针事件。
+   动效只碰 transform / opacity / background-position / stroke-dashoffset。
+   ============================================================ */
+.eva-deco,
+.eva-fx{display:none;position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.eva-deco{z-index:0}          /* 背景之上、屏幕之下 */
+.eva-fx{z-index:3}            /* 屏幕之上：横切 / 扫描转场 */
+.eva-deco *,
+.eva-fx *{pointer-events:none}
+html[data-theme="eva01"] .eva-deco,
+html[data-theme="eva02"] .eva-deco,
+html[data-theme="nerv"] .eva-deco,
+html[data-theme="eva02"] .eva-fx,
+html[data-theme="nerv"] .eva-fx{display:block}
+
+/* ---------- 01 · 电路走线（ui-circuit 一次绘制 / ui-run 脉冲循环） ---------- */
+.evd-circuit{display:none;position:absolute;inset:0;width:100%;height:100%}
+html[data-theme="eva01"] .evd-circuit{display:block}
+.evd-circuit path{fill:none;stroke:color-mix(in srgb,var(--acc2) 34%,transparent);stroke-width:1;
+  stroke-dasharray:100;stroke-dashoffset:100;
+  animation:eva-ui-circuit 5s cubic-bezier(.3,0,.2,1) forwards}
+.evd-circuit circle{fill:var(--acc2);opacity:.4}
+.evd-circuit-pulse path{stroke:var(--acc2);stroke-width:1.4;stroke-dasharray:9 91;stroke-dashoffset:100;opacity:.75;
+  animation:eva-ui-run 7s linear infinite}
+.evd-circuit-pulse path:nth-child(2){animation-delay:1.5s}
+.evd-circuit-pulse path:nth-child(3){animation-delay:3s}
+.evd-circuit-pulse path:nth-child(4){animation-delay:4.5s}
+
+/* ---------- 状态灯：01 呼吸（ui-led）/ 02、NERV 闪烁（ui-blink） ---------- */
+.evd-led{display:none;position:absolute;left:26px;top:24px;width:5px;height:5px;border-radius:50%}
+html[data-theme="eva01"] .evd-led{display:block;background:var(--acc2);box-shadow:0 0 9px var(--acc2);
+  animation:eva-ui-led 2.4s ease-in-out infinite}
+html[data-theme="eva02"] .evd-led{display:block;background:var(--warn);box-shadow:0 0 9px var(--warn);
+  animation:eva-ui-blink 1.2s steps(1) infinite}
+html[data-theme="nerv"] .evd-led{display:block;background:var(--acc);box-shadow:0 0 9px var(--acc);
+  animation:eva-ui-blink 2.4s steps(1) infinite}
+
+/* ---------- 02 · 花瓣飘落（ui-fall） ---------- */
+.evd-petals{display:none;position:absolute;inset:0}
+html[data-theme="eva02"] .evd-petals{display:block}
+.evd-petals i{position:absolute;width:5px;height:3px;border-radius:50% 0 50% 50%;
+  background:rgba(255,218,220,.75);animation:eva-ui-fall 7s linear infinite}
+.evd-petals i:nth-child(1){left:18%;top:8%;animation-delay:-1s}
+.evd-petals i:nth-child(2){left:42%;top:-4%;animation-delay:-3.4s}
+.evd-petals i:nth-child(3){left:68%;top:2%;animation-delay:-5.2s}
+.evd-petals i:nth-child(4){left:86%;top:12%;animation-delay:-2.2s}
+.evd-petals i:nth-child(5){left:30%;top:18%;animation-delay:-6.1s}
+.evd-petals i:nth-child(6){left:55%;top:22%;animation-delay:-.6s}
+
+/* ---------- 02 · 余烬（ui-ember） ---------- */
+.evd-embers{display:none;position:absolute;inset:0}
+html[data-theme="eva02"] .evd-embers{display:block}
+.evd-embers i{position:absolute;width:2px;height:2px;border-radius:50%;background:var(--acc2);
+  box-shadow:0 0 6px var(--acc2);animation:eva-ui-ember 4.6s linear infinite}
+.evd-embers i:nth-child(1){left:72%;bottom:26%;animation-delay:-.4s}
+.evd-embers i:nth-child(2){left:78%;bottom:18%;animation-delay:-2.1s}
+.evd-embers i:nth-child(3){left:84%;bottom:30%;animation-delay:-3.2s}
+.evd-embers i:nth-child(4){left:90%;bottom:14%;animation-delay:-1.2s}
+.evd-embers i:nth-child(5){left:66%;bottom:10%;animation-delay:-2.8s}
+.evd-embers i:nth-child(6){left:95%;bottom:34%;animation-delay:-4.1s}
+
+/* ---------- 02 · 横切掠线（ui-slash，只在库屏扫过封面） ---------- */
+.evd-slash{display:none}
+html[data-theme="eva02"] #app[data-screen="library"] .evd-slash{display:block;position:absolute;
+  left:-40%;top:52%;width:180%;height:2px;transform-origin:50% 50%;
+  background:linear-gradient(90deg,transparent,#fff 22%,var(--acc) 55%,transparent);
+  box-shadow:0 0 14px var(--acc);animation:eva-ui-slash 6.2s cubic-bezier(.2,.9,.2,1) infinite}
+
+/* ---------- NERV · 透视地网（ui-floor） ---------- */
+.evd-floor{display:none}
+html[data-theme="nerv"] .evd-floor{display:block;position:absolute;inset:0 0 40px;opacity:.38;
+  -webkit-mask-image:linear-gradient(180deg,transparent 42%,rgba(0,0,0,.45) 56%,#000 78%);
+  mask-image:linear-gradient(180deg,transparent 42%,rgba(0,0,0,.45) 56%,#000 78%)}
+.evd-floor i{position:absolute;left:-12%;right:-12%;bottom:0;height:1800px;
+  transform:perspective(2300px) rotateX(62deg);transform-origin:50% 100%;
+  background-image:
+    repeating-linear-gradient(90deg,rgba(255,122,26,.85) 0 1px,transparent 1px 74px),
+    repeating-linear-gradient(0deg,rgba(255,122,26,.7) 0 1px,transparent 1px 44px);
+  animation:eva-ui-floor 16s linear infinite}
+
+/* ---------- NERV · 四角坐标 + 遥测（扫描线由 #app::after 的 ui-scan 负责） ---------- */
+.evd-survey{display:none;position:absolute;inset:0}
+html[data-theme="nerv"] .evd-survey{display:block}
+.evd-survey span{position:absolute;font-family:var(--mono);font-size:calc(10px * var(--fs,1));
+  letter-spacing:.18em;color:rgba(246,238,224,.34)}
+.evd-survey .c1{left:40px;top:64px}
+.evd-survey .c2{right:40px;top:64px}
+.evd-survey .c3{left:40px;bottom:58px}
+.evd-survey .c4{right:40px;bottom:58px}
+
+.evd-tele{display:none;position:absolute;right:40px;top:92px;width:130px;flex-direction:column;gap:6px;
+  font-family:var(--mono);font-size:calc(10px * var(--fs,1));letter-spacing:.12em;
+  color:rgba(246,238,224,.3);text-align:right}
+html[data-theme="nerv"] .evd-tele{display:flex}
+.evd-tele b{color:var(--acc);font-weight:400;letter-spacing:.2em;font-size:calc(10px * var(--fs,1))}
+.evd-tele span{display:flex;align-items:center;justify-content:flex-end;gap:6px;
+  border-top:1px solid color-mix(in srgb,var(--acc) 16%,transparent);padding-top:4px}
+.evd-tele i{width:4px;height:4px;border-radius:50%;background:var(--acc2);
+  box-shadow:0 0 6px var(--acc2);animation:eva-ui-blink 2.4s steps(1) infinite}
+.evd-tele span:nth-child(3) i{animation-delay:.8s;background:var(--warn);box-shadow:0 0 6px var(--warn)}
+.evd-tele span:nth-child(4) i{animation-delay:1.6s}
+
+/* ---------- 02 · 焦点卡掠光（ui-shimmer，覆盖默认一次性 sheen） ---------- */
+html[data-theme="eva02"] .card.focus .sheen::before{animation:eva-ui-shimmer 4.8s ease-in-out infinite}
+
+/* ---------- 入场与转场：软起 / 硬切 / 扫描（ui-in-soft / ui-in-hard / ui-in-scan） ---------- */
+html[data-theme="eva01"] .screen.on{animation:eva-ui-in-soft .45s cubic-bezier(.16,1,.3,1) both}
+html[data-theme="eva02"] .screen.on{animation:eva-ui-in-hard .42s cubic-bezier(.2,.9,.2,1) both}
+html[data-theme="nerv"] .screen.on{animation:eva-ui-in-scan .5s cubic-bezier(.16,1,.3,1) both}
+/* 02 一刀横切（ui-cut）/ NERV 自上而下扫描（ui-scan-in）：只画在屏幕层内部，压不到顶栏键栏 */
+html[data-theme="eva02"] .screen.on::before{
+  content:'';position:absolute;left:-20%;top:50%;width:140%;height:2px;z-index:19;pointer-events:none;
+  transform-origin:0 50%;background:linear-gradient(90deg,transparent,#fff 35%,var(--acc) 72%,transparent);
+  box-shadow:0 0 16px var(--acc);animation:eva-ui-cut .42s cubic-bezier(.2,.9,.2,1) both}
+html[data-theme="nerv"] .screen.on::after{
+  content:'';position:absolute;left:0;right:0;top:0;height:1px;z-index:19;pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--acc) 20%,var(--acc) 80%,transparent);
+  box-shadow:0 0 18px 2px color-mix(in srgb,var(--acc) 45%,transparent);
+  animation:eva-ui-scan-in .55s cubic-bezier(.4,0,.2,1) both}
+
+/* ---------- 快捷菜单 / Toast：补上概念稿的 .qitem 三套材质 ---------- */
+html[data-theme="eva01"] .qmenu .qbox,
+html[data-theme="eva02"] .qmenu .qbox,
+html[data-theme="nerv"] .qmenu .qbox{background:color-mix(in srgb,var(--bg0) 94%,#000);border-color:var(--gline)}
+html[data-theme="eva02"] .qmenu .qbox{border-radius:0;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%)}
+html[data-theme="nerv"] .qmenu .qbox{border-radius:0;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 26%,transparent),0 24px 60px rgba(0,0,0,.55)}
+html[data-theme="eva01"] .qmenu .qt,
+html[data-theme="eva02"] .qmenu .qt,
+html[data-theme="nerv"] .qmenu .qt{font-family:var(--mono);letter-spacing:.2em;color:var(--ink1)}
+html[data-theme="eva01"] .qmenu .qt span,
+html[data-theme="eva02"] .qmenu .qt span,
+html[data-theme="nerv"] .qmenu .qt span{color:var(--ink3)}
+html[data-theme="eva01"] .qmenu .qitem,
+html[data-theme="eva02"] .qmenu .qitem,
+html[data-theme="nerv"] .qmenu .qitem{background:color-mix(in srgb,var(--ink1) 5%,transparent);
+  color:var(--ink2);border-color:transparent}
+html[data-theme="eva02"] .qmenu .qitem,
+html[data-theme="nerv"] .qmenu .qitem{border-radius:0;font-family:var(--mono)}
+html[data-theme="eva01"] .qmenu .qitem.on{background:color-mix(in srgb,var(--acc) 18%,transparent);
+  border-color:var(--acc2);color:var(--ink1)}
+html[data-theme="eva02"] .qmenu .qitem.on{background:color-mix(in srgb,var(--acc) 12%,transparent);
+  border-color:var(--acc);box-shadow:inset 4px 0 0 var(--acc);color:var(--ink1)}
+html[data-theme="nerv"] .qmenu .qitem.on{background:color-mix(in srgb,var(--acc) 9%,transparent);
+  border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc);color:var(--ink1)}
+html[data-theme="eva01"] .qmenu .qitem span,
+html[data-theme="eva02"] .qmenu .qitem span,
+html[data-theme="nerv"] .qmenu .qitem span{color:var(--ink3)}
+html[data-theme="eva01"] .qmenu .qitem[data-danger="1"],
+html[data-theme="eva02"] .qmenu .qitem[data-danger="1"],
+html[data-theme="nerv"] .qmenu .qitem[data-danger="1"]{color:var(--warn);
+  background:color-mix(in srgb,var(--warn) 10%,transparent);
+  border-color:color-mix(in srgb,var(--warn) 24%,transparent)}
+html[data-theme="eva01"] #toast,
+html[data-theme="eva02"] #toast,
+html[data-theme="nerv"] #toast{background:color-mix(in srgb,var(--bg0) 92%,#000);border-color:var(--gline)}
+
+/* ---------- 18 组关键帧 ---------- */
+@keyframes eva-ui-floor{to{background-position:0 44px,0 44px}}
+@keyframes eva-ui-circuit{to{stroke-dashoffset:0}}
+@keyframes eva-ui-slash{
+  0%,68%{transform:translateX(-115%) skewX(-18deg);opacity:0}
+  72%{opacity:1}
+  86%{transform:translateX(115%) skewX(-18deg);opacity:1}
+  88%,100%{transform:translateX(115%) skewX(-18deg);opacity:0}
+}
+@keyframes eva-ui-ember{
+  0%{transform:translate3d(0,0,0);opacity:0}
+  18%{opacity:.85}
+  100%{transform:translate3d(-18px,-150px,0);opacity:0}
+}
+@keyframes eva-ui-blink{0%,49%{opacity:1}50%,100%{opacity:.16}}
+@keyframes eva-ui-fall{
+  0%{transform:translate3d(0,-8px,0) rotate(0);opacity:0}
+  16%{opacity:.8}
+  100%{transform:translate3d(-14px,128px,0) rotate(220deg);opacity:0}
+}
+@keyframes eva-ui-led{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes eva-ui-run{to{stroke-dashoffset:0}}
+@keyframes eva-ui-shimmer{
+  0%,62%{transform:translateX(0) rotate(16deg);opacity:0}
+  70%{opacity:1}
+  86%{transform:translateX(430px) rotate(16deg);opacity:0}
+  100%{opacity:0}
+}
+@keyframes eva-ui-in-soft{from{opacity:0;translate:0 16px}to{opacity:1;translate:0 0}}
+@keyframes eva-ui-in-hard{from{opacity:0;translate:-30px 0}55%{opacity:1}to{opacity:1;translate:0 0}}
+@keyframes eva-ui-in-scan{from{opacity:0;translate:0 9px}to{opacity:1;translate:0 0}}
+@keyframes eva-ui-cut{
+  0%{opacity:0;transform:rotate(-18deg) scaleX(0)}
+  35%{opacity:1}
+  100%{opacity:0;transform:rotate(-18deg) scaleX(1)}
+}
+@keyframes eva-ui-scan-in{
+  0%{opacity:0;transform:translateY(0)}
+  12%{opacity:.9}
+  82%{opacity:.9}
+  100%{opacity:0;transform:translateY(560px)}
+}
+
+/* 柔和动效：停掉全部 EVA 动效；飘落 / 余烬 / 横切这类「只有动起来才成立」的直接隐藏 */
+.motion-soft .eva-deco *,
+.motion-soft .eva-fx *,
+.motion-soft .screen.on,
+.motion-soft .screen.on::before,
+.motion-soft .screen.on::after,
+.motion-soft .card.focus .sheen::before{animation:none!important}
+.motion-soft .evd-slash,
+.motion-soft .evd-petals,
+.motion-soft .evd-embers,
+.motion-soft .evd-circuit-pulse,
+.motion-soft .evd-tele i{display:none!important}
+.motion-soft .evd-circuit path{stroke-dashoffset:0!important}
+
+/* 窗口失焦 / 游戏盖住时暂停无限动画（与 motion.css 同一思路，只点名装饰层） */
+#app.paused .eva-deco *,
+#app.paused .eva-fx *,
+#app.idle .eva-deco *,
+#app.idle .eva-fx *{animation-play-state:paused!important}

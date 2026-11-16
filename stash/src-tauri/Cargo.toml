@@ -1,6 +1,6 @@
 [package]
 name = "stash"
-version = "1.2.0"
+version = "1.2.1"
 description = "Stash - Galgame 本地库前端"
 authors = ["you"]
 edition = "2021"
