@@ -174,6 +174,13 @@ impl Store {
     }
 
     pub fn load_library(&self) -> Vec<Game> {
+        self.load_library_checked().0
+    }
+
+    /// 读库，并告知「是否真的解析成功」。
+    /// 空库与「主文件 + .bak 都解析失败」对外都是空 Vec，但清理缓存必须区分：
+    /// 后者按 id 判孤儿会把用户自选封面全部删掉（不可再生）。
+    pub fn load_library_checked(&self) -> (Vec<Game>, bool) {
         let mut main_bad = false;
         for p in [self.library_path(), self.library_bak_path()] {
             let Ok(raw) = fs::read_to_string(&p) else {
@@ -187,7 +194,7 @@ impl Store {
                     if main_bad {
                         self.quarantine("library.json");
                     }
-                    return g;
+                    return (g, true);
                 }
                 Err(e) => {
                     tracing::warn!("{} 无法解析：{e}", p.display());
@@ -198,7 +205,7 @@ impl Store {
             }
         }
         self.quarantine("library.json");
-        Vec::new()
+        (Vec::new(), false)
     }
 
     /// 目录改名后，旧版写进 library.json 的绝对路径（封面等）全部失效。
@@ -396,6 +403,8 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
     for (i, g) in old.iter().enumerate() {
         by_dir.entry(normalize_dir(&g.dir)).or_insert(i);
     }
+    // 已产出的 id：重叠根目录会把同一目录扫两次，靠这张集合按 O(1) 去重
+    let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for d in detected {
         let new_id = stable_id(&d.dir);
@@ -405,7 +414,7 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
         let id = prev.map(|p| p.id.clone()).unwrap_or(new_id);
         // 重叠根目录（D:\Games 与 D:\Games\Sub）会让同一目录被扫两次：
         // 同 id 只保留第一次，否则库里出现两条相同记录，改收藏 / 改名只改得到第一条
-        if out.iter().any(|g| g.id == id) {
+        if !seen_ids.insert(id.clone()) {
             continue;
         }
         let needs_locale = crate::engine::needs_locale(Path::new(&d.dir), d.engine, system_jp);
@@ -555,7 +564,10 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
         .then(b.added_at.cmp(&a.added_at)));
 
     // removed = 旧库中已不在结果里的
-    let removed = old.iter().filter(|g| !out.iter().any(|x| x.id == g.id)).count();
+    let removed = old
+        .iter()
+        .filter(|g| !seen_ids.contains(&g.id))
+        .count();
     let report = ScanReport {
         total: out.len(),
         added,
@@ -573,13 +585,20 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
 pub fn merge_into_library(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, ScanReport) {
     let started = std::time::Instant::now();
     let (mut out, mut report) = merge_games(old, detected);
+    // 一次扫描建索引（id 与归一化目录各一份），避免旧库 × 结果集的 O(N²) 比较
+    let mut seen_ids: std::collections::HashSet<String> =
+        out.iter().map(|g| g.id.clone()).collect();
+    let mut seen_dirs: std::collections::HashSet<String> =
+        out.iter().map(|g| normalize_dir(&g.dir)).collect();
     for g in old {
-        let seen = out
-            .iter()
-            .any(|x| x.id == g.id || normalize_dir(&x.dir) == normalize_dir(&g.dir));
-        if !seen {
-            out.push(g.clone());
+        // 与原逻辑一致：id 或目录任一命中即视为已在结果里；
+        // 每推入一条也要登记，否则旧库内部重复的条目会被重复追加
+        if seen_ids.contains(&g.id) || seen_dirs.contains(&normalize_dir(&g.dir)) {
+            continue;
         }
+        out.push(g.clone());
+        seen_ids.insert(g.id.clone());
+        seen_dirs.insert(normalize_dir(&g.dir));
     }
     // 与 merge_games 一致的默认排序：最近游玩优先，其次新入库
     out.sort_by(|a, b| {
@@ -905,6 +924,17 @@ mod tests {
         assert_eq!(other.play_seconds, 99);
         let b = after.iter().find(|g| g.dir.ends_with("B")).unwrap();
         assert_eq!(b.play_seconds, 3600, "被重扫的条目保留游玩记录");
+    }
+
+    /// 增量合并的去重索引：旧库里同 id / 同目录的重复条目只保留一条
+    #[test]
+    fn merge_into_library_dedupes_duplicate_old_entries() {
+        let (old, _) = merge_games(&[], vec![detected("D:/games/DUP")]);
+        let dup = vec![old[0].clone(), old[0].clone()];
+        let (after, report) = merge_into_library(&dup, Vec::new());
+        assert_eq!(after.len(), 1, "重复旧条目不能都追加进结果");
+        assert_eq!(report.total, 1);
+        assert_eq!(report.removed, 0);
     }
 
     /// 库写锁必须让「读—改—写」原子：两个线程各自累加不同字段，最终两边都不能丢

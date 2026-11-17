@@ -132,6 +132,29 @@ describe('搜索 · 排序', () => {
     }
   });
 
+  it('搜索框查询为空：←/→ 收起面板并把按键交回网格', () => {
+    openSearch();
+    const inp = el('spInput') as HTMLInputElement;
+    inp.focus();
+    const e = key('ArrowRight');
+    inp.dispatchEvent(e);
+    expect(handleOverlayKey(e)).toBe(false);
+    expect(searchShown()).toBe(false);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it('搜索框有文字：←/→ 仍归输入框（不关面板、不切排序）', () => {
+    openSearch();
+    const inp = el('spInput') as HTMLInputElement;
+    inp.value = 'miko';
+    const before = state.sortBy;
+    const e = key('ArrowLeft');
+    inp.dispatchEvent(e);
+    expect(handleOverlayKey(e)).toBe(true);
+    expect(searchShown()).toBe(true);
+    expect(state.sortBy).toBe(before);
+  });
+
   it('焦点在搜索框：Esc 关闭、Enter 选中候选并写入历史', () => {
     openSearch();
     const inp = el('spInput') as HTMLInputElement;

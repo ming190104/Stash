@@ -47,6 +47,23 @@ let seq = 0;
 let queue: Promise<void> = Promise.resolve();
 /** 是否有转场在跑（含排队中）：全屏这种幂等开关靠它丢弃重复请求 */
 let pending = 0;
+/** 正在播的那一层自己的跳过函数：过场期间所有输入都只该走它 */
+let activeSkip: (() => void) | null = null;
+/** 上一段的收尾函数：新一轮起播前必须先把它收掉。
+ *  否则旧层的 keydown 捕获监听还挂在 window 上，先跑的那一个会
+ *  stopImmediatePropagation 掉新一轮的监听——按键就再也跳不过去了。 */
+let activeFinish: (() => void) | null = null;
+
+/** 过场是否正在播（冷启动 / 全屏 / 预览共用）。手柄输入不产生 keydown，
+ *  必须靠它把 `dispatchNav` 挡在动画之外。 */
+export function splashActive(): boolean {
+  return activeSkip !== null;
+}
+
+/** 跳过当前过场（手柄 A / B 走这条；键盘与鼠标由 run 内部的监听直接处理） */
+export function skipSplash(): void {
+  activeSkip?.();
+}
 
 /** 首帧遮罩（index.html 内联样式）：WebView 白底 / 样式未生效的那一下由它盖住。
  *  启动动画层已挂上（或明确不播）后调用，淡出再移除，避免遮挡界面。 */
@@ -228,6 +245,8 @@ function run(
       clearTimeout(flashTimer);
       removeEventListener('keydown', skip, true);
       removeEventListener('pointerdown', skip, true);
+      if (activeSkip === skip) activeSkip = null;
+      if (activeFinish === finish) activeFinish = null;
       if (onResize) removeEventListener('resize', onResize);
       stopMeters?.();
       // 已被下一次起播接管：只解开自己的 promise，别去动新动画的类名与音频
@@ -239,9 +258,22 @@ function run(
       fadeAnim = null;
       resolve();
     };
+    /** 过场期间的所有输入都属于过场：不吞掉的话，下面积压的 Enter / 方向键
+     *  会在动画还没结束时就被下层屏幕收走（点开作品、切页签、翻页）。
+     *  捕获阶段 stopImmediatePropagation 同时挡住各屏注册在 window 上的监听。 */
+    const swallow = (e: Event): void => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
     /** 全屏切换要播满 5s：允许跳过，但跳过时先把换边补上，
      *  否则用户按了键却停在旧的全屏状态，还得再等一轮。 */
-    const skip = (): void => {
+    const skip = (e?: Event): void => {
+      if (e) {
+        swallow(e);
+        // 纯修饰键不算「我要跳过」：按住 Shift 想改大写不该把过场掐掉
+        const k = (e as KeyboardEvent).key;
+        if (k === 'Shift' || k === 'Control' || k === 'Alt' || k === 'Meta') return;
+      }
       fireFlash();
       finish();
     };
@@ -272,6 +304,10 @@ function run(
 
     // 自然收尾：淡出正好在运动时间轴末尾结束，实际时长 = motionMs
     timer = window.setTimeout(smoothEnd, Math.max(0, motionMs - FADE_MS));
+    // 上一段（预览 / 冷启动）还没收尾：先拆掉它的监听，只留当前这一段吃输入
+    activeFinish?.();
+    activeSkip = skip;
+    activeFinish = finish;
     addEventListener('keydown', skip, true);
     addEventListener('pointerdown', skip, true);
     if (onFlash) flashTimer = window.setTimeout(fireFlash, Math.round(motionMs * flashAt));

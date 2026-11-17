@@ -2,7 +2,7 @@
  *  动作由 library.ts 注入（聚焦 / 打开详情 / 启动 / 多选），避免 card ↔ library 静态循环。 */
 
 import type { Game } from '../types';
-import { versionGroup } from '../state';
+import { versionGroup, versionOthers } from '../state';
 import { artHTML } from './art';
 import { setRawHTML } from '../html';
 
@@ -59,14 +59,21 @@ export function openFromCard(id: string): void {
   actions.onOpen(id);
 }
 
-export function buildCard(g: Game, i: number, lastId: string | null): HTMLElement {
+/** versions = 调用方一次性建好的版本键计数（versionCounts）。
+ *  批量建卡时传进来，避免每张卡都扫一遍全库（大库重建是 O(N²)）。 */
+export function buildCard(
+  g: Game,
+  i: number,
+  lastId: string | null,
+  versions?: Map<string, number>,
+): HTMLElement {
   const el = document.createElement('div');
   el.className = 'card';
   el.dataset.i = String(i);
   /* 「最近」与「★」同占左上 10px：同时存在时把 np 右移 28px，避免两徽标叠压 */
   const np = g.id === lastId ? `<span class="np"${g.favorite ? ' style="left:38px"' : ''}><i></i>最近</span>` : '';
   // B7：同名多版本（汉化 / 生肉 / 不同发行）在卡上标出来，详情页可切
-  const multi = versionGroup(g).length;
+  const multi = versions ? versionOthers(g, versions) : versionGroup(g).length;
   // NEW = 从未启动（玩过一次就消失）
   const isNew = !g.lastPlayed;
   setRawHTML(

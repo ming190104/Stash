@@ -26,13 +26,45 @@ export function paletteFor(id: string): Palette {
   return PALETTES[h % PALETTES.length];
 }
 
-/** 组合 bg：双 radial 高光 + 主 linear 渐变（与 mockup G[].bg 同构） */
+/** 主题强调色（缓存按 data-theme 失效）：用实色混出占位渐变里的主题色温。
+ *  不用 CSS color-mix —— 内联 style 里的 color-mix 在旧 WebView / jsdom 会被整条丢弃，
+ *  占位封面直接变空白。 */
+let accentCache = { theme: '\u0000', a: '#8a7dff', b: '#7fe3d0' };
+
+function themeAccents(): { a: string; b: string } {
+  const theme =
+    typeof document === 'undefined' ? '' : (document.documentElement.dataset.theme ?? '');
+  if (accentCache.theme === theme) return accentCache;
+  const cs = typeof document === 'undefined' ? null : getComputedStyle(document.documentElement);
+  const a = cs?.getPropertyValue('--acc').trim() || '#8a7dff';
+  const b = cs?.getPropertyValue('--acc2').trim() || '#7fe3d0';
+  accentCache = { theme, a, b };
+  return accentCache;
+}
+
+/** #rrggbb 线性混色；解析失败时保留 base，宁可不染色也不产出非法颜色 */
+function mix(accent: string, base: string, t: number): string {
+  const pa = /^#([0-9a-f]{6})$/i.exec(accent);
+  const pb = /^#([0-9a-f]{6})$/i.exec(base);
+  if (!pa || !pb) return base;
+  const n = (h: string) => parseInt(h, 16);
+  const ch = (i: number) =>
+    Math.round(n(pa[1].slice(i, i + 2)) * t + n(pb[1].slice(i, i + 2)) * (1 - t))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${ch(0)}${ch(2)}${ch(4)}`;
+}
+
+/** 组合 bg：双 radial 高光 + 主 linear 渐变（与 mockup G[].bg 同构）。
+ *  主渐变按主题强调色混色：同一部作品的占位图在四套主题下跟随主题色温，
+ *  不再是一块与主题无关的固定色卡。 */
 export function placeholderArt(id: string): ArtVars {
   const p = paletteFor(id);
+  const acc = themeAccents();
   const bg =
     `radial-gradient(120% 85% at 30% 12%,${p.light} 0%,${p.light.replace(/[\d.]+\)$/, '0)')} 55%),` +
     `radial-gradient(90% 70% at 85% 35%,${p.mid} 0%,${p.mid.replace(/[\d.]+\)$/, '0)')} 60%),` +
-    `linear-gradient(178deg,${p.a} 0%,${p.b} 100%)`;
+    `linear-gradient(178deg,${mix(acc.a, p.a, 0.26)} 0%,${mix(acc.b, p.b, 0.18)} 100%)`;
   return { bg, s1: 'rgba(255,255,255,.9)', s2: p.spark };
 }
 

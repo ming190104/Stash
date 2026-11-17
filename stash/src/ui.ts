@@ -23,12 +23,50 @@ const LAYOUTS: LayoutName[] = ['classic', 'list', 'wall'];
 /** 应用主题：写 html[data-theme]，并缓存一份用于下次启动首帧（避免设置读盘前的闪色） */
 export function applyTheme(name: string | undefined): void {
   const t = (THEMES as string[]).includes(name ?? '') ? (name as ThemeName) : 'cinema';
+  const changed = appliedTheme !== null && appliedTheme !== t;
+  appliedTheme = t;
   document.documentElement.dataset.theme = t;
+  if (changed) playThemeSwap(t);
   try {
     localStorage.setItem('vnTheme', t);
   } catch {
     /* 隐私模式写不进去就忽略 */
   }
+}
+
+/** 已落地的主题：首帧用缓存主题不算「切换」，不播过场 */
+let appliedTheme: ThemeName | null = null;
+/** 切主题时在 #app 里临时挂的过场层，四套 EVA 主题各有自己的动画（见 eva-ui.css） */
+const SWAP_THEMES = new Set<string>(['eva01', 'eva02', 'nerv', 'rei']);
+
+/** 正在播的过场层（同一时刻只允许一层） */
+let swapEl: HTMLDivElement | null = null;
+let swapTimer = 0;
+
+function playThemeSwap(t: ThemeName): void {
+  if (!SWAP_THEMES.has(t)) return;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
+  // 上一段还没播完就丢弃本次：两层叠在一起会让扫光 / 白闪同时铺满屏幕，
+  // 而且先结束的那层会把自己移掉、留下另一层继续盖住界面。
+  if (swapEl) return;
+  const app = document.getElementById('app');
+  if (!app) return;
+  const el = document.createElement('div');
+  el.className = 'tw-swap';
+  el.dataset.kind = t;
+  app.appendChild(el);
+  swapEl = el;
+  let removed = false;
+  const done = (): void => {
+    if (removed) return;
+    removed = true;
+    el.remove();
+    if (swapEl === el) swapEl = null;
+    clearTimeout(swapTimer);
+  };
+  el.addEventListener('animationend', done, { once: true });
+  // 动画被浏览器跳过（标签页不可见 / 省电模式）时兜底移除，别留一层盖在画面上
+  swapTimer = window.setTimeout(done, 900);
 }
 
 export function cachedTheme(): ThemeName {
@@ -136,14 +174,18 @@ export function cachedLayout(): LayoutName {
 }
 
 /**
- * 动效强度：设置里的「柔和」档，或系统「减少动态效果」偏好，满足任一就整档关闭。
- * 系统偏好必须跟着生效——掌机 / 长时间游玩时用户常在系统层就关掉动画，
+ * 动效强度：设置里的「柔和」档收幅度；系统「减少动态效果」偏好则整档静止。
+ * 两者分开落类：#app.motion-soft 给柔和（仍有轨道滑动等轻动效），
+ * #app.motion-off 给系统偏好（animation / transition 全部立即到位）。
+ * 系统偏好必须单独生效——掌机 / 长时间游玩时用户常在系统层就关掉动画，
  * 只认应用内开关会让这档设置形同失效。
  */
 export function applyMotion(soft: boolean): void {
   const reduce =
     typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  document.getElementById('app')?.classList.toggle('motion-soft', soft || reduce);
+  const app = document.getElementById('app');
+  app?.classList.toggle('motion-soft', soft || reduce);
+  app?.classList.toggle('motion-off', reduce);
 }
 
 /** 设计基准画布（总案 §1）：所有坐标按 1280×720 写死，适配只做整层等比缩放 */
@@ -313,7 +355,8 @@ export function pressCard(card: HTMLElement | null, ms = 140): void {
    "按下去看不见焦点"。同 `.kp` 属一类缺口（规则在、接线缺）。
    与 CSS 规则一一对应的可聚焦选择器集中在这里，避免三处各写一遍再漏一处。 */
 export const RING_SEL =
-  '.tg,.mini,.cta,.ghost,.seg b[data-v],.inp,.back,.tbtn,.linkbtn,.dstar,.pmrow,.snav button,.cand-card';
+  '.tg,.mini,.cta,.ghost,.seg b[data-v],.inp,.back,.tbtn,.linkbtn,.dstar,.pmrow,.snav button,.cand-card,' +
+  '.sp-item,.flt-opt,.bg-card,.end-row,.lrow,.gcell,.wall-cell';
 
 /** 收集容器内可聚焦控件（文档序，与视觉顺序一致）。
  *  同一份 DOM 上多次调用（手柄连发 / 环移动后紧接着取列表）复用上次结果：

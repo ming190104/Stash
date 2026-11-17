@@ -89,9 +89,11 @@ static STOP: AtomicBool = AtomicBool::new(false);
 
 pub fn stop() {
     STOP.store(true, Ordering::Relaxed);
+    // 先关鼠标注入：退出流程还在跑，别让手柄线程再补一次按下
+    MOUSE_MODE.store(false, Ordering::Relaxed);
     // 退出瞬间虚拟左右键可能还按着。不能只等线程醒来收尾：RunEvent::Exit 之后
     // 进程马上结束，线程来不及跑下一轮，系统就会一直认为左键按着。
-    // 无条件补 UP（本来没按过也是空操作）。
+    // 只补真正按下过的一侧——没有 DOWN 的孤立 UP 会被桌面窗口当成右键菜单。
     mouse::release_all();
 }
 
@@ -340,6 +342,7 @@ impl StickGate {
 #[cfg(windows)]
 mod mouse {
     use gilrs::{Axis, Gamepad};
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::{Duration, Instant};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
         SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
@@ -352,6 +355,12 @@ mod mouse {
 
     /// 最近一次 SendInput 是否被系统拒绝（UIPI）。主循环取走后提示前端一次。
     pub static REJECTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+    /// 实际发给系统、尚未抬起的按键。退出兜底只补真正按下过的一侧：
+    /// 没有 DOWN 的孤立 UP 会被桌面的 DefWindowProc 转成 WM_CONTEXTMENU，
+    /// 表现为退出应用后桌面上莫名弹出右键菜单。
+    static LEFT_HELD: AtomicBool = AtomicBool::new(false);
+    static RIGHT_HELD: AtomicBool = AtomicBool::new(false);
 
     pub fn take_rejected() -> bool {
         REJECTED.swap(false, std::sync::atomic::Ordering::Relaxed)
@@ -430,6 +439,7 @@ mod mouse {
                 0,
                 0,
             );
+            LEFT_HELD.store(a, Ordering::Relaxed);
             st.a = a;
         }
         let b = super::pressed_named(pad, &map.back);
@@ -444,6 +454,7 @@ mod mouse {
                 0,
                 0,
             );
+            RIGHT_HELD.store(b, Ordering::Relaxed);
             st.b = b;
         }
 
@@ -483,22 +494,30 @@ mod mouse {
     }
 
     /// 离开鼠标模式（游戏退出 / 手柄断开）时补发 UP：
-    /// 否则按住 A/B 退出游戏后，系统会一直认为左/右键按着，移动鼠标变成拖拽
+    /// 否则按住 A/B 退出游戏后，系统会一直认为左/右键按着，移动鼠标变成拖拽。
+    /// 只补实际按下过的一侧：prime 只是同步物理状态，从未发过 DOWN，
+    /// 此时再补 UP 会变成孤立抬起事件。
     pub fn release(st: &mut State) {
-        if st.a {
+        if st.a && LEFT_HELD.swap(false, Ordering::Relaxed) {
             send(MOUSEEVENTF_LEFTUP, 0, 0, 0);
-            st.a = false;
         }
-        if st.b {
+        st.a = false;
+        if st.b && RIGHT_HELD.swap(false, Ordering::Relaxed) {
             send(MOUSEEVENTF_RIGHTUP, 0, 0, 0);
-            st.b = false;
         }
+        st.b = false;
     }
 
-    /// 进程退出前的无条件兜底：不看本地状态，直接补 UP。重复补发无害。
+    /// 进程退出前的兜底：只补真正按下过的一侧。
+    /// 没有 DOWN 的孤立 UP 会被桌面的 DefWindowProc 当成右键菜单（WM_CONTEXTMENU），
+    /// 这正是「退出应用后桌面弹出右键菜单」的根因。
     pub fn release_all() {
-        send(MOUSEEVENTF_LEFTUP, 0, 0, 0);
-        send(MOUSEEVENTF_RIGHTUP, 0, 0, 0);
+        if LEFT_HELD.swap(false, Ordering::Relaxed) {
+            send(MOUSEEVENTF_LEFTUP, 0, 0, 0);
+        }
+        if RIGHT_HELD.swap(false, Ordering::Relaxed) {
+            send(MOUSEEVENTF_RIGHTUP, 0, 0, 0);
+        }
     }
 }
 

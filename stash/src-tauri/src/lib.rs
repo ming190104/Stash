@@ -432,6 +432,54 @@ pub(crate) fn check_id(id: &str) -> Result<(), AppError> {
     }
 }
 
+/// 启动链的信任边界：主程序必须是游戏目录内的 exe，且不是系统目录里的脚本宿主。
+///
+/// 拖拽入库 / 手动添加按设计要接受库根之外的路径（Steam 库、桌面、移动硬盘），
+/// 所以这里不能只认 `library_roots`。真正要挡住的是「往库里塞系统程序当游戏跑」：
+/// 前端一旦被注入，`add_game → launch_game` 就是最直接的任意代码执行，
+/// 而 cmd / powershell / mshta 这类载荷无一是游戏。
+pub(crate) fn guard_game_exe(
+    exe: &std::path::Path,
+    dir: &std::path::Path,
+) -> Result<(), AppError> {
+    if !crate::commands::library::path_under(dir, exe) {
+        return Err(AppError::new(
+            ErrCode::ConfigInvalid,
+            "主程序必须位于游戏目录内",
+        ));
+    }
+    let name = exe
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    const SHELLS: &[&str] = &[
+        "cmd.exe",
+        "powershell.exe",
+        "pwsh.exe",
+        "wscript.exe",
+        "cscript.exe",
+        "mshta.exe",
+        "rundll32.exe",
+        "regsvr32.exe",
+    ];
+    if SHELLS.contains(&name.as_str()) {
+        return Err(AppError::new(
+            ErrCode::ConfigInvalid,
+            "不能把系统命令行工具当作游戏主程序",
+        ));
+    }
+    if let Ok(root) = std::env::var("SystemRoot") {
+        if crate::commands::library::path_under(std::path::Path::new(&root), exe) {
+            return Err(AppError::new(
+                ErrCode::ConfigInvalid,
+                "不能把系统目录里的程序当作游戏主程序",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// 读—改—写一部游戏（与收藏 / END / 启动记录共用同一把库写锁）
 pub(crate) fn mutate_game<F>(store: &Store, id: &str, f: F) -> Result<(), AppError>
 where

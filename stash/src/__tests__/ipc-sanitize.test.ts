@@ -23,6 +23,30 @@ describe('sanitizeLibrary', () => {
     expect(sanitizeLibrary(null)).toEqual([]);
     expect(sanitizeLibrary({})).toEqual([]);
   });
+
+  it('脏标签 / 无名 END / 字符串数值 / 非法引擎全部收敛', () => {
+    const out = sanitizeLibrary([
+      {
+        ...good,
+        engine: 'flash',
+        tags: ['ok', 42, null, { x: 1 }],
+        endings: [{ name: 'END A', done: 1 }, { done: true }, null],
+        playSeconds: '99',
+        year: '2009',
+        sessions: [{ at: 1, seconds: 2 }, { at: 'x', seconds: 1 }, null],
+      },
+    ]);
+    expect(out[0].engine).toBe('unknown');
+    expect(out[0].tags).toEqual(['ok']);
+    expect(out[0].endings).toEqual([{ name: 'END A', done: false }]);
+    expect(out[0].playSeconds).toBe(0);
+    expect(out[0].year).toBeNull();
+    expect(out[0].sessions).toEqual([{ at: 1, seconds: 2 }]);
+  });
+
+  it('合法引擎原样保留', () => {
+    expect(sanitizeLibrary([{ ...good, engine: 'renPy' }])[0].engine).toBe('renPy');
+  });
 });
 
 describe('sanitizeSettings', () => {

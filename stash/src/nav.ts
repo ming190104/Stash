@@ -11,6 +11,7 @@ import { handleOverlayKey, modalState, openSearch, openFilter, showEmpty, showSt
 import { handleQuickKey, quickShown, toggleQuickMenu } from './quick';
 import { setMulti } from './multi';
 import { sfx } from './sfx';
+import { skipSplash, splashActive } from './splash';
 import { toast, esc } from './ui';
 
 type Handler = (n: NavIntent) => void;
@@ -81,6 +82,12 @@ function duplicateIntent(n: NavIntent, from: NavSource): boolean {
 }
 
 export function dispatchNav(n: NavIntent, from: NavSource = 'key'): void {
+  // 过场（冷启动 / 全屏切换）期间手柄输入只有一个有效含义：跳过。
+  // 键盘与鼠标由过场层自己在捕获阶段吞掉，手柄不产生 DOM 事件，只能在这里挡。
+  if (splashActive() && from === 'pad') {
+    if (n.intent === 'accept' || n.intent === 'back' || n.intent === 'menu') skipSplash();
+    return;
+  }
   if (duplicateIntent(n, from)) {
     console.debug('[nav] 丢弃重复意图（同一按键的双通道投递）', n.intent, from);
     return;
@@ -272,7 +279,7 @@ export function init(): void {
   // Select：库 / 网格切换多选（手柄没有 M 键，X 留给「对当前对象的主操作」）。
   void onEvent<{ button: string }>('pad://button', (ev) => {
     if (ev.button !== 'select') return;
-    if (anyState() || quickShown()) return;
+    if (splashActive() || anyState() || quickShown()) return;
     const cur = curScreen();
     if (cur !== 'library' && cur !== 'grid') return;
     setMulti(!state.gridMulti);

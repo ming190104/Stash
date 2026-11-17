@@ -21,15 +21,30 @@
 #app.idle .hero-art,#app.idle .hero-art.artin,#app.idle .hero-art .art img,
 #app.idle .art .glow,#app.idle .dcover .art img,#app.idle .card.focus .ring,
 #app.idle .card .sheen::before,#app.idle .boots{animation-play-state:paused!important}
+/* 不挂在 .eva-deco 下的主题无限动画：NERV 顶部扫描线、01 Hero 外发光 / NERV 准星、
+   「最近」徽标脉冲。漏掉这几处时静止后仍有 4 个动画按刷新率出帧。 */
+#app.paused::after,#app.paused .hero-art::after,#app.paused .hero-art::before,#app.paused .np i,
+#app.idle::after,#app.idle .hero-art::after,#app.idle .hero-art::before,#app.idle .np i{
+  animation-play-state:paused!important}
 .motion-soft .boots{animation:none!important}
 .motion-soft .hero-info.enter>.row{animation:none!important}
-.motion-soft .hero-art.artin{animation:float 7s ease-in-out infinite alternate!important}
+/* 柔和档不留任何无限动画：Hero 浮游 / 焦点环呼吸 / 启动层脉冲 / 骨架微光
+   在标准档负责「活着」，柔和档必须全静——此前只关了装饰层，实测还剩
+   float(7s) 与两处 ringPulse(3.2s) 在跑。 */
+.motion-soft .hero-art,
+.motion-soft .hero-art.artin,
+.motion-soft .wm.wmin,
+.motion-soft .card.focus .ring,
+.motion-soft .launch-layer.on .ll-status::before,
+.motion-soft .state.show .sk::after{animation:none!important}
 .motion-soft .card .sheen{display:none}
 .motion-soft .card.focus{transform:translateY(-7px) scale(1.042)}
 .motion-soft .card.n1{transform:translateY(-2px) scale(1.014)}
 .motion-soft .card.n2{transform:none}
 .motion-soft .card:hover:not(.focus){transform:translateY(-2px) scale(1.006)}
-.motion-soft .rail-track{transition-duration:.24s}
+/* 用 #app 提高一级：ui.css 里的 [data-fps="90"] .rail-track 与它同权重且后加载，
+   原选择器会被帧率档覆盖（实测柔和档时长仍是 .34s）。 */
+#app.motion-soft .rail-track{transition-duration:.24s}
 
 /* ===== 新增三套动效（P11）：呼吸光晕 / 阶梯涟漪 / 卷轴展开 =====
    全部只动 transform / opacity（120fps 红线）；柔和动效档统一关闭。 */
@@ -75,4 +90,19 @@
 .dside.unfold button:nth-child(5){animation-delay:208ms}
 .dside.unfold button:nth-child(6){animation-delay:240ms}
 .motion-soft .dcover.unfold,.motion-soft .dinfo.unfold>*,.motion-soft .d-meta.unfold>div,.motion-soft .dside.unfold button{animation:none!important}
+
+/* ===== 系统「减少动态效果」：比柔和更彻底 =====
+   柔和档只是收幅度（轨道仍滑、焦点仍轻抬）；系统偏好是「不要动」，
+   两者不能共用同一套规则。这里把 #app 内的动画与过渡一律立即到位，
+   含 #app 自身的伪元素（EVA 扫描线 / 呼吸光）。 */
+#app.motion-off,
+#app.motion-off::before,
+#app.motion-off::after,
+#app.motion-off *,
+#app.motion-off *::before,
+#app.motion-off *::after{
+  animation:none!important;
+  transition-duration:0s!important;
+  transition-delay:0s!important;
+}
 

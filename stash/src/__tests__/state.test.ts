@@ -13,6 +13,8 @@ import {
   clearFacets,
   lastPlayedId,
   versionGroup,
+  versionCounts,
+  versionOthers,
 } from '../state';
 
 /** 最小可用 Game：按用例覆盖排序 / 筛选 / 集合相关字段 */
@@ -178,5 +180,29 @@ describe('版本归并', () => {
   it('隐藏的版本不参与归并（否则能从版本角标切进已隐藏的作品）', () => {
     state.games = [game('v1', { title: 'CLANNAD' }), game('v2', { title: 'clannad' }), game('v3', { title: 'C-LANNAD', hidden: true })];
     expect(ids(versionGroup(state.games[0]))).toEqual(['v2']);
+  });
+
+  it('预建计数与逐条 versionGroup 结果一致（隐藏作品的语境）', () => {
+    state.games = [
+      game('a', { title: 'CLANNAD' }),
+      game('b', { title: 'clannad' }),
+      game('c', { title: 'C-LANNAD' }),
+      game('d', { title: 'CLANNAD', hidden: true }),
+      game('e', { title: 'AIR' }),
+    ];
+    const counts = versionCounts();
+    for (const g of state.games) {
+      expect(versionOthers(g, counts)).toBe(versionGroup(g).length);
+    }
+    expect(versionOthers(state.games[0], counts)).toBe(2);
+    expect(versionOthers(state.games[4], counts)).toBe(0);
+  });
+
+  it('改绑 Bangumi / 改标题后版本键缓存失效', () => {
+    state.games = [game('a', { title: 'CLANNAD' }), game('b', { title: 'AIR' })];
+    expect(ids(versionGroup(state.games[0]))).toEqual([]);
+    state.games[1].bangumiId = 1;
+    state.games[0].bangumiId = 1;
+    expect(ids(versionGroup(state.games[0]))).toEqual(['b']);
   });
 });

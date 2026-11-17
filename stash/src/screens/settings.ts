@@ -128,6 +128,20 @@ export async function renderSettings(): Promise<void> {
       el.setSelectionRange(keep.start, keep.end);
     }
   }
+
+  // 底部「还能滚」的渐隐由 .set::after 画；滚到底就收起，
+  // 否则最后一行会被那层渐变压住（也避免内容只差几十像素时一直挂一条灰边）。
+  // 监听只挂一次，页签重建不影响。
+  const setBox = body.closest('.set');
+  const syncAtEnd = () => {
+    const reach = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
+    setBox?.classList.toggle('atend', reach);
+  };
+  if (!body.dataset.scrollSync) {
+    body.dataset.scrollSync = '1';
+    body.addEventListener('scroll', syncAtEnd, { passive: true });
+  }
+  syncAtEnd();
 }
 
 /** 启动项以注册表实况为准：用户可能在任务管理器里手动关掉，界面不能继续显示「开」 */

@@ -144,7 +144,7 @@
 .ev-warn span { position: static; display: block; font-family: var(--jp); font-size: 62px; font-weight: 900; letter-spacing: .34em;
   color: transparent; -webkit-text-stroke: 1.6px var(--warn); text-indent: .34em; }
 .ev-warn em { position: static; display: block; margin-top: 6px; font-family: var(--mono); font-size: 10px; font-style: normal;
-  letter-spacing: .5em; color: color-mix(in srgb, var(--warn) 78%, transparent); text-indent: .5em; }
+  letter-spacing: .5em; color: color-mix(in srgb, var(--warn-ink) 82%, transparent); text-indent: .5em; }
 
 /* 十字光爆 */
 .ev-cross { left: 50%; top: 50%; width: 0; height: 0; }
@@ -258,13 +258,6 @@
 .eva[data-pal="01"] .ev-circuit,
 .eva[data-pal="aska"] .ev-ember,
 .eva[data-pal="nerv"] .ev-survey { display: block; }
-
-/* 明日香 · 切削：字标落定后一刀横切 */
-.eva[data-pal="aska"] .ev-word::after { content: ''; position: absolute; left: 50%; top: 108px; width: 620px; height: 1px;
-  margin-left: -310px; transform: skewY(-9deg) scaleX(0); transform-origin: left;
-  background: linear-gradient(90deg, transparent, #fff 18%, var(--acc) 55%, transparent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--acc) 70%, transparent);
-  animation: ev-slash var(--dur) cubic-bezier(.16,1,.3,1) both; }
 
 /* 初号机 · 心跳：数字每 900ms 轻轻搏动一次，外加一圈绿色脉冲 */
 .eva[data-pal="01"] .ev-sync-num { animation: ev-heartbeat var(--dur) cubic-bezier(.2,.8,.2,1) both; }
@@ -456,12 +449,6 @@
   48% { opacity: .5; }
   58%, 100% { transform: scale(1); opacity: 0; }
 }
-@keyframes ev-slash {
-  0%, 73% { transform: skewY(-9deg) scaleX(0); opacity: 0; }
-  74.5% { opacity: .85; }
-  78% { transform: skewY(-9deg) scaleX(1); opacity: .85; }
-  81%, 100% { transform: skewY(-9deg) scaleX(1); opacity: 0; }
-}
 @keyframes ev-heartbeat {
   0%, 40% { transform: scale(1); }
   42% { transform: scale(1.035); }
@@ -551,7 +538,7 @@
 .eva[data-pal="00"] .ev-sync-num { color: #13242f; }
 .eva[data-pal="00"] .ev-sync-num small { color: rgba(19,36,47,.5); }
 .eva[data-pal="00"] .ev-sync-bar { background: rgba(19,36,47,.12); }
-.eva[data-pal="00"] .ev-warn span { color: var(--warn); text-shadow: 0 0 26px rgba(200,38,47,.3); }
+.eva[data-pal="00"] .ev-warn span { color: var(--warn-ink); text-shadow: 0 0 26px rgba(200,38,47,.3); }
 .eva[data-pal="00"] .ev-warn em { color: rgba(19,36,47,.6); }
 .eva[data-pal="00"] .ev-cross .ring { border-color: rgba(19,36,47,.5); }
 .eva[data-pal="00"] .ev-word-kana { color: rgba(19,36,47,.55); }

@@ -1,7 +1,7 @@
 /** IPC 封装：Tauri 可用时走 invoke，浏览器直开（vite dev）时走 mock 数据。
  *  mock 模式用于纯 UI 开发与校验，占位美术同样是正式降级设计。 */
 
-import type { EndMark, Game, HealthReport, MetaCandidate, Settings } from './types';
+import type { EndMark, Game, HealthReport, MetaCandidate, PlaySession, Settings } from './types';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { normalizePadMap, normalizePadTuning } from './padmap';
 
@@ -20,6 +20,68 @@ function warnDropped(what: string, n: number): void {
   if (n > 0) console.warn(`[ipc] ${what}：丢弃 ${n} 条结构不完整的记录`);
 }
 
+/** 字符串数组：丢掉非字符串项（旧库 / 手改库 / 第三方同步都可能塞进对象或数字） */
+function strArr(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((x): x is string => typeof x === 'string').slice(0, 500);
+}
+
+function numOr<T>(v: unknown, fallback: T): number | T {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+function boolOr(v: unknown, fallback: boolean): boolean {
+  return typeof v === 'boolean' ? v : fallback;
+}
+
+function strOrNull(v: unknown): string | null {
+  return typeof v === 'string' && v ? v : null;
+}
+
+/** 引擎枚举：认不出的值一律回落 unknown（界面按「未知引擎」显示并允许手动指定） */
+const ENGINES = new Set<string>([
+  'kirikiri',
+  'renPy',
+  'nScripter',
+  'oNScripter',
+  'artemis',
+  'majiro',
+  'bgi',
+  'catSystem2',
+  'yuRis',
+  'siglus',
+  'cmvs',
+  'qlie',
+  'wolfRpg',
+  'rpgMaker',
+  'unity',
+  'unknown',
+]);
+
+function engineOf(v: unknown): Game['engine'] {
+  return typeof v === 'string' && ENGINES.has(v) ? (v as Game['engine']) : 'unknown';
+}
+
+/** 场次只认两个数字字段：脏项会让「游玩热力图 / 总时长」算出 NaN */
+function sanitizeSessions(v: unknown): PlaySession[] {
+  if (!Array.isArray(v)) return [];
+  const ok = (x: unknown): x is PlaySession => {
+    if (!x || typeof x !== 'object') return false;
+    const s = x as PlaySession;
+    return typeof s.at === 'number' && Number.isFinite(s.at) && typeof s.seconds === 'number' && Number.isFinite(s.seconds);
+  };
+  return v.filter(ok).map((s) => ({ at: s.at, seconds: s.seconds }));
+}
+
+/** END 清单：`{name,done}` 之外的结构一律丢弃，name 缺失的条目没法显示也没法计数 */
+function sanitizeEndings(v: unknown): EndMark[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .map((x) => x as Partial<EndMark> | null)
+    .filter((x): x is Partial<EndMark> & { name: string } => !!x && typeof x.name === 'string' && !!x.name.trim())
+    .map((x) => ({ name: x.name, done: x.done === true }));
+}
+
 /** 库返回兜底：缺 id/title/dir 的条目丢弃；数组字段缺失补空数组 */
 export function sanitizeLibrary(raw: unknown): Game[] {
   if (!Array.isArray(raw)) {
@@ -36,13 +98,42 @@ export function sanitizeLibrary(raw: unknown): Game[] {
     }
     out.push({
       ...(g as Game),
-      tags: Array.isArray(g.tags) ? g.tags : [],
-      userTags: Array.isArray(g.userTags) ? g.userTags : [],
-      aliases: Array.isArray(g.aliases) ? g.aliases : [],
-      endings: Array.isArray(g.endings) ? g.endings : [],
-      shots: Array.isArray(g.shots) ? g.shots : [],
-      sessions: Array.isArray(g.sessions) ? g.sessions : [],
-      launchArgs: Array.isArray(g.launchArgs) ? g.launchArgs : [],
+      // 逐字段收敛类型：下面这些字段会被直接拼进 DOM / 参与算术，
+      // 脏数据（数字标签、字符串时长、对象 END）至少会让界面显示成 [object Object] 或 NaN
+      engine: engineOf(g.engine),
+      tags: strArr(g.tags),
+      userTags: strArr(g.userTags),
+      aliases: strArr(g.aliases),
+      shots: strArr(g.shots),
+      launchArgs: strArr(g.launchArgs),
+      endings: sanitizeEndings(g.endings),
+      sessions: sanitizeSessions(g.sessions),
+      notes: typeof g.notes === 'string' ? g.notes : '',
+      summary: strOrNull(g.summary),
+      developer: strOrNull(g.developer),
+      peProduct: strOrNull(g.peProduct),
+      peCompany: strOrNull(g.peCompany),
+      metaSource: strOrNull(g.metaSource),
+      metaScoreSource: strOrNull(g.metaScoreSource),
+      playSeconds: numOr(g.playSeconds, 0),
+      playCount: numOr(g.playCount, 0),
+      sizeGb: numOr(g.sizeGb, 0),
+      addedAt: numOr(g.addedAt, 0),
+      year: numOr(g.year, null),
+      rating: numOr(g.rating, undefined),
+      lastPlayed: numOr(g.lastPlayed, null),
+      bangumiId: numOr(g.bangumiId, null),
+      matchScore: numOr(g.matchScore, null),
+      lengthMinutes: numOr(g.lengthMinutes, null),
+      metaScore: numOr(g.metaScore, null),
+      metaScoreCount: numOr(g.metaScoreCount, null),
+      favorite: boolOr(g.favorite, false),
+      hidden: boolOr(g.hidden, false),
+      pending: boolOr(g.pending, false),
+      needsLocale: boolOr(g.needsLocale, false),
+      matched: boolOr(g.matched, false),
+      manual: boolOr(g.manual, false),
+      metaManual: boolOr(g.metaManual, false),
     });
   }
   warnDropped('get_library', dropped);

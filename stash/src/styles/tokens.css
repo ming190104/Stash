@@ -17,11 +17,23 @@
   --accg:linear-gradient(135deg,var(--acc),var(--acc2));
   --glass:rgba(16,17,24,.58);
   --gline:rgba(255,255,255,.09);
+  /* 抬升面三档：组件只引用这几档，不再各自写 rgba(255,255,255,…)。
+     深色主题是白色低透明叠加；浅色主题（REI）在下方改成墨色 / 蓝底。 */
+  --surface-1:rgba(255,255,255,.04);   /* 行 / 条目的底 */
+  --surface-2:rgba(255,255,255,.07);   /* 控件底：按钮 / chip / 开关 */
+  --surface-3:rgba(255,255,255,.13);   /* 悬停 / 选中 */
+  --surface-field:rgba(255,255,255,.06); /* 输入井 / 键帽 */
+  --surface-panel:var(--glass);        /* 大面板 / 设置页 */
+  --surface-pop:rgba(16,17,24,.94);    /* 浮层（搜索 / 筛选 / 快捷菜单） */
+  --surface-line:rgba(255,255,255,.12); /* 控件描边 / 分隔线 */
   --serif:"Noto Serif SC","Source Han Serif SC","SimSun",serif;
   --sans:"Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
   --mono:'Cascadia Mono',Consolas,ui-monospace,monospace;
-  /* 警示色（EVA 三套用于状态灯 / 危险条，其余主题未用） */
+  /* 警示色（EVA 三套用于状态灯 / 危险条，其余主题未用）
+     --warn 只做面（灯 / 条 / 描边），--warn-ink 专供小字号文字：
+     同一个红在 10px 正文里会显得发闷，文字版提亮一档保证 AA。 */
   --warn:#ff3b30;
+  --warn-ink:#ff5a50;
   /* 焦点系统：外环 / 强环 / 线宽 / 偏移 / 危险形态，全站唯一来源（主题只改 --acc 即可） */
   --focus-ring:color-mix(in srgb,var(--acc) 55%,transparent);
   --focus-ring-strong:color-mix(in srgb,var(--acc) 88%,transparent);
@@ -83,7 +95,7 @@ html[data-theme="crimson"]{
 html[data-theme="eva01"]{
   --bg0:#08070e; --bg1:#040308;
   --ink1:#f2eee3; --ink2:rgba(242,238,227,.68); --ink3:rgba(242,238,227,.5);
-  --acc:#9a6bff; --acc2:#74ff9a; --warn:#ff3b30;
+  --acc:#9a6bff; --acc2:#74ff9a; --warn:#ff3b30; --warn-ink:#ff6b62;
   --acc-ink:#d8ccff; --acc-on:#140a26;
   --accg:linear-gradient(135deg,#9a6bff,#74ff9a);
   --glass:rgba(18,14,30,.66); --gline:rgba(154,107,255,.2);
@@ -92,7 +104,7 @@ html[data-theme="eva01"]{
 html[data-theme="eva02"]{
   --bg0:#120607; --bg1:#070203;
   --ink1:#fbeee9; --ink2:rgba(251,238,233,.7); --ink3:rgba(251,238,233,.52);
-  --acc:#ff2f3c; --acc2:#ffa62b; --warn:#ffd24a;
+  --acc:#ff2f3c; --acc2:#ffa62b; --warn:#ffd24a; --warn-ink:#ffd24a;
   --acc-ink:#ffc3bd; --acc-on:#2b0508;
   --accg:linear-gradient(135deg,#ff2f3c,#ffa62b);
   --glass:rgba(30,10,13,.68); --gline:rgba(255,80,90,.22);
@@ -101,7 +113,7 @@ html[data-theme="eva02"]{
 html[data-theme="nerv"]{
   --bg0:#0d0905; --bg1:#060302;
   --ink1:#f6eee1; --ink2:rgba(246,238,225,.7); --ink3:rgba(246,238,225,.52);
-  --acc:#ff7a1a; --acc2:#ffc24b; --warn:#ff3f2e;
+  --acc:#ff7a1a; --acc2:#ffc24b; --warn:#ff3f2e; --warn-ink:#ff7a68;
   --acc-ink:#ffd2a0; --acc-on:#180a01;
   --accg:linear-gradient(135deg,#ff7a1a,#ffc24b);
   --glass:rgba(24,15,7,.7); --gline:rgba(255,122,26,.2);
@@ -114,7 +126,18 @@ html[data-theme="rei"]{
   --acc:#4d86a8; --acc2:#a8cbe0; --acc-ink:#3b6b88; --acc-on:#0f1d27;
   --accg:linear-gradient(135deg,#8fbfd8,#4d86a8);
   --warn:#c8262f;
+  /* 浅底上文字要比面更沉，才能压住 10px 的笔画 */
+  --warn-ink:#a51f27;
   --glass:rgba(255,255,255,.76); --gline:rgba(19,36,47,.14);
+  /* 白底上不能再用白色半透明抬升面：行 / 控件改成墨色薄底，输入井保留白瓷。
+     详情 / 面板 / 设置全部走这组令牌，不再各自硬编码 #fff。 */
+  --surface-1:rgba(19,36,47,.045);
+  --surface-2:rgba(19,36,47,.06);
+  --surface-3:rgba(77,134,168,.13);
+  --surface-field:#fff;
+  --surface-panel:rgba(255,255,255,.88);
+  --surface-pop:rgba(252,254,255,.97);
+  --surface-line:rgba(19,36,47,.14);
   /* 白底上 42% 透明只有 1.6:1，焦点环改用实色（acc 3.5:1 / acc-ink 6.3:1） */
   --focus-ring:var(--acc);
   --focus-ring-strong:var(--acc-ink);

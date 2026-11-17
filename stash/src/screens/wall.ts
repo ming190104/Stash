@@ -2,7 +2,7 @@
  *  焦点只给当前卡（不再给邻居挂 n1/n2——那套景深是轨道布局的效果）。 */
 
 import type { Game } from '../types';
-import { state, sortedGames } from '../state';
+import { state, sortedGames, versionCounts } from '../state';
 import { activateCard, buildCard } from './card';
 import { hydrateArts } from './art';
 import { setAmbient } from './hero';
@@ -26,12 +26,14 @@ export function renderWall(list: Game[], lastId: string | null, animateBase: boo
   document.getElementById('listPreview')?.replaceChildren();
   const prevCount = grid.children.length;
   clearHTML(grid);
+  // 版本角标一次建索引：整墙逐卡过滤全库是 O(N²)
+  const versions = versionCounts();
   list.forEach((g, i) => {
     const cell = document.createElement('div');
     cell.className = 'wall-cell';
     cell.dataset.i = String(i);
     cell.dataset.id = g.id;
-    cell.appendChild(buildCard(g, i, lastId));
+    cell.appendChild(buildCard(g, i, lastId, versions));
     const mk = document.createElement('span');
     mk.className = 'selmk';
     mk.textContent = '✓';

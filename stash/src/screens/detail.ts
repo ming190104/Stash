@@ -291,7 +291,9 @@ export async function renderDetail(): Promise<void> {
       const next = rating === v ? 0 : v;
       try {
         await setRating(g.id, next);
-        g.rating = next;
+        // 写入期间后台可能刷新过库（state.games 换成新对象），
+        // 继续写闭包里的旧 g 只会改到一份没人读的副本，界面还是旧值
+        (gameById(g.id) ?? g).rating = next;
         void renderDetail();
       } catch (e) {
         toast(esc(String((e as { message?: string })?.message ?? e)), true);
@@ -306,7 +308,7 @@ export async function renderDetail(): Promise<void> {
       const next = userTags.filter((x) => x !== t);
       try {
         await setUserTags(g.id, next);
-        g.userTags = next;
+        (gameById(g.id) ?? g).userTags = next;
         void renderDetail();
       } catch (e) {
         toast(esc(String((e as { message?: string })?.message ?? e)), true);
@@ -614,9 +616,12 @@ async function openRemoveMenu(id: string): Promise<void> {
       label: g.hidden ? '取消隐藏' : '隐藏这部',
       hint: '可恢复',
       run: async () => {
-        await setHidden(id, !g.hidden);
+        // 先记下「本来是不是隐藏的」：这次操作就是把它取反。
+        // 写盘后不要去读刷新过的副本——刷新失败 / 慢一步时会读到旧值，把分支走反。
+        const wasHidden = gameById(id)?.hidden ?? g.hidden;
+        await setHidden(id, !wasHidden);
         await afterChange();
-        if (!g.hidden) {
+        if (!wasHidden) {
           // 隐藏后作品不再属于四屏浏览：清掉残留 detailId，否则数字 3 会回到已隐藏作品的详情
           state.detailId = null;
           setScreen('library');
@@ -652,7 +657,13 @@ export function initDetail(): void {
   registerHandler('detail', (n: NavIntent) => {
     if (n.intent === 'back') {
       ringClear(detailRingEls()); // 回库时别把这圈焦点带回去
-      setScreen('library');
+      const back = state.detailFrom;
+      const viaSearch = state.detailFromSearch;
+      state.detailFrom = 'library';
+      state.detailFromSearch = false;
+      setScreen(back);
+      // 从搜索面板进来的：回到来处后重开面板并保留关键词，位置不丢
+      if (viaSearch) void import('../search').then((m) => m.openSearch(true));
       return;
     }
     if (n.intent === 'accept') {

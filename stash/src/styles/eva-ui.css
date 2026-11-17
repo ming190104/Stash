@@ -141,6 +141,10 @@ html[data-theme="eva02"] .snap-list{
   border-radius:0;
 }
 /* 切角：按钮 8px / 封面 20px */
+/* 详情屏右侧按钮同样归零：.cta/.ghost 的基础样式是 999px 胶囊，
+   eva02 的零圆角清单没覆盖 .dside，8px 切角被胶囊喝掉，视觉上仍是圆角按钮 */
+html[data-theme="eva02"] .dside .cta,
+html[data-theme="eva02"] .dside .ghost{border-radius:0}
 html[data-theme="eva02"] .cta,
 html[data-theme="eva02"] .ghost,
 html[data-theme="eva02"] .mini{
@@ -188,7 +192,7 @@ html[data-theme="eva02"] .np{
   clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);
   background:rgba(30,6,8,.6);color:var(--acc-ink);
 }
-html[data-theme="eva02"] .tstat{font-family:var(--mono);letter-spacing:.14em;color:var(--warn)}
+html[data-theme="eva02"] .tstat{font-family:var(--mono);letter-spacing:.14em;color:var(--warn-ink)}
 
 /* 卡片：焦点时左侧红条 + 右上白色高热短线 */
 html[data-theme="eva02"] .card.focus .ring{
@@ -432,17 +436,12 @@ html[data-theme="nerv"] .keybar::before{
    普通主题不渲染；只在 EVA 三套下显示，不接指针事件。
    动效只碰 transform / opacity / background-position / stroke-dashoffset。
    ============================================================ */
-.eva-deco,
-.eva-fx{display:none;position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.eva-deco{display:none;position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .eva-deco{z-index:0}          /* 背景之上、屏幕之下 */
-.eva-fx{z-index:3}            /* 屏幕之上：横切 / 扫描转场 */
-.eva-deco *,
-.eva-fx *{pointer-events:none}
+.eva-deco *{pointer-events:none}
 html[data-theme="eva01"] .eva-deco,
 html[data-theme="eva02"] .eva-deco,
-html[data-theme="nerv"] .eva-deco,
-html[data-theme="eva02"] .eva-fx,
-html[data-theme="nerv"] .eva-fx{display:block}
+html[data-theme="nerv"] .eva-deco{display:block}
 
 /* ---------- 01 · 电路走线（ui-circuit 一次绘制 / ui-run 脉冲循环） ---------- */
 .evd-circuit{display:none;position:absolute;inset:0;width:100%;height:100%}
@@ -490,13 +489,6 @@ html[data-theme="eva02"] .evd-embers{display:block}
 .evd-embers i:nth-child(5){left:66%;bottom:10%;animation-delay:-2.8s}
 .evd-embers i:nth-child(6){left:95%;bottom:34%;animation-delay:-4.1s}
 
-/* ---------- 02 · 横切掠线（ui-slash，只在库屏扫过封面） ---------- */
-.evd-slash{display:none}
-html[data-theme="eva02"] #app[data-screen="library"] .evd-slash{display:block;position:absolute;
-  left:-40%;top:52%;width:180%;height:2px;transform-origin:50% 50%;
-  background:linear-gradient(90deg,transparent,#fff 22%,var(--acc) 55%,transparent);
-  box-shadow:0 0 14px var(--acc);animation:eva-ui-slash 6.2s cubic-bezier(.2,.9,.2,1) infinite}
-
 /* ---------- NERV · 透视地网（ui-floor） ---------- */
 .evd-floor{display:none}
 html[data-theme="nerv"] .evd-floor{display:block;position:absolute;inset:0 0 40px;opacity:.38;
@@ -512,24 +504,109 @@ html[data-theme="nerv"] .evd-floor{display:block;position:absolute;inset:0 0 40p
 /* ---------- NERV · 四角坐标 + 遥测（扫描线由 #app::after 的 ui-scan 负责） ---------- */
 .evd-survey{display:none;position:absolute;inset:0}
 html[data-theme="nerv"] .evd-survey{display:block}
-.evd-survey span{position:absolute;font-family:var(--mono);font-size:calc(10px * var(--fs,1));
-  letter-spacing:.18em;color:rgba(246,238,224,.34)}
+.evd-survey span{position:absolute;font-family:var(--mono);font-size:calc(10.5px * var(--fs,1));
+  letter-spacing:.18em;color:rgba(246,238,224,.44)}
 .evd-survey .c1{left:40px;top:64px}
 .evd-survey .c2{right:40px;top:64px}
 .evd-survey .c3{left:40px;bottom:58px}
 .evd-survey .c4{right:40px;bottom:58px}
 
-.evd-tele{display:none;position:absolute;right:40px;top:92px;width:130px;flex-direction:column;gap:6px;
-  font-family:var(--mono);font-size:calc(10px * var(--fs,1));letter-spacing:.12em;
-  color:rgba(246,238,224,.3);text-align:right}
+.evd-tele{display:none;position:absolute;right:40px;top:92px;width:140px;flex-direction:column;gap:6px;
+  font-family:var(--mono);font-size:calc(10.5px * var(--fs,1));letter-spacing:.12em;
+  color:rgba(246,238,224,.42);text-align:right}
 html[data-theme="nerv"] .evd-tele{display:flex}
-.evd-tele b{color:var(--acc);font-weight:400;letter-spacing:.2em;font-size:calc(10px * var(--fs,1))}
+.evd-tele b{color:var(--acc);font-weight:400;letter-spacing:.2em;font-size:calc(10.5px * var(--fs,1))}
 .evd-tele span{display:flex;align-items:center;justify-content:flex-end;gap:6px;
   border-top:1px solid color-mix(in srgb,var(--acc) 16%,transparent);padding-top:4px}
 .evd-tele i{width:4px;height:4px;border-radius:50%;background:var(--acc2);
   box-shadow:0 0 6px var(--acc2);animation:eva-ui-blink 2.4s steps(1) infinite}
 .evd-tele span:nth-child(3) i{animation-delay:.8s;background:var(--warn);box-shadow:0 0 6px var(--warn)}
 .evd-tele span:nth-child(4) i{animation-delay:1.6s}
+
+/* 遥测不是贴纸：一条 1px 扫描线自上而下掠过读数，数值每 6.4s 抖半像素，
+   读数做极慢的明暗呼吸。带宽的版本会像「选中条」，所以只留一条线 */
+.evd-tele{overflow:hidden}
+/* 扫描线用 transform 走合成层：此前动画 `top` 每帧都会触发一次布局。
+   改成「满高的透明盒 + 顶部 1px 亮线」，位移百分比按自身高度算，正好等于容器高度 */
+.evd-tele::after{content:'';position:absolute;left:-6px;right:-6px;top:0;height:100%;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,194,75,.55) 18%,rgba(255,194,75,.55) 82%,transparent) no-repeat;
+  background-size:100% 1px;
+  filter:drop-shadow(0 0 7px rgba(255,194,75,.45));
+  will-change:transform;
+  animation:eva-ui-tele-sweep 3.6s linear infinite}
+html[data-theme="nerv"] .evd-tele span{animation:eva-ui-tele-jitter 6.4s steps(1,end) infinite}
+html[data-theme="nerv"] .evd-tele span:nth-child(3){animation-delay:1.2s}
+html[data-theme="nerv"] .evd-tele span:nth-child(4){animation-delay:2.4s}
+html[data-theme="nerv"] .evd-survey span{animation:eva-ui-tele-fade 5.2s ease-in-out infinite}
+html[data-theme="nerv"] .evd-survey .c3{animation-delay:1.3s}
+html[data-theme="nerv"] .evd-survey .c4{animation-delay:2.6s}
+@keyframes eva-ui-tele-sweep{from{transform:translateY(-1px)}to{transform:translateY(100%)}}
+@keyframes eva-ui-tele-jitter{
+  0%,96.6%{transform:translateY(0)}
+  97%{transform:translateY(-.5px)}
+  97.8%{transform:translateY(.5px)}
+  98.4%,100%{transform:translateY(0)}
+}
+@keyframes eva-ui-tele-fade{0%,100%{opacity:.72}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  .evd-tele::after,
+  html[data-theme="nerv"] .evd-tele span,
+  html[data-theme="nerv"] .evd-survey span{animation:none}
+}
+/* 遥测属于「基地大厅」的语境：设置 / 文件 / 详情是密集表单与阅读界面，
+   角落坐标在这里只是噪点，压到 32% 让位给内容 */
+html[data-theme="nerv"] #app[data-screen="settings"] :is(.evd-survey,.evd-tele),
+html[data-theme="nerv"] #app[data-screen="files"] :is(.evd-survey,.evd-tele),
+html[data-theme="nerv"] #app[data-screen="detail"] :is(.evd-survey,.evd-tele){opacity:.32}
+
+/* ---------- 主题切换过场：applyTheme 时临时挂一层 .tw-swap（ui.ts），动画完即移除 ----------
+   只动 transform / opacity，700ms 内结束；切到非 EVA 主题不播。
+   01 扫描线自上而下擦过；02 危险条横推；NERV 网格纵向塌缩；REI 白闪。 */
+.tw-swap{position:absolute;inset:0;z-index:76;pointer-events:none;overflow:hidden}
+
+.tw-swap[data-kind="eva01"]{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 12%,transparent),transparent 62%);
+  animation:eva-ui-swap-fade .62s ease-out both;
+}
+.tw-swap[data-kind="eva01"]::before{
+  content:'';position:absolute;left:0;right:0;top:0;height:40%;
+  /* 走 transform 而不是 top：切主题时会连播几段，别让每帧都触发一次布局 */
+  transform:translateY(-100%);
+  background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--acc) 24%,transparent) 54%,rgba(199,164,255,.5) 96%,transparent);
+  animation:eva-ui-swap-scan .62s cubic-bezier(.4,0,.2,1) both;
+}
+/* 自身高度是容器的 40%：-100% = 容器上方，255% = 容器下方 102% */
+@keyframes eva-ui-swap-scan{from{transform:translateY(-100%)}to{transform:translateY(255%)}}
+@keyframes eva-ui-swap-fade{from{opacity:1}68%{opacity:.45}to{opacity:0}}
+
+.tw-swap[data-kind="eva02"]{
+  background:repeating-linear-gradient(-45deg,color-mix(in srgb,var(--acc) 62%,transparent) 0 7px,transparent 7px 15px);
+  animation:eva-ui-swap-wipe .5s cubic-bezier(.2,.9,.2,1) both;
+}
+@keyframes eva-ui-swap-wipe{
+  0%{transform:translateX(-102%);opacity:.95}
+  55%{opacity:.55}
+  100%{transform:translateX(102%);opacity:0}
+}
+
+.tw-swap[data-kind="nerv"]{
+  background:
+    repeating-linear-gradient(90deg,color-mix(in srgb,var(--acc) 24%,transparent) 0 1px,transparent 1px 48px),
+    repeating-linear-gradient(0deg,color-mix(in srgb,var(--acc) 24%,transparent) 0 1px,transparent 1px 48px);
+  animation:eva-ui-swap-collapse .58s cubic-bezier(.4,0,.2,1) both;
+}
+@keyframes eva-ui-swap-collapse{
+  0%{opacity:.9;transform:scaleY(1)}
+  55%{opacity:.5;transform:scaleY(.32)}
+  100%{opacity:0;transform:scaleY(.02)}
+}
+
+.tw-swap[data-kind="rei"]{background:rgba(247,250,252,.94);animation:eva-ui-swap-flash .5s ease-out both}
+@keyframes eva-ui-swap-flash{0%{opacity:0}16%{opacity:.95}100%{opacity:0}}
+
+@media (prefers-reduced-motion:reduce){
+  .tw-swap{display:none}
+}
 
 /* ---------- 02 · 焦点卡掠光（ui-shimmer，覆盖默认一次性 sheen） ---------- */
 html[data-theme="eva02"] .card.focus .sheen::before{animation:eva-ui-shimmer 4.8s ease-in-out infinite}
@@ -538,11 +615,7 @@ html[data-theme="eva02"] .card.focus .sheen::before{animation:eva-ui-shimmer 4.8
 html[data-theme="eva01"] .screen.on{animation:eva-ui-in-soft .45s cubic-bezier(.16,1,.3,1) both}
 html[data-theme="eva02"] .screen.on{animation:eva-ui-in-hard .42s cubic-bezier(.2,.9,.2,1) both}
 html[data-theme="nerv"] .screen.on{animation:eva-ui-in-scan .5s cubic-bezier(.16,1,.3,1) both}
-/* 02 一刀横切（ui-cut）/ NERV 自上而下扫描（ui-scan-in）：只画在屏幕层内部，压不到顶栏键栏 */
-html[data-theme="eva02"] .screen.on::before{
-  content:'';position:absolute;left:-20%;top:50%;width:140%;height:2px;z-index:19;pointer-events:none;
-  transform-origin:0 50%;background:linear-gradient(90deg,transparent,#fff 35%,var(--acc) 72%,transparent);
-  box-shadow:0 0 16px var(--acc);animation:eva-ui-cut .42s cubic-bezier(.2,.9,.2,1) both}
+/* 02 只保留硬切入场（不再画横切光线）；NERV 自上而下扫描（ui-scan-in） */
 html[data-theme="nerv"] .screen.on::after{
   content:'';position:absolute;left:0;right:0;top:0;height:1px;z-index:19;pointer-events:none;
   background:linear-gradient(90deg,transparent,var(--acc) 20%,var(--acc) 80%,transparent);
@@ -580,7 +653,7 @@ html[data-theme="eva02"] .qmenu .qitem span,
 html[data-theme="nerv"] .qmenu .qitem span{color:var(--ink3)}
 html[data-theme="eva01"] .qmenu .qitem[data-danger="1"],
 html[data-theme="eva02"] .qmenu .qitem[data-danger="1"],
-html[data-theme="nerv"] .qmenu .qitem[data-danger="1"]{color:var(--warn);
+html[data-theme="nerv"] .qmenu .qitem[data-danger="1"]{color:var(--warn-ink);
   background:color-mix(in srgb,var(--warn) 10%,transparent);
   border-color:color-mix(in srgb,var(--warn) 24%,transparent)}
 html[data-theme="eva01"] #toast,
@@ -595,12 +668,6 @@ html[data-theme="nerv"] #toast{background:color-mix(in srgb,var(--bg0) 92%,#000)
   to{transform:perspective(2300px) rotateX(62deg) translateY(44px)}
 }
 @keyframes eva-ui-circuit{to{stroke-dashoffset:0}}
-@keyframes eva-ui-slash{
-  0%,68%{transform:translateX(-115%) skewX(-18deg);opacity:0}
-  72%{opacity:1}
-  86%{transform:translateX(115%) skewX(-18deg);opacity:1}
-  88%,100%{transform:translateX(115%) skewX(-18deg);opacity:0}
-}
 @keyframes eva-ui-ember{
   0%{transform:translate3d(0,0,0);opacity:0}
   18%{opacity:.85}
@@ -623,11 +690,6 @@ html[data-theme="nerv"] #toast{background:color-mix(in srgb,var(--bg0) 92%,#000)
 @keyframes eva-ui-in-soft{from{opacity:0;translate:0 16px}to{opacity:1;translate:0 0}}
 @keyframes eva-ui-in-hard{from{opacity:0;translate:-30px 0}55%{opacity:1}to{opacity:1;translate:0 0}}
 @keyframes eva-ui-in-scan{from{opacity:0;translate:0 9px}to{opacity:1;translate:0 0}}
-@keyframes eva-ui-cut{
-  0%{opacity:0;transform:rotate(-18deg) scaleX(0)}
-  35%{opacity:1}
-  100%{opacity:0;transform:rotate(-18deg) scaleX(1)}
-}
 @keyframes eva-ui-scan-in{
   0%{opacity:0;transform:translateY(0)}
   12%{opacity:.9}
@@ -635,14 +697,11 @@ html[data-theme="nerv"] #toast{background:color-mix(in srgb,var(--bg0) 92%,#000)
   100%{opacity:0;transform:translateY(560px)}
 }
 
-/* 柔和动效：停掉全部 EVA 动效；飘落 / 余烬 / 横切这类「只有动起来才成立」的直接隐藏 */
+/* 柔和动效：停掉全部 EVA 动效；飘落 / 余烬这类「只有动起来才成立」的直接隐藏 */
 .motion-soft .eva-deco *,
-.motion-soft .eva-fx *,
 .motion-soft .screen.on,
-.motion-soft .screen.on::before,
 .motion-soft .screen.on::after,
 .motion-soft .card.focus .sheen::before{animation:none!important}
-.motion-soft .evd-slash,
 .motion-soft .evd-petals,
 .motion-soft .evd-embers,
 .motion-soft .evd-circuit-pulse,
@@ -651,9 +710,7 @@ html[data-theme="nerv"] #toast{background:color-mix(in srgb,var(--bg0) 92%,#000)
 
 /* 窗口失焦 / 游戏盖住时暂停无限动画（与 motion.css 同一思路，只点名装饰层） */
 #app.paused .eva-deco *,
-#app.paused .eva-fx *,
-#app.idle .eva-deco *,
-#app.idle .eva-fx *{animation-play-state:paused!important}
+#app.idle .eva-deco *{animation-play-state:paused!important}
 
 /* ============================================================
    REI · 零号机：白瓷 + 亮天蓝（绫波丽） · 第 4 套 EVA 皮肤
@@ -698,9 +755,9 @@ html[data-theme="rei"] .topbar::after{
   background:linear-gradient(90deg,transparent,var(--acc),transparent);
 }
 html[data-theme="rei"] .tbtn{
-  background:rgba(29,70,96,.05);border-color:rgba(19,36,47,.13);color:var(--ink2);border-radius:2px;
+  background:var(--surface-2);border-color:rgba(19,36,47,.13);color:var(--ink2);border-radius:2px;
 }
-html[data-theme="rei"] .tbtn:hover{background:rgba(77,134,168,.16);color:var(--ink1)}
+html[data-theme="rei"] .tbtn:hover{background:var(--surface-3);color:var(--ink1)}
 html[data-theme="rei"] .winclose:hover{background:rgba(200,38,47,.85);color:#fff}
 html[data-theme="rei"] .tstat{
   font-family:var(--mono);letter-spacing:.16em;font-size:calc(10px * var(--fs,1));color:var(--acc-ink);
@@ -746,15 +803,16 @@ html[data-theme="rei"] .cta{
 }
 html[data-theme="rei"] .cta:hover{background:linear-gradient(135deg,#8cc2df,#5a94b6)}
 html[data-theme="rei"] .ghost{
-  border-radius:2px;background:rgba(255,255,255,.76);border-color:rgba(77,134,168,.34);color:var(--acc-ink);
+  border-radius:2px;background:var(--surface-2);border-color:rgba(77,134,168,.34);color:var(--acc-ink);
 }
-html[data-theme="rei"] .ghost:hover{background:#fff;color:var(--ink1);border-color:var(--acc)}
+html[data-theme="rei"] .ghost:hover{background:var(--surface-3);color:var(--ink1);border-color:var(--acc)}
+html[data-theme="rei"] .evidence,
 html[data-theme="rei"] .pill{
-  border-radius:2px;background:rgba(255,255,255,.8);border-color:rgba(77,134,168,.26);color:var(--acc-ink);
+  border-radius:2px;background:var(--surface-2);border-color:var(--surface-line);color:var(--acc-ink);
 }
 html[data-theme="rei"] .pill.hot{background:rgba(77,134,168,.12);border-color:rgba(77,134,168,.44);color:var(--acc-ink)}
 html[data-theme="rei"] .kk{
-  border-radius:2px;background:#fff;border-color:rgba(19,36,47,.18);color:var(--acc-ink);
+  border-radius:2px;background:var(--surface-field);border-color:rgba(19,36,47,.18);color:var(--acc-ink);
 }
 html[data-theme="rei"] .wm{color:rgba(19,36,47,.05)}
 
@@ -798,7 +856,7 @@ html[data-theme="rei"] .card .ver{
 }
 /* 接口环：零号机插管服的橙色接口 */
 html[data-theme="rei"] .np{
-  border-radius:2px;background:rgba(255,255,255,.88);border:1px solid var(--pamber);color:var(--pamber);
+  border-radius:2px;background:var(--surface-field);border:1px solid var(--pamber);color:var(--pamber);
 }
 html[data-theme="rei"] .np i{background:var(--pamber)}
 html[data-theme="rei"] .gcell.sel .card{
@@ -817,61 +875,85 @@ html[data-theme="rei"] .keybar{
 /* ---------- 详情屏：深蓝对比（设计稿同款），文字令牌翻转 ---------- */
 /* 只翻转详情内容层：顶栏 / 键位条 / toast / 快捷菜单 / 浮层都在 .screen 之外，
    若把令牌翻在 #app 上，它们会继承浅色 ink，落到白底白字 */
-html[data-theme="rei"] #app[data-screen="detail"] .screen[data-s="detail"]{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .screen[data-s="detail"]{
   --ink1:#eef5f9;--ink2:rgba(238,245,249,.74);--ink3:rgba(238,245,249,.5);
   --gline:rgba(238,245,249,.2);--glass:rgba(238,245,249,.08);
 }
 /* 详情屏里的键位条仍是浅色（本质是全局 chrome），不能跟着翻转 */
-html[data-theme="rei"] #app[data-screen="detail"] .keybar{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .keybar{
   --ink1:#13242f;--ink2:rgba(19,36,47,.7);--ink3:rgba(19,36,47,.64);
 }
-html[data-theme="rei"] #app[data-screen="detail"] .shade{
+/* 有真实背景图时：深色衬底必须画在 .kv-scrim 上（详情屏层级是 .kv → .kv-scrim → .dpanel，
+   没有 .shade，.shade 只在库屏）。原先写 .shade 等于没有生效，浅色文字直接落在亮底上，
+   正文 / 元数据 / 次级按钮全部不可读。无背景图的分支见下方「不压暗」一段。 */
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .kv-scrim{
   background:
     linear-gradient(90deg,rgba(19,36,47,.94) 0%,rgba(19,36,47,.86) 30%,rgba(19,36,47,.52) 58%,rgba(19,36,47,.18) 82%,transparent 100%),
-    linear-gradient(180deg,rgba(19,36,47,.6) 0%,rgba(19,36,47,.18) 24%,rgba(19,36,47,.5) 70%,rgba(13,24,31,.94) 100%);
+    linear-gradient(180deg,rgba(19,36,47,.66) 0%,rgba(19,36,47,.22) 24%,rgba(19,36,47,.54) 70%,rgba(13,24,31,.96) 100%);
 }
-html[data-theme="rei"] #app[data-screen="detail"] .amb{filter:blur(80px) saturate(.7) brightness(.3)}
-html[data-theme="rei"] #app[data-screen="detail"] .dcover{
+/* 标题没有显式 color，继承的是 body 的深墨色；详情屏翻成浅色文字后
+   只有它还留在深色上，等于标题消失。这里显式跟随被翻转的 --ink1 */
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .d-cn{color:var(--ink1)}
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .dcover{
   border-radius:3px;
   box-shadow:0 26px 54px rgba(0,0,0,.5),inset 0 0 0 1.5px rgba(168,203,224,.72),
     inset 0 0 30px rgba(77,134,168,.22);
 }
-html[data-theme="rei"] #app[data-screen="detail"] .dcover .art{border-radius:3px}
-html[data-theme="rei"] #app[data-screen="detail"] .pill{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .dcover .art{border-radius:3px}
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .pill{
   background:rgba(238,245,249,.07);border-color:rgba(238,245,249,.2);color:var(--ink2);
 }
-html[data-theme="rei"] #app[data-screen="detail"] .pill.hot{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .pill.hot{
   background:rgba(168,203,224,.16);border-color:rgba(168,203,224,.46);color:#d8eaf4;
 }
-html[data-theme="rei"] #app[data-screen="detail"] .pill.end{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .pill.end{
   background:rgba(200,38,47,.16);border-color:rgba(200,38,47,.46);color:#ff9aa1;
 }
-html[data-theme="rei"] #app[data-screen="detail"] .ghost{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .ghost{
   background:rgba(238,245,249,.07);border-color:rgba(238,245,249,.22);color:var(--ink2);
 }
-html[data-theme="rei"] #app[data-screen="detail"] .ghost:hover{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .ghost:hover{
   background:rgba(238,245,249,.14);border-color:rgba(168,203,224,.55);color:#fff;
 }
-html[data-theme="rei"] #app[data-screen="detail"] .ghost .k{background:rgba(238,245,249,.14);color:#d8eaf4}
-html[data-theme="rei"] #app[data-screen="detail"] .vchip{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .ghost .k{background:rgba(238,245,249,.14);color:#d8eaf4}
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .vchip{
   border-color:rgba(238,245,249,.18);color:rgba(238,245,249,.52);
 }
-html[data-theme="rei"] #app[data-screen="detail"] .vchip.on{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .vchip.on{
   border-color:rgba(168,203,224,.5);background:rgba(168,203,224,.12);color:#d8eaf4;
 }
-html[data-theme="rei"] #app[data-screen="detail"] .cta{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .cta{
   background:linear-gradient(135deg,#8fbfd8,#4d86a8);color:#0f1d27;
 }
-html[data-theme="rei"] #app[data-screen="detail"] .back{
+html[data-theme="rei"] #app.has-bg[data-screen="detail"] .back{
   border-radius:2px;background:rgba(238,245,249,.08);border-color:rgba(238,245,249,.22);color:var(--ink2);
+}
+
+/* ---------- 详情屏 · 无真实背景：不压暗，回到浅底深字 ---------- */
+/* 没有背景图时 .kv 会把占位封面拉伸整屏，再盖一层深色遮罩——那是用「压暗」
+   掩盖浅色主题与封面图的耦合，整屏发灰。这里直接收起整屏封面：
+   页底留白 + 一块磨砂面板承载正文，封面缩在左下角的 .dcover 里。 */
+html[data-theme="rei"] #app[data-screen="detail"]:not(.has-bg) .kv{opacity:0}
+html[data-theme="rei"] #app[data-screen="detail"]:not(.has-bg) .kv-scrim{
+  background:linear-gradient(180deg,rgba(247,250,252,.86) 0%,rgba(247,250,252,.46) 34%,rgba(228,237,245,.92) 100%);
+}
+html[data-theme="rei"] #app[data-screen="detail"]:not(.has-bg) .dpanel::before{
+  content:'';position:absolute;inset:-22px -26px -12px -26px;z-index:-1;
+  background:linear-gradient(180deg,var(--surface-panel),color-mix(in srgb,var(--surface-panel) 80%,transparent));
+  border:1px solid rgba(19,36,47,.1);border-radius:3px;
+  box-shadow:0 24px 60px rgba(19,36,47,.1);
+}
+/* 没有全屏照片时，底部对齐会让上半屏空出 300px：改成纵向居中，画面才平衡 */
+html[data-theme="rei"] #app[data-screen="detail"]:not(.has-bg) .dpanel{
+  top:50%;bottom:auto;transform:translateY(-50%);
 }
 
 /* ---------- 列表 / 海报墙 ---------- */
 html[data-theme="rei"] .lrow{
-  border-radius:2px;background:rgba(255,255,255,.66);border:1px solid rgba(19,36,47,.08);
+  border-radius:2px;background:var(--surface-1);border:1px solid rgba(19,36,47,.08);
 }
 html[data-theme="rei"] .lrow:hover,
-html[data-theme="rei"] .lrow.focus{background:#fff;border-color:rgba(77,134,168,.42)}
+html[data-theme="rei"] .lrow.focus{background:var(--surface-3);border-color:rgba(77,134,168,.42)}
 html[data-theme="rei"] .lthumb,
 html[data-theme="rei"] .lthumb .art,
 html[data-theme="rei"] .lp-art{border-radius:3px}
@@ -880,22 +962,31 @@ html[data-theme="rei"] .ll-art{border-radius:3px}
 html[data-theme="rei"] .lp-art{
   box-shadow:0 24px 48px rgba(29,70,96,.24),0 0 0 1px rgba(77,134,168,.36);
 }
-html[data-theme="rei"] .wall-grid .wall-cell{background:rgba(255,255,255,.6);border-color:rgba(19,36,47,.08)}
+html[data-theme="rei"] .wall-grid .wall-cell{background:var(--surface-1);border-color:rgba(19,36,47,.08)}
 
 /* ---------- 设置 / 文件：白瓷面板 ---------- */
 html[data-theme="rei"] .spanel{
-  background:rgba(255,255,255,.88);border-color:rgba(19,36,47,.1);border-radius:4px;
+  background:var(--surface-panel);border-color:rgba(19,36,47,.1);border-radius:4px;
   box-shadow:0 18px 40px rgba(29,70,96,.1);
 }
 html[data-theme="rei"] .snav{border-right-color:rgba(19,36,47,.08)}
 html[data-theme="rei"] .snav button{border-radius:2px;color:var(--ink2)}
-html[data-theme="rei"] .snav button:hover{background:rgba(77,134,168,.1);color:var(--ink1)}
-html[data-theme="rei"] .snav button.on{background:rgba(77,134,168,.13);color:var(--acc-ink)}
+html[data-theme="rei"] .snav button:hover{background:var(--surface-2);color:var(--ink1)}
+html[data-theme="rei"] .snav button.on{background:var(--surface-3);color:var(--acc-ink)}
 html[data-theme="rei"] .snav button.on::before{width:2.5px;border-radius:0;background:var(--acc)}
-html[data-theme="rei"] .snav button.focus{background:rgba(77,134,168,.1);outline-offset:-2px}
+html[data-theme="rei"] .snav button.focus{background:var(--surface-2);outline-offset:-2px}
+/* 亮色主题的次级控件：基础样式用白色半透明（为深色底写的），
+   在 #f7fafc 上等于白底白边，按钮只剩一圈描边。改成浅墨色薄底 */
+html[data-theme="rei"] .ghost{background:var(--surface-2);border-color:var(--gline);color:var(--ink2)}
+html[data-theme="rei"] .ghost:hover{background:var(--surface-3);color:var(--ink1)}
+html[data-theme="rei"] .tbtn{background:var(--surface-2)}
+html[data-theme="rei"] .tbtn:hover{background:var(--surface-3);color:var(--ink1)}
+/* 筛选 chips：白底白胶囊，选中与未选中几乎同色 */
+html[data-theme="rei"] .fchip{background:var(--surface-field);border-color:rgba(19,36,47,.14);color:var(--ink2)}
+html[data-theme="rei"] .fchip.on{background:linear-gradient(135deg,#8fbfd8,#4d86a8);border-color:transparent;color:#0f1d27;font-weight:700}
 html[data-theme="rei"] .srow{border-bottom-color:rgba(19,36,47,.08)}
 html[data-theme="rei"] .seg{
-  border-radius:3px;background:rgba(19,36,47,.05);border-color:rgba(19,36,47,.12);
+  border-radius:3px;background:var(--surface-2);border-color:rgba(19,36,47,.12);
 }
 html[data-theme="rei"] .seg b{border-radius:2px;color:var(--ink2)}
 html[data-theme="rei"] .seg b.on{
@@ -905,28 +996,28 @@ html[data-theme="rei"] .tg{background:rgba(19,36,47,.18)}
 html[data-theme="rei"] .tg.on{background:var(--acc)}
 html[data-theme="rei"] .tg::after{background:#fff;box-shadow:0 1px 3px rgba(19,36,47,.3)}
 html[data-theme="rei"] .inp{
-  background:#fff;border-color:rgba(19,36,47,.16);color:var(--ink1);border-radius:2px;
+  background:var(--surface-field);border-color:rgba(19,36,47,.16);color:var(--ink1);border-radius:2px;
 }
 html[data-theme="rei"] .inp::placeholder{color:var(--ink3)}
 html[data-theme="rei"] .mini{
-  border-radius:2px;background:rgba(255,255,255,.9);border-color:rgba(19,36,47,.14);color:var(--acc-ink);
+  border-radius:2px;background:var(--surface-field);border-color:rgba(19,36,47,.14);color:var(--acc-ink);
 }
-html[data-theme="rei"] .mini:hover{background:#fff;border-color:var(--acc)}
+html[data-theme="rei"] .mini:hover{background:var(--surface-3);border-color:var(--acc)}
 html[data-theme="rei"] .fchip{
-  border-radius:2px;background:#fff;border-color:rgba(19,36,47,.14);color:var(--ink2);
+  border-radius:2px;background:var(--surface-field);border-color:rgba(19,36,47,.14);color:var(--ink2);
 }
 html[data-theme="rei"] .fchip.on{background:rgba(77,134,168,.13);border-color:rgba(77,134,168,.44);color:var(--acc-ink)}
-html[data-theme="rei"] .pitem{background:rgba(19,36,47,.04)}
-html[data-theme="rei"] .pitem.on{background:rgba(77,134,168,.13)}
+html[data-theme="rei"] .pitem{background:var(--surface-1)}
+html[data-theme="rei"] .pitem.on{background:var(--surface-3)}
 html[data-theme="rei"] .frow{border-bottom-color:rgba(19,36,47,.07)}
 html[data-theme="rei"] .frow:hover{background:rgba(77,134,168,.07)}
-html[data-theme="rei"] .fpath{background:#fff;border-color:rgba(19,36,47,.14);color:var(--ink2);border-radius:2px}
+html[data-theme="rei"] .fpath{background:var(--surface-field);border-color:rgba(19,36,47,.14);color:var(--ink2);border-radius:2px}
 html[data-theme="rei"] .back{
-  border-radius:2px;background:rgba(255,255,255,.8);border-color:rgba(19,36,47,.14);color:var(--ink2);
+  border-radius:2px;background:var(--surface-2);border-color:rgba(19,36,47,.14);color:var(--ink2);
 }
-html[data-theme="rei"] .back:hover{background:#fff;color:var(--ink1)}
+html[data-theme="rei"] .back:hover{background:var(--surface-3);color:var(--ink1)}
 html[data-theme="rei"] .rel-chip{
-  border-radius:2px;background:#fff;border-color:rgba(19,36,47,.14);color:var(--ink2);
+  border-radius:2px;background:var(--surface-field);border-color:rgba(19,36,47,.14);color:var(--ink2);
 }
 html[data-theme="rei"] .rel-chip:hover{background:rgba(77,134,168,.12);color:var(--ink1)}
 
@@ -938,7 +1029,7 @@ html[data-theme="rei"] .snap-box,
 html[data-theme="rei"] .help-box,
 html[data-theme="rei"] .cand-box,
 html[data-theme="rei"] .qmenu .qbox{
-  background:rgba(252,254,255,.97);border-color:rgba(19,36,47,.12);border-radius:4px;
+  background:var(--surface-pop);border-color:rgba(19,36,47,.12);border-radius:4px;
   box-shadow:0 30px 70px rgba(29,70,96,.24),0 0 0 1px rgba(255,255,255,.8) inset;
 }
 /* 深色主题的白色滚动条在白瓷面板上不可见 */
@@ -949,64 +1040,64 @@ html[data-theme="rei"] .flt-foot,
 html[data-theme="rei"] .sp-foot,
 html[data-theme="rei"] .bg-tip{border-color:rgba(19,36,47,.1)}
 html[data-theme="rei"] .flt-lab{color:var(--acc-ink);font-family:var(--mono);letter-spacing:.16em}
-html[data-theme="rei"] .flt-opt{background:rgba(19,36,47,.045);color:var(--ink2);border-radius:2px}
-html[data-theme="rei"] .flt-opt:hover{background:rgba(77,134,168,.12);color:var(--ink1)}
-html[data-theme="rei"] .flt-opt.on{background:rgba(77,134,168,.16);color:var(--acc-ink)}
+html[data-theme="rei"] .flt-opt{background:var(--surface-1);color:var(--ink2);border-radius:2px}
+html[data-theme="rei"] .flt-opt:hover{background:var(--surface-3);color:var(--ink1)}
+html[data-theme="rei"] .flt-opt.on{background:var(--surface-3);color:var(--acc-ink)}
 html[data-theme="rei"] #fltClear,
 html[data-theme="rei"] #bgAuto{
-  background:rgba(255,255,255,.9);border-color:rgba(19,36,47,.14);color:var(--ink2);
+  background:var(--surface-2);border-color:rgba(19,36,47,.14);color:var(--ink2);
 }
 html[data-theme="rei"] #fltClear:hover,
-html[data-theme="rei"] #bgAuto:hover{background:#fff;color:var(--ink1)}
-html[data-theme="rei"] .sp-field{background:#fff;border-color:rgba(19,36,47,.14)}
+html[data-theme="rei"] #bgAuto:hover{background:var(--surface-3);color:var(--ink1)}
+html[data-theme="rei"] .sp-field{background:var(--surface-field);border-color:rgba(19,36,47,.14)}
 html[data-theme="rei"] .sp-field input{background:transparent;color:var(--ink1)}
 html[data-theme="rei"] .sp-item{
-  background:rgba(19,36,47,.04);border-radius:2px;border-color:transparent;color:var(--ink2);
+  background:var(--surface-1);border-radius:2px;border-color:transparent;color:var(--ink2);
 }
 html[data-theme="rei"] .sp-item:hover,
-html[data-theme="rei"] .sp-item.on{background:rgba(77,134,168,.12);color:var(--ink1)}
+html[data-theme="rei"] .sp-item.on{background:var(--surface-3);color:var(--ink1)}
 html[data-theme="rei"] .sp-item.on{border-color:rgba(77,134,168,.4)}
-html[data-theme="rei"] .sp-hchip{background:rgba(19,36,47,.06);border-color:rgba(19,36,47,.12);color:var(--ink3)}
+html[data-theme="rei"] .sp-hchip{background:var(--surface-2);border-color:rgba(19,36,47,.12);color:var(--ink3)}
 html[data-theme="rei"] .bg-card,
 html[data-theme="rei"] .cand-card{
-  background:rgba(19,36,47,.045);border-radius:3px;color:var(--ink2);
+  background:var(--surface-1);border-radius:3px;color:var(--ink2);
 }
 html[data-theme="rei"] .bg-card:hover,
-html[data-theme="rei"] .cand-card:hover{background:rgba(77,134,168,.12)}
+html[data-theme="rei"] .cand-card:hover{background:var(--surface-3)}
 html[data-theme="rei"] .bg-card.on,
-html[data-theme="rei"] .cand-card.on{border-color:rgba(77,134,168,.46);background:rgba(77,134,168,.14)}
-html[data-theme="rei"] .cprev-card{background:#fff;border-color:rgba(19,36,47,.12)}
-html[data-theme="rei"] .cprev-chip{background:#fff;border-color:rgba(19,36,47,.14);color:var(--ink3)}
+html[data-theme="rei"] .cand-card.on{border-color:rgba(77,134,168,.46);background:var(--surface-3)}
+html[data-theme="rei"] .cprev-card{background:var(--surface-field);border-color:rgba(19,36,47,.12)}
+html[data-theme="rei"] .cprev-chip{background:var(--surface-2);border-color:rgba(19,36,47,.14);color:var(--ink3)}
 html[data-theme="rei"] .qitem{
-  background:rgba(19,36,47,.045);color:var(--ink1);border-radius:2px;
+  background:var(--surface-1);color:var(--ink1);border-radius:2px;
 }
-html[data-theme="rei"] .qitem:hover{background:rgba(77,134,168,.12)}
+html[data-theme="rei"] .qitem:hover{background:var(--surface-3)}
 html[data-theme="rei"] .qitem span{color:var(--ink3)}
 html[data-theme="rei"] .qitem.on{
-  background:rgba(77,134,168,.15);border-color:rgba(77,134,168,.5);color:var(--acc-ink);
+  background:var(--surface-3);border-color:rgba(77,134,168,.5);color:var(--acc-ink);
 }
 html[data-theme="rei"] .qt span{color:var(--ink3)}
 html[data-theme="rei"] .pin{
-  border-radius:2px;background:#fff;border-color:rgba(19,36,47,.16);color:var(--ink1);
+  border-radius:2px;background:var(--surface-field);border-color:rgba(19,36,47,.16);color:var(--ink1);
 }
-html[data-theme="rei"] .sk{background:rgba(19,36,47,.07)}
+html[data-theme="rei"] .sk{background:var(--surface-2)}
 html[data-theme="rei"] .sk::after,
 html[data-theme="rei"] .sk-lines{
   background:linear-gradient(100deg,transparent 18%,rgba(255,255,255,.7) 50%,transparent 82%);
 }
 html[data-theme="rei"] .end-row{
-  background:rgba(19,36,47,.045);border-radius:2px;color:var(--ink2);
+  background:var(--surface-1);border-radius:2px;color:var(--ink2);
 }
-html[data-theme="rei"] .end-row.focus{background:rgba(77,134,168,.13)}
+html[data-theme="rei"] .end-row.focus{background:var(--surface-3)}
 html[data-theme="rei"] .end-dot{border-color:rgba(19,36,47,.3)}
 html[data-theme="rei"] .end-dot.on{background:var(--warn);border-color:var(--warn)}
 html[data-theme="rei"] .pmrow{
-  background:rgba(19,36,47,.045);border-color:rgba(19,36,47,.1);border-radius:2px;color:var(--ink2);
+  background:var(--surface-2);border-color:rgba(19,36,47,.1);border-radius:2px;color:var(--ink2);
 }
-html[data-theme="rei"] .pmrow:hover{background:rgba(77,134,168,.12);color:var(--ink1)}
-html[data-theme="rei"] .pmkey{background:#fff;border-color:rgba(19,36,47,.18);color:var(--acc-ink)}
+html[data-theme="rei"] .pmrow:hover{background:var(--surface-3);color:var(--ink1)}
+html[data-theme="rei"] .pmkey{background:var(--surface-field);border-color:rgba(19,36,47,.18);color:var(--acc-ink)}
 html[data-theme="rei"] .gselbar{
-  border-radius:2px;background:rgba(255,255,255,.94);border-color:rgba(19,36,47,.12);
+  border-radius:2px;background:var(--surface-pop);border-color:rgba(19,36,47,.12);
 }
 
 /* ---------- 装饰层：电路走线 / 遥测 / 指示灯（颜色全部走蓝令牌） ---------- */
@@ -1055,4 +1146,49 @@ html[data-theme="rei"] .gcell.sel .card{
 }
 html[data-theme="rei"] .wall-cell.sel .card{
   box-shadow:0 0 0 2px rgba(77,134,168,.7),0 16px 36px rgba(29,70,96,.22);
+}
+
+/* ============================================================
+   浮层结构语言：搜索 / 筛选 / 帮助 / 快照 / 候选 / 背景选择
+   主屏各有皮肤，浮层此前只换强调色，同一主题里像两套 UI。
+   用内缩 outline（不占布局、不随内容滚动）补一层「框」的记号。
+   ============================================================ */
+html[data-theme="eva01"] :is(.sp-box,.flt-box,.help-box,.snap-box,.cand-box,.bg-box){
+  outline:1px solid color-mix(in srgb,var(--acc) 26%,transparent);outline-offset:-8px;
+}
+html[data-theme="eva01"] :is(.sp-lab,.flt-lab){font-family:var(--mono);letter-spacing:.18em}
+/* 01：标签下压一条虚线电路，行首补一个 L 形接线端子 */
+html[data-theme="eva01"] :is(.sp-lab,.flt-lab){
+  padding-bottom:4px;border-bottom:1px dashed color-mix(in srgb,var(--acc) 34%,transparent);
+}
+html[data-theme="eva01"] :is(.sp-lab,.flt-lab)::before{
+  content:'';flex:none;width:11px;height:7px;margin-right:7px;align-self:center;
+  border-left:1px solid var(--acc2);border-bottom:1px solid var(--acc2);
+}
+html[data-theme="eva02"] :is(.sp-box,.flt-box,.help-box,.snap-box,.cand-box,.bg-box){
+  border-top:3px solid var(--acc);
+}
+html[data-theme="eva02"] :is(.sp-lab,.flt-lab){font-family:var(--mono);letter-spacing:.16em}
+/* 02：行首 // 指令记号；选中行切掉右下角，跟主屏的切角语言一致 */
+html[data-theme="eva02"] :is(.sp-lab,.flt-lab)::before{
+  content:'//';flex:none;margin-right:5px;letter-spacing:0;color:var(--acc);
+}
+html[data-theme="eva02"] .frow.on{
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%);
+}
+html[data-theme="nerv"] :is(.sp-box,.flt-box,.help-box,.snap-box,.cand-box,.bg-box){
+  outline:1px solid color-mix(in srgb,var(--acc) 32%,transparent);outline-offset:-7px;
+}
+html[data-theme="nerv"] :is(.sp-lab,.flt-lab){letter-spacing:.2em}
+/* NERV：标签前挂一个数据方块，像 MAGI 的分栏标题 */
+html[data-theme="nerv"] :is(.sp-lab,.flt-lab)::before{
+  content:'■';flex:none;margin-right:6px;font-size:6px;line-height:1;color:var(--acc2);opacity:.85;
+}
+html[data-theme="rei"] :is(.sp-box,.flt-box,.help-box,.snap-box,.cand-box,.bg-box){
+  outline:1px solid rgba(19,36,47,.1);outline-offset:-6px;
+}
+/* REI：标签前一根蓝色竖条，其余留白 */
+html[data-theme="rei"] :is(.sp-lab,.flt-lab)::before{
+  content:'';flex:none;width:3px;height:10px;margin-right:7px;align-self:center;
+  background:var(--acc);
 }

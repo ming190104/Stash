@@ -46,6 +46,9 @@ release/
 
 # 评审 / 走查产物：spec 与逐屏截图只在本地保留，避免仓库膨胀
 stash/specs/
+eva-ui-review/
+eva-circuit-demo.html
+stash-1.3.2-source-backup.zip
 
 # 代码代理导出的 HTML 分享包
 .trae-html-share-packages/

@@ -17,7 +17,7 @@ import {
 } from './state';
 import { esc, toast, clickable } from './ui';
 import { setRawHTML } from './html';
-import { updateSettings } from './ipc';
+import { persist } from './screens/settings/persist';
 import { promptInput } from './prompt';
 import { hideStates, showState, NATIVE_DEFAULT } from './layers';
 
@@ -300,8 +300,10 @@ export async function saveCurrentView(): Promise<void> {
     return;
   }
   try {
-    await updateSettings({ ...s, views: next });
-    s.views = next; // 落盘成功后才提交内存，避免出现「列在面板里、重启后消失」的幽灵视图
+    // 走设置落盘的同一条队列：直接 updateSettings 会和设置页里排队的写入互相覆盖
+    // （两边的快照都是整份设置，后到的旧快照会把刚存好的视图冲掉）
+    s.views = next;
+    await persist();
     state.viewName = name;
     toast(`已保存视图 · ${esc(name)}`);
   } catch (e) {

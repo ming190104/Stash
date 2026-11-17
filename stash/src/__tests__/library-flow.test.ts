@@ -72,7 +72,8 @@ import {
   updateEmpty,
   railWindow,
 } from '../screens/library';
-import { renderGrid } from '../screens/grid';
+import { renderGrid, initGrid } from '../screens/grid';
+import { setMulti, toggleSel } from '../multi';
 
 /** 生产环境的结构来自 index.html；测试里补出 library.ts / grid.ts 会查到的容器 */
 function addContainers(): void {
@@ -245,6 +246,37 @@ describe('收藏 / 刷新 / 启动', () => {
     expect(allToasts()).toContain('刷新库失败');
   });
 
+  it('缩略图回填只换封面，不重建卡片', async () => {
+    state.games = [game('a'), game('b')];
+    renderRail();
+    const first = document.querySelector('#railTrack .card[data-i="0"]')!;
+    expect(first.querySelector('.art.has-img')).toBeNull();
+
+    // 后台缩略图完成：同 id、同结构，只有 thumb 变了
+    H.getLibrary.mockResolvedValueOnce([
+      game('a', { thumb: 'C:/thumbs/a.webp' }),
+      game('b', { thumb: 'C:/thumbs/b.webp' }),
+    ]);
+    await refreshLibrary();
+    // 卡片节点原样保留（整屏重建会换掉它并重播入场）
+    expect(document.querySelector('#railTrack .card[data-i="0"]')).toBe(first);
+    expect(state.games[0].thumb).toBe('C:/thumbs/a.webp');
+    await vi.waitFor(() =>
+      expect(first.querySelector('.art img')?.getAttribute('src')).toBe('asset://C:/thumbs/a.webp'),
+    );
+  });
+
+  it('结构有变化时仍走整屏重建（新增作品不会被增量路径吞掉）', async () => {
+    state.games = [game('a')];
+    renderRail();
+    const first = document.querySelector('#railTrack .card[data-i="0"]')!;
+    H.getLibrary.mockResolvedValueOnce([game('a'), game('b')]);
+    await refreshLibrary();
+    expect(state.games.map((g) => g.id)).toEqual(['a', 'b']);
+    expect(document.querySelector('#railTrack .card[data-i="0"]')).not.toBe(first);
+    expect(document.querySelectorAll('#railTrack .card').length).toBe(2);
+  });
+
   it('启动：运行中不重复拉起，IPC 失败转成提示', async () => {
     state.games = [game('a')];
     renderRail();
@@ -411,10 +443,12 @@ describe('导航与快捷键', () => {
     expect(state.detailId).toBe('b');
   });
 
-  it('多选变化广播会重绘当前布局并补勾选标记', () => {
+  it('多选变化只同步勾选标记，不重建轨道', () => {
     state.games = [game('a')];
     renderRail();
+    const card = document.querySelector('#railTrack .card');
     window.dispatchEvent(new Event('multi-change'));
+    expect(document.querySelector('#railTrack .card')).toBe(card);
     expect(document.querySelectorAll('#railTrack .card').length).toBe(1);
   });
 
@@ -547,6 +581,22 @@ describe('网格渲染兜底', () => {
     renderGrid();
     expect(document.querySelectorAll('#gridCards .gcell').length).toBe(0);
     expect(document.getElementById('emptyState')!.classList.contains('show')).toBe(true);
+  });
+
+  it('多选开关只切换勾选态，不重建网格（卡片节点保留）', () => {
+    initGrid();
+    state.games = [game('a'), game('b')];
+    state.screen = 'grid';
+    renderGrid();
+    const cell = document.querySelector<HTMLElement>('#gridCards .gcell')!;
+    setMulti(true);
+    expect(document.querySelector('#gridCards .gcell')).toBe(cell);
+    expect(document.getElementById('gselBar')!.hidden).toBe(false);
+    toggleSel('a');
+    expect(cell.classList.contains('sel')).toBe(true);
+    setMulti(false);
+    expect(document.getElementById('gselBar')!.hidden).toBe(true);
+    expect(cell.classList.contains('sel')).toBe(false);
   });
 });
 

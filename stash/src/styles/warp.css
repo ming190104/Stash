@@ -42,6 +42,9 @@
 
 #warpSplash.on {
   display: block;
+  /* 过场层要接住鼠标：pointer-events:none 时点击会直接落到下层的卡片 / 按钮上，
+     动画还在播就已经点开了作品。跳过逻辑由 splash.ts 的捕获监听负责。 */
+  pointer-events: auto;
 }
 
 /* 颗粒：内联 SVG 湍流当 alpha，不下载素材；没有它，OLED 纯黑上的大渐变会出色带 */

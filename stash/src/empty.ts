@@ -38,7 +38,7 @@ export function showEmpty(kind: 'empty' | 'noresult'): void {
         toast('已清除筛选');
       });
     });
-    b.querySelector('#emSearch')?.addEventListener('click', openSearch);
+    b.querySelector('#emSearch')?.addEventListener('click', () => openSearch());
   } else {
     setRawHTML(
       b,

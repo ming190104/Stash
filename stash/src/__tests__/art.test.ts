@@ -38,7 +38,7 @@ describe('artHTML', () => {
     expect(html).toContain('千恋＊万花');
   });
 
-  it('无封面：有首字兜底与引擎徽章，长标题竖排补省略号', () => {
+  it('无封面：有首字兜底与引擎徽章，长标题竖排走两列', () => {
     const html = artHTML(
       game('e', { titleOriginal: 'この大空に、翼をひろげて', engineLabel: "Ren'Py" }),
     );
@@ -46,8 +46,9 @@ describe('artHTML', () => {
     expect(html).toContain('>こ<');
     expect(html).toContain('class="ph-y"');
     expect(html).toContain("Ren&#39;Py");
-    // 竖排超过 6 字：5 字 + …
-    expect(html).toContain('この大空に…');
+    // 7~12 字：加 vt-2 排成两列，不再截断成 6 字
+    expect(html).toContain('class="vt vt-2"');
+    expect(html).toContain('この大空に、翼をひろげて');
   });
 
   it('有封面不叠首字（避免压在插画上）', () => {

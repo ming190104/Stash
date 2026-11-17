@@ -5,7 +5,7 @@
 import type { Game, NavIntent, Screen } from '../types';
 import { asset, launchGame, stopGame, onEvent, setFavorite, getSettings, getLibrary, runningGame } from '../ipc';
 import { placeholderArt } from '../art';
-import { state, sortedGames, setScreen, lastPlayedId, gameById, gridList } from '../state';
+import { state, sortedGames, setScreen, lastPlayedId, gameById, gridList, versionCounts } from '../state';
 import { clearHTML, setRawHTML } from '../html';
 import { registerHandler, isPadNavEvent } from '../nav';
 import { markSel, toggleSel, setMulti, openBatch, setMultiRefresh } from '../multi';
@@ -104,12 +104,14 @@ function syncRailWindow(list: Game[], lastId: string | null): void {
   const track = document.getElementById('railTrack');
   if (!track) return;
   const [start, end] = railWindow(state.focus, list.length);
+  // 进窗口的卡可能有好几张：版本计数只建一次，别在逐卡里扫全库
+  const versions = versionCounts();
   track.querySelectorAll<HTMLElement>(':scope > .card').forEach((el) => {
     const i = Number(el.dataset.i);
     const full = i >= start && i <= end;
     const isSlot = el.classList.contains('slot');
     if (full === !isSlot) return;
-    el.replaceWith(full ? buildCard(list[i], i, lastId) : buildSlot(i));
+    el.replaceWith(full ? buildCard(list[i], i, lastId, versions) : buildSlot(i));
   });
   hydrateArts(track);
   railCenter = state.focus;
@@ -151,7 +153,10 @@ export function renderRail(): void {
   clearHTML(track);
   state.focus = Math.min(state.focus, Math.max(0, list.length - 1));
   const [start, end] = railWindow(state.focus, list.length);
-  list.forEach((g, i) => track.appendChild(i >= start && i <= end ? buildCard(g, i, lastId) : buildSlot(i)));
+  const versions = versionCounts();
+  list.forEach((g, i) =>
+    track.appendChild(i >= start && i <= end ? buildCard(g, i, lastId, versions) : buildSlot(i)),
+  );
   railCenter = state.focus;
   hydrateArts(track);
   applyFocusCone();
@@ -305,6 +310,48 @@ export function scheduleLibraryRefresh(delay = 300): void {
   }, delay);
 }
 
+/** 只换一张作品的封面：轨道 / 网格 / 列表 / 海报墙里的 .art 子树原地替换。
+ *  缩略图批次回填走这里，不必整屏重建（大库重建 = 上千张卡重新解码封面）。 */
+function refreshArt(g: Game): void {
+  const nodes = [...document.querySelectorAll<HTMLElement>(`[data-id="${g.id}"] .art`)];
+  if (!nodes.length) return;
+  const box = document.createElement('div');
+  setRawHTML(box, artHTML(g));
+  const art = box.firstElementChild as HTMLElement | null;
+  if (!art) return;
+  for (const old of nodes) {
+    const next = art.cloneNode(true) as HTMLElement;
+    old.replaceWith(next);
+    hydrateArts(next.parentElement ?? document);
+  }
+}
+
+/** 结构快照：去掉缩略图 / 原封面路径，用于判断这批数据是不是「只补了封面」 */
+function structureKey(g: Game): string {
+  const copy = { ...g } as Record<string, unknown>;
+  delete copy.thumb;
+  delete copy.cover;
+  return JSON.stringify(Object.keys(copy).sort().map((k) => [k, copy[k]]));
+}
+
+/** 仅封面路径变化时把新路径原地写回旧对象，返回需要换图的条目；
+ *  结构有变返回 null，由调用方整屏重建。 */
+function applyThumbPatch(games: Game[]): Game[] | null {
+  const prev = state.games;
+  if (!games.length || games.length !== prev.length) return null;
+  const byId = new Map(prev.map((g) => [g.id, g]));
+  const changed: Game[] = [];
+  for (const next of games) {
+    const old = byId.get(next.id);
+    if (!old || structureKey(old) !== structureKey(next)) return null;
+    if (old.thumb === next.thumb && old.cover === next.cover) continue;
+    old.thumb = next.thumb;
+    old.cover = next.cover;
+    changed.push(old);
+  }
+  return changed;
+}
+
 /** 库数据整体刷新（启动 / 添加作品 / 游戏退出后） */
 export async function refreshLibrary(): Promise<void> {
   const token = ++refreshSeq;
@@ -320,6 +367,17 @@ export async function refreshLibrary(): Promise<void> {
     throw e;
   }
   if (token !== refreshSeq) return; // 旧快照：不写 state、不重绘
+  // 后台缩略图回填只改封面路径：原地换图后直接返回，不重建卡片
+  const patched = applyThumbPatch(games);
+  if (patched) {
+    if (patched.length) {
+      for (const g of patched) refreshArt(g);
+      // 大海报用当前焦点那部的封面：正好补到它才刷新，否则会白闪一次入场动画
+      const focusId = sortedGames()[state.focus]?.id;
+      if (state.screen === 'library' && patched.some((g) => g.id === focusId)) scheduleHero();
+    }
+    return;
+  }
   state.games = games;
   // 刷新可能移除 / 隐藏已勾选的条目：先剔除失效 id。
   // 否则多选计数虚高，批量操作对着已不存在的条目调 IPC 直接报错并中断在半路。
@@ -338,9 +396,13 @@ export async function refreshLibrary(): Promise<void> {
 /** 详情入口序号：等待背景解码期间用户又点了别的作品时，旧的那次切屏作废 */
 let openSeq = 0;
 
-export function openDetail(id: string): void {
+export function openDetail(id: string, fromSearch = false): void {
   const prev = state.detailId;
   state.detailId = id;
+  // 记下来处：网格 / 设置 / 文件进详情后，B 回原屏而不是一律回轨道。
+  // 已经在详情里切版本时不覆盖，避免把来处改写成 detail。
+  if (state.screen !== 'detail') state.detailFrom = state.screen;
+  state.detailFromSearch = fromSearch;
   const seq = ++openSeq;
   const enter = (): void => {
     if (seq !== openSeq) return;
@@ -724,14 +786,12 @@ export function initLibrary(): void {
     }
   });
 
-  // 多选（三套布局共用 multi.ts）：批量完成后由回调刷新库；多选态变化时重绘当前布局并补勾选标记
+  // 多选（三套布局共用 multi.ts）：批量完成后由回调刷新库；多选态变化只补勾选标记
   setMultiRefresh(refreshLibrary);
   window.addEventListener('multi-change', () => {
     refreshPadHints(); // 底栏从「多选（Select）」切到「批量操作（X）」
-    // 网格屏切多选时不重绘轨道：勾选标记由 multi.markSel 全局同步，回库屏时依然正确
-    if (state.screen !== 'library') return;
-    renderRail();
-    if (state.gridMulti) markSel();
+    // 勾选标记由 multi.markSel 全局同步；轨道整卡重建只会白解码一遍封面、还丢滚动位置
+    if (state.screen === 'library') markSel();
   });
   document.getElementById('lselExit')?.addEventListener('click', () => setMulti(false));
   document.getElementById('lselAct')?.addEventListener('click', () => {

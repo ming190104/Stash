@@ -22,7 +22,12 @@ pub async fn get_library(app: AppHandle, store: State<'_, Store>) -> Result<Vec<
     // 同步命令会让主线程卡住，这里挪到阻塞线程池
     let st = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let mut games = st.load_library();
+        // 读也取库锁：保存的瞬间主文件会被 rename 到 .bak、新文件尚未落位，
+        // 无锁读有几率拿到上一代库（收藏/时长显示短暂回退）。
+        let mut games = {
+            let _lock = store::lock_library();
+            st.load_library()
+        };
         // 缩略图是可再生的缓存文件。清过缓存目录 / 杀软清理 / 迁移过用户目录后，
         // 库里记着的路径可能已经不存在——继续交给前端只会让卡片停在深色底，
         // 这里直接丢掉该字段，前端退回原封面（下次更换封面时会重新生成）。
@@ -68,6 +73,9 @@ pub async fn add_game(
         .parent()
         .map(|p| p.to_path_buf())
         .ok_or_else(|| AppError::new(ErrCode::NotFound, "无法确定游戏目录"))?;
+    // 入库是启动链的入口：在这里拦住「目录外的 exe / 系统脚本宿主」，
+    // 否则一次「拖入 cmd.exe」就能把任意命令写进库、之后一点即执行。
+    crate::guard_game_exe(&exe_path, &dir)?;
     let dir_s = dir.to_string_lossy().to_string();
     let id = crate::store::stable_id(&dir_s);
     let store2 = store.inner().clone();

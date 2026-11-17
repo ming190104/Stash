@@ -164,7 +164,7 @@ export function renderSearch(): void {
       cancelSearchRender();
       hideStates();
       const id = el.dataset.id!;
-      void import('./screens/library').then((m) => m.openDetail(id));
+      void import('./screens/library').then((m) => m.openDetail(id, true));
     });
   });
   box.querySelectorAll<HTMLElement>('.sp-hchip').forEach((el) => {
@@ -210,13 +210,15 @@ export function sortStep(dir: number): void {
   document.querySelectorAll('#spSort b').forEach((b, i) => b.classList.toggle('focus', i === next));
 }
 
-export function openSearch(): void {
+export function openSearch(keepQuery = false): void {
   cancelSearchRender();
   // 面板重新打开时强制重建列表：期间 DOM 可能已被别的屏重建
   lastSig = '';
-  state.query = '';
   const inp = document.getElementById('spInput') as HTMLInputElement | null;
-  if (inp) inp.value = '';
+  if (!keepQuery) {
+    state.query = '';
+    if (inp) inp.value = '';
+  }
   renderSortSeg();
   // 上次用手柄 ←/→ 留在排序档上的焦点环要清掉：面板关了它不会自己消失，
   // 重新打开时输入框已聚焦，旧环会让人误以为焦点还在排序行
@@ -287,6 +289,15 @@ export function searchFieldKey(e: KeyboardEvent): boolean {
   } else if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
     selectResult(e.code === 'ArrowDown' ? 1 : -1);
     e.preventDefault();
+  } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+    // 空查询时输入框里没有可移动的光标位置：把方向键还给网格（同时收起面板），
+    // 否则「打开搜索 → 想回网格」只剩 Esc 一条路。有文字时仍交给输入框移动光标。
+    const inp = e.target as HTMLInputElement;
+    if (!inp.value) {
+      cancelSearchRender();
+      hideStates();
+      return false; // 不 preventDefault：让底层的网格 / 轨道处理这一下方向键
+    }
   }
   return true; // 输入期间其余按键一律不触发全局快捷键（防 a / b / x / r 误触）
 }

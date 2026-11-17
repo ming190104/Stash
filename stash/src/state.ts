@@ -44,6 +44,10 @@ export const state = {
   viewName: null as string | null,
   /** 详情页对应的游戏 id */
   detailId: null as string | null,
+  /** 进入详情前所在的屏幕：B 返回来处（轨道 / 网格 / 设置 / 文件） */
+  detailFrom: 'library' as Screen,
+  /** 是否从搜索面板进详情：返回时重开搜索面板并保留关键词 */
+  detailFromSearch: false,
   /** 运行中的游戏 id */
   running: null as string | null,
   /** 手柄布局：决定键帽显示 A/B/X/Y 还是 ✕/○/□/△ 或 B/A/Y/X */
@@ -187,14 +191,25 @@ export function focusedGame(): Game | null {
   return list[state.focus] ?? list[0] ?? null;
 }
 
+/** 版本键缓存：签名含全部来源字段，原地改标题 / 改绑 Bangumi 后自动失效。
+ *  归一化要跑 normalize + 正则，卡片角标与详情切版本都问同一个键，不该每次重算。 */
+const VER_KEY = new WeakMap<Game, { sig: string; key: string }>();
+
 /** 版本归并键：优先 Bangumi 条目，退回归一化标题（去分隔符 / 大小写 / 全半角）。
  *  汉化版与生肉通常同目录名，靠标题即可并到一起。 */
 function versionKey(g: Game): string {
-  if (g.bangumiId != null) return `b:${g.bangumiId}`;
-  return `t:${(g.titleOriginal || g.title)
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[\s\-_·・:：,，.。!！?？'"“”‘’()（）[\]【】<>《》~～*＊/\\|]+/g, '')}`;
+  const sig = `${g.bangumiId ?? ''}\u0001${g.titleOriginal}\u0001${g.title}`;
+  const hit = VER_KEY.get(g);
+  if (hit && hit.sig === sig) return hit.key;
+  const key =
+    g.bangumiId != null
+      ? `b:${g.bangumiId}`
+      : `t:${(g.titleOriginal || g.title)
+          .normalize('NFKC')
+          .toLowerCase()
+          .replace(/[\s\-_·・:：,，.。!！?？'"“”‘’()（）[\]【】<>《》~～*＊/\\|]+/g, '')}`;
+  VER_KEY.set(g, { sig, key });
+  return key;
 }
 
 /** 同一部作品的其它版本（不含自己）。轨道只用来打「+N 版」角标，详情页用来切版本。
@@ -202,6 +217,24 @@ function versionKey(g: Game): string {
 export function versionGroup(g: Game): Game[] {
   const k = versionKey(g);
   return state.games.filter((x) => x.id !== g.id && !x.hidden && versionKey(x) === k);
+}
+
+/** 可见作品的版本键计数：一次遍历建好，供同一次渲染里的所有卡片复用。
+ *  逐卡调 versionGroup 是「卡片数 × 全库过滤」，大库重建时就是 O(N²)。 */
+export function versionCounts(): Map<string, number> {
+  const n = new Map<string, number>();
+  for (const g of state.games) {
+    if (g.hidden) continue;
+    const k = versionKey(g);
+    n.set(k, (n.get(k) ?? 0) + 1);
+  }
+  return n;
+}
+
+/** 同一部作品的其它可见版本数（不含自己）：counts 来自 versionCounts() */
+export function versionOthers(g: Game, counts: Map<string, number>): number {
+  const c = counts.get(versionKey(g)) ?? 0;
+  return g.hidden ? c : Math.max(0, c - 1);
 }
 
 /** 供 fps.ts 标记交互时间戳（触发 Auto 阶梯回升） */

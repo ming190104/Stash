@@ -233,10 +233,10 @@ export function initGrid(): void {
     void openBatch();
   });
 
-  // 多选态变化（含库屏 / 批量完成）：网格重建并把操作条与勾选标记同步到位
+  // 多选态变化（含库屏 / 批量完成）：只同步操作条与勾选标记。
+  // 旧实现整块重建网格——进 / 出多选时把上千张卡全部重新插入并重新解码封面，
+  // 还会把滚动位置与焦点环一起冲掉；勾选态本来就能靠 .sel 类原地切换。
   window.addEventListener('multi-change', () => {
-    // 只在网格屏重建；库屏切换多选时只同步操作条与勾选标记（markSel 覆盖三套布局）
-    if (state.screen === 'grid') buildGrid();
     syncMultiUI();
   });
 

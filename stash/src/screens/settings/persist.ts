@@ -35,31 +35,48 @@ async function save(): Promise<void> {
   try {
     await updateSettings(next);
   } catch (e) {
-    await rollback();
+    await rollback(next);
     throw e;
   }
 }
 
 /** 失败回滚：主题 / 布局 / 排序 / 动效 / 字号 / 竖排 / 动画 / 音效都已即时生效，
- *  必须按磁盘值全部退回，否则会出现「显示已改、实际没存」。 */
-async function rollback(): Promise<void> {
-  const prev = state.settings;
-  const disk = await getSettings().catch(() => prev);
+ *  必须按磁盘值全部退回，否则会出现「显示已改、实际没存」。
+ *
+ *  只退「提交后用户没再动过」的字段：整份替换会把失败等待期间的新改动一起冲掉——
+ *  设置页连点几下（主题 → 音效 → 动效）时几乎必然出现这种情况，
+ *  用户看到的是自己刚选的选项被弹回上一次的磁盘值。 */
+async function rollback(submitted: Settings): Promise<void> {
+  const disk = await getSettings().catch(() => null);
   if (!disk) {
     rerender();
     return;
   }
-  state.settings = disk;
-  state.sortBy = disk.sort;
-  state.motion = disk.motion;
-  state.verticalTitle = disk.verticalTitle !== false;
-  applyTheme(disk.theme);
-  applyLayout(disk.layout);
-  applyMotion(disk.motion === 1);
-  applyFontScale(disk.fontScale);
-  applyAnimSpeed(disk.animSpeed);
-  applyBootAnim(disk.bootAnim);
-  applySoundSettings(disk);
+  const merged = JSON.parse(JSON.stringify(disk)) as Settings;
+  const cur = state.settings as Settings;
+  const newer = (k: keyof Settings): boolean =>
+    JSON.stringify(cur[k]) !== JSON.stringify(submitted[k]);
+  let dirty = false;
+  for (const k of Object.keys(submitted) as (keyof Settings)[]) {
+    // 内存里的值与提交快照不同 = 这是失败之后用户的新改动，留着等下一次提交
+    if (newer(k)) {
+      Reflect.set(merged, k, cur[k]);
+      dirty = true;
+    }
+  }
+  // 没有更新的改动：直接用磁盘对象本身（其余调用方按引用比较设置是否被换过）
+  state.settings = dirty ? merged : disk;
+  const eff = state.settings;
+  state.sortBy = eff.sort;
+  state.motion = eff.motion;
+  state.verticalTitle = eff.verticalTitle !== false;
+  applyTheme(eff.theme);
+  applyLayout(eff.layout);
+  applyMotion(eff.motion === 1);
+  applyFontScale(eff.fontScale);
+  applyAnimSpeed(eff.animSpeed);
+  applyBootAnim(eff.bootAnim);
+  applySoundSettings(eff);
   renderRail();
   renderGrid();
   rerender();

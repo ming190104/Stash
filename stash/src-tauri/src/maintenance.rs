@@ -574,9 +574,15 @@ pub async fn clean_storage(store: State<'_, Store>) -> Result<CleanOut, AppError
 
 pub fn clean_storage_sync(store: &Store) -> Result<CleanOut, AppError> {
     // 只在开始时取一次 id 集合，删除动作不持库锁：
-    // 宁可偶尔多删一张（可再生缓存），也不要卡住主线程的写命令
+    // 宁可偶尔多删一张（可再生缓存），也不要卡住主线程的写命令。
+    // 但「库读不出来」不能当成空库：那会把用户自选封面当孤儿删光。
+    let (games, loaded) = store.load_library_checked();
+    if !loaded && (store.library_path().exists() || store.library_bak_path().exists()) {
+        tracing::warn!("clean_storage: 库文件无法解析，跳过缓存清理以保护用户封面");
+        return Ok(CleanOut { freed_bytes: 0, cache_removed: 0 });
+    }
     let ids: std::collections::HashSet<String> =
-        store.load_library().iter().map(|g| g.id.clone()).collect();
+        games.into_iter().map(|g| g.id).collect();
     let mut out = CleanOut { freed_bytes: 0, cache_removed: 0 };
 
     for (dir, thumbs) in [(store.thumbs_dir(), true), (store.covers_dir(), false)] {

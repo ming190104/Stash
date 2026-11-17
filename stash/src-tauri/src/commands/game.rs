@@ -9,11 +9,21 @@ use tauri::{AppHandle, State};
 /// （最长 8 秒），会直接把整个界面冻住。
 #[tauri::command]
 pub async fn launch_game(app: AppHandle, store: State<'_, Store>, id: String) -> Result<(), AppError> {
-    let games = store.load_library();
+    // 读也取库锁：保存瞬间主文件正被 rename，无锁读可能拿到上一代库（拿到已被移除的条目）
+    let games = {
+        let _lock = crate::store::lock_library();
+        store.load_library()
+    };
     let game = games
         .into_iter()
         .find(|g| g.id == id)
         .ok_or_else(|| AppError::new(ErrCode::NotFound, "游戏不在库中（可能已移除）"))?;
+    // library.json 在用户目录下，手工改一行就能把 exe 换到任何位置；
+    // 启动前再校验一次「主程序仍在该作品目录内」，让篡改只换来一条报错。
+    crate::guard_game_exe(
+        std::path::Path::new(&game.exe),
+        std::path::Path::new(&game.dir),
+    )?;
     // 转区接管最长 8 秒：放在 tokio worker 上会占住其它 async 命令
     // （导入 / 代理 / 匹配），必须挪到阻塞线程池
     let st = store.inner().clone();
@@ -33,8 +43,13 @@ pub async fn running_game(store: State<'_, Store>) -> Result<Option<Game>, AppEr
     // 读整库 + 枚举进程都是阻塞操作：放主线程会冻界面（云同步盘尤其明显）
     let st = store.inner().clone();
     Ok(tauri::async_runtime::spawn_blocking(move || {
-        let id = launcher::running_id()?;
-        st.load_library().into_iter().find(|g| g.id == id)
+        launcher::running_id().and_then(|id| {
+            let games = {
+                let _lock = crate::store::lock_library();
+                st.load_library()
+            };
+            games.into_iter().find(|g| g.id == id)
+        })
     })
     .await
     .ok()

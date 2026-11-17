@@ -49,7 +49,9 @@ pub(crate) fn write_marker_to(
 ) -> Result<(), AppError> {
     let (w, h, bits, hz) = mode;
     let json = format!("{{\"w\":{w},\"h\":{h},\"bits\":{bits},\"hz\":{hz}}}");
-    std::fs::write(p, json).map_err(|e| {
+    // 必须原子写：写到一半断电 / 强杀会留下半截 JSON，
+    // 下次启动解析失败就只能清标记——用户被永久锁在 60Hz。
+    crate::store::save_atomic(p, &json).map_err(|e| {
         AppError::new(ErrCode::IoError, format!("写入刷新率还原标记失败：{e}"))
     })
 }
@@ -83,7 +85,9 @@ pub fn restore_pending() {
             clear_marker();
             return;
         };
-        if current_hz() == hz {
+        // 只比刷新率会误判：原来是 1920×1080@60，用户后来把分辨率改成 2560×1440@60，
+        // 这里会以为「已经还原过」而清掉标记，原模式就彻底丢了
+        if current_is(w, h, bits, hz) {
             // 已经是原模式（上次其实还原成功了）：只清标记
             clear_marker();
             return;
@@ -119,6 +123,19 @@ fn current_mode() -> Option<DEVMODEW> {
 #[cfg(windows)]
 fn current_hz() -> u32 {
     current_mode().map(|m| m.dmDisplayFrequency).unwrap_or(0)
+}
+
+/// 当前模式是否就是这四项（分辨率 + 色深 + 刷新率）
+#[cfg(windows)]
+fn current_is(w: u32, h: u32, bits: u32, hz: u32) -> bool {
+    current_mode()
+        .map(|m| {
+            m.dmPelsWidth == w
+                && m.dmPelsHeight == h
+                && m.dmBitsPerPel == bits
+                && m.dmDisplayFrequency == hz
+        })
+        .unwrap_or(false)
 }
 
 /// 在全部模式里找「指定分辨率 + 色深 + 刷新率」；找不到返回 None（绝不硬切）

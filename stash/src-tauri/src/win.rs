@@ -64,7 +64,8 @@ fn marker_path() -> Option<PathBuf> {
 #[cfg(windows)]
 fn write_marker(state: usize) {
     if let Some(p) = marker_path() {
-        if let Err(e) = std::fs::write(&p, format!("{{\"state\":{state}}}")) {
+        // 原子写：半截 JSON 和「没标记」一样会让下次启动不知道要还原什么
+        if let Err(e) = crate::store::save_atomic(&p, &format!("{{\"state\":{state}}}")) {
             tracing::warn!("全屏：写任务栏还原标记失败：{e}");
         }
     }
