@@ -126,4 +126,49 @@ describe('关于页 · 自动更新', () => {
     btn().click();
     await vi.waitFor(() => expect(H.openExternal).toHaveBeenCalledWith(RELEASES));
   });
+
+  it('下载中切换页签不重复发起、不关闭句柄', async () => {
+    // 下载挂起：先吐一次进度（让界面进入「下载中」），放行后才完成
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const u = fakeUpdate({
+      download: vi.fn(async (cb: (e: unknown) => void) => {
+        cb({ event: 'Started', data: { contentLength: 2_000_000 } });
+        cb({ event: 'Progress', data: { chunkLength: 500_000 } });
+        await gate;
+        cb({ event: 'Finished' });
+      }),
+    });
+    H.checkUpdate.mockResolvedValue(u);
+    await wire();
+
+    btn().click();
+    await vi.waitFor(() => expect(tip().textContent).toContain('1.3.0'));
+    btn().click();
+    await vi.waitFor(() => expect(tip().textContent).toContain('正在下载更新'));
+    expect(btn().textContent).toBe('更新中…');
+
+    // 模拟 ↑↓ 切页签：设置页重建 #sbody，关于页模板回到默认文案，wireAbout 重新接线
+    const { aboutHTML } = await import('../screens/settings-tabs/about');
+    document.body.innerHTML = aboutHTML();
+    expect(tip().textContent).toContain('从 GitHub 读取最新版本');
+    await wire();
+
+    // 重建后界面必须还原成真实状态，而不是模板默认值
+    expect(btn().textContent).toBe('更新中…');
+    expect(tip().textContent).toContain('正在下载更新');
+    expect(u.close).not.toHaveBeenCalled();
+
+    // 下载仍在进行：再点按钮不能起第二轮检查 / 下载
+    btn().click();
+    await Promise.resolve();
+    expect(H.checkUpdate).toHaveBeenCalledTimes(1);
+    expect(u.download).toHaveBeenCalledTimes(1);
+    expect(u.close).not.toHaveBeenCalled();
+
+    release();
+    await vi.waitFor(() => expect(H.relaunch).toHaveBeenCalled());
+    expect(u.install).toHaveBeenCalledTimes(1);
+    expect(u.close).not.toHaveBeenCalled();
+  });
 });

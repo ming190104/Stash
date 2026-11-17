@@ -20,11 +20,14 @@ function buildGrid(animate = false): void {
   if (!wrap) return;
   const list = gridList();
   const all = sortedGames();
+  // 一次建索引：每张卡都 all.indexOf(g) 是大库里的 O(n²)（1000 部 = 百万次比较）
+  const idx = new Map(all.map((g, i) => [g.id, i]));
   setRawHTML(
     wrap,
     list
     .map((g, i) => {
-      const gi = all.indexOf(g);
+      // data-g 仍是「轨道（sortedGames）里的位置」，点击回查 all[gi] 的语义不变
+      const gi = idx.get(g.id) ?? 0;
       const sub = [g.developer, g.year].filter(Boolean).join(' · ');
       const sel = state.gridSel.has(g.id);
       const delay = Math.min(i, 14) * 18;

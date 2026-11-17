@@ -72,6 +72,10 @@ let detailToken = 0;
 let lastArtKey: string | null = null;
 /** 本次进入详情页（由 openDetail 打标记）：只有「翻到详情」才播放卷轴展开，评星/改标签等局刷不动 */
 let enterFresh = false;
+/** 同名版本环：renderDetail 按「当前作品 + 其它版本」重建，← / → 用它定位，
+ *  否则每次都从 DOM 现取（已排除当前作品）算游标，索引恒为 0，多版本时方向会乱。 */
+let verRing: string[] = [];
+let verIdx = 0;
 
 /** 进入详情屏时调用：下一次 renderDetail 播放卷轴展开 */
 export function markDetailEnter(): void {
@@ -90,9 +94,12 @@ function invalidateDetailArt(): void {
  * 摘掉 / 挂回 `has-bg` 发生在同一次样式提交里，用户看不到过渡。 */
 function switchDetailGame(id: string): void {
   if (!id || id === state.detailId) return;
-  state.detailId = id;
+  const from = state.detailId;
+  // 解码期间先不动 detailId：这几百毫秒里详情屏仍是旧作品，
+  // A / R / 评分等入口按 detailId 取作品时不会出现「id 已是新的、DOM 还是旧的」错位。
   void prepareDetailBg(id).then(() => {
-    if (state.detailId !== id) return; // 等待期间又切走了：交给后来那次渲染
+    if (state.detailId !== from) return; // 等待期间又切去了别处：交给后来那次
+    state.detailId = id;
     void renderDetail();
   });
 }
@@ -128,6 +135,8 @@ export async function renderDetail(): Promise<void> {
   if (!kv || !cover || !info || !side) return;
   if (!g) {
     // 条目已被移除 / 隐藏：清掉上一部的残留，给出返回提示（否则整屏都是旧作品）
+    verRing = [];
+    verIdx = 0;
     clearHTML(kv);
     clearHTML(cover);
     lastArtKey = null;
@@ -158,6 +167,16 @@ export async function renderDetail(): Promise<void> {
   const endsDone = g.endings.filter((e) => e.done).length;
   // B7：同名/同 Bangumi 条目的其它版本（汉化 / 生肉），一格铺满 d-meta 底行
   const versions = versionGroup(g);
+  // 版本环：[当前作品, ...其它版本]。集合没变就只把游标对回当前作品；
+  // 变了（换了同组作品 / 版本增删）才重建，游标归零。顺序无关比较，去重后再比。
+  const want = [...new Set([state.detailId!, ...versions.map((v) => v.id)])];
+  const same = want.length === verRing.length && want.every((id) => verRing.includes(id));
+  if (!same) {
+    verRing = want;
+    verIdx = 0;
+  } else {
+    verIdx = Math.max(0, verRing.indexOf(state.detailId!));
+  }
   const rating = g.rating ?? 0;
   const stars = Array.from({ length: 5 }, (_, i) => `<span class="dstar${i < rating ? ' on' : ''}" data-star="${i + 1}">★</span>`).join('');
   const userTags = g.userTags ?? [];
@@ -647,17 +666,12 @@ export function initDetail(): void {
       ringFocus(els, detailIdx);
       return;
     }
-    // ← / →：同名版本之间切换（汉化 ↔ 生肉）。没有版本时不动，键盘与手柄同一套。
+    // ← / →：同名版本之间按环循环（汉化 → 生肉 → 汉化…）。没有版本时不动，键盘与手柄同一套。
     if (n.intent === 'move' && (n.dir === 'left' || n.dir === 'right')) {
-      const others = [...document.querySelectorAll<HTMLElement>('#dInfo .vchip')]
-        .map((el) => el.dataset.ver)
-        .filter((x): x is string => !!x);
-      if (!others.length || !state.detailId) return;
-      const ring = [state.detailId, ...others];
-      const cur = Math.max(0, ring.indexOf(state.detailId));
+      if (verRing.length < 2) return;
       const step = n.dir === 'right' ? 1 : -1;
-      const next = ring[(cur + step + ring.length) % ring.length];
-      switchDetailGame(next);
+      verIdx = (verIdx + step + verRing.length) % verRing.length;
+      switchDetailGame(verRing[verIdx]);
     }
   });
   // Y 结局标记 / R 收藏（keybar 声明的键位此前只在设计稿生效，实机补接）

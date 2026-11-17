@@ -56,11 +56,20 @@ export function healthHTML(r: HealthReport | null = healthReport): string {
     ${rows ? `<div class="pending">${rows}</div>` : `<div class="snap-empty">没有发现失效条目或重复项。</div>`}`;
 }
 
+/** 在途标记：连点「体检」时后一轮直接忽略，避免两轮互相覆盖 healthReport */
+let healthBusy = false;
+
 export async function runHealth(notify = true): Promise<void> {
-  healthReport = await libraryHealth();
-  rerender();
-  // 修复动作自己会 toast 结果；这里再弹会把它覆盖掉
-  if (notify) toast(`体检完成 · ${healthReport.issues.length} 条记录`);
+  if (healthBusy) return;
+  healthBusy = true;
+  try {
+    healthReport = await libraryHealth();
+    rerender();
+    // 修复动作自己会 toast 结果；这里再弹会把它覆盖掉
+    if (notify) toast(`体检完成 · ${healthReport.issues.length} 条记录`);
+  } finally {
+    healthBusy = false;
+  }
 }
 
 /** 库体检的修复动作：失效条目需输入「确认」二次确认；缓存可再生，直接清理 */

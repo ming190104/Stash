@@ -77,7 +77,7 @@ pub async fn remove_game(store: State<'_, Store>, id: String) -> Result<(), AppE
 
 fn remove_game_sync(store: &Store, id: &str) -> Result<(), AppError> {
     crate::check_id(id)?;
-    let (cover, thumb) = {
+    let (cover, thumb, still_used) = {
         let _lock = crate::store::lock_library();
         let mut games = store.load_library();
         let Some(pos) = games.iter().position(|g| g.id == id) else {
@@ -85,9 +85,21 @@ fn remove_game_sync(store: &Store, id: &str) -> Result<(), AppError> {
         };
         let g = games.remove(pos);
         store.save_library(&games)?;
-        (g.cover, g.thumb)
+        // 移除后仍被其它条目引用的封面 / 缩略图：同一张外部封面可能被两条记录共用，
+        // 导入时也可能收编成同名缓存——这些文件不能跟着这条记录一起删。
+        let still_used: std::collections::HashSet<String> = games
+            .iter()
+            .flat_map(|g| [g.cover.as_deref(), g.thumb.as_deref()])
+            .flatten()
+            .map(crate::store::normalize_dir)
+            .collect();
+        (g.cover, g.thumb, still_used)
     };
     for p in [cover, thumb].into_iter().flatten() {
+        if still_used.contains(&crate::store::normalize_dir(&p)) {
+            tracing::debug!("cache file still referenced by other games, keep: {p}");
+            continue;
+        }
         // 只删应用缓存目录**正下方**的文件：`starts_with` 是纯字面比较，
         // `covers\..\别处` 也能通过；这里消解 `..` 后再比对父目录。
         if let Some(pb) = cache_file(&store.covers_dir(), std::path::Path::new(&p))

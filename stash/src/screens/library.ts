@@ -48,9 +48,9 @@ let suppressClickUntil = 0;
 /** 已预热过的封面路径：避免每次拨动都重复建 Image 抢带宽 */
 const warmed = new Set<string>();
 
-/** 焦点两侧各 3 张提前解码：拨动轨道时不会先看到深色底再淡入 */
-function warmAhead(center: number): void {
-  const list = sortedGames();
+/** 焦点两侧各 3 张提前解码：拨动轨道时不会先看到深色底再淡入。
+ *  调用方在同一帧已排过序时把结果传进来，省掉一次全库排序。 */
+function warmAhead(center: number, list: Game[] = sortedGames()): void {
   // 路径换了新封面后旧键会一直占位；到上限整体重置，避免长期运行只增不减
   if (warmed.size > 512) warmed.clear();
   for (let d = -3; d <= 3; d++) {
@@ -169,7 +169,8 @@ export function isFreshEnter(prevCount: number, screen: Screen, listLength: numb
   return prevCount === 0 && screen === 'library' && listLength > 0;
 }
 
-function applyFocusCone(): void {
+/** 焦点锥：list 由调用方传入时复用同一帧已算好的排序结果（每次 sortedGames 都是全库排序） */
+function applyFocusCone(list: Game[] = sortedGames()): void {
   const mode = layoutMode();
   if (mode === 'wall') {
     applyWallFocus();
@@ -179,7 +180,6 @@ function applyFocusCone(): void {
     applyListFocus(true); // 键盘 / 手柄移动必须把焦点行滚进视口（列表约 6.3 行可见）
     return;
   }
-  const list = sortedGames();
   const n = list.length;
   const track = document.getElementById('railTrack');
   if (!track) return;
@@ -193,16 +193,18 @@ function applyFocusCone(): void {
 }
 
 export function setFocus(i: number, skipHero = false): void {
-  const n = sortedGames().length;
+  // 同一帧只排一次全库：窗口同步 / 焦点锥 / 封面预热共用这份列表
+  const list = sortedGames();
+  const n = list.length;
   if (n === 0) return;
   state.focus = Math.max(0, Math.min(n - 1, i));
   // 经典轨道：焦点离开已建窗口中心一段距离后，只替换进出窗口的卡片。
   // 窗口内已建好的卡原样保留，不会因为整轨重建而重新解码封面。
   if (layoutMode() === 'classic' && Math.abs(state.focus - railCenter) > WIN_STEP) {
-    syncRailWindow(sortedGames(), lastPlayedId());
+    syncRailWindow(list, lastPlayedId());
   }
-  applyFocusCone();
-  warmAhead(state.focus);
+  applyFocusCone(list);
+  warmAhead(state.focus, list);
   if (!skipHero) scheduleHero();
 }
 
@@ -288,16 +290,37 @@ export function updateCount(): void {
   if (w) w.textContent = t;
 }
 
+/** 刷新请求序号：并发刷新时旧快照后到不得覆盖新快照（批量导入 / 缩略图回填会撞车） */
+let refreshSeq = 0;
+/** 防抖定时器 id（0 = 空闲） */
+let refreshTimer = 0;
+
+/** 防抖刷新入口：后台缩略图连续完成时合并成一次全库 IPC + 重绘。
+ *  失败只打日志（调用方是后台事件，没有可交互的上下文）。 */
+export function scheduleLibraryRefresh(delay = 300): void {
+  if (refreshTimer) window.clearTimeout(refreshTimer);
+  refreshTimer = window.setTimeout(() => {
+    refreshTimer = 0;
+    void refreshLibrary().catch((e) => console.warn('[thumbs] 刷新库失败', e));
+  }, delay);
+}
+
 /** 库数据整体刷新（启动 / 添加作品 / 游戏退出后） */
 export async function refreshLibrary(): Promise<void> {
+  const token = ++refreshSeq;
+  let games: Game[];
   try {
-    state.games = await getLibrary();
+    games = await getLibrary();
   } catch (e) {
+    // 已被更新的刷新取代：这次失败不再打扰用户（避免连弹过期错误）
+    if (token !== refreshSeq) return;
     // 统一提示后继续抛出，让 await 本函数的调用方知道刷新并未成功
     console.error('[library] refresh failed', e);
     toast(`刷新库失败：${esc(String((e as { message?: string })?.message ?? e))}`, true);
     throw e;
   }
+  if (token !== refreshSeq) return; // 旧快照：不写 state、不重绘
+  state.games = games;
   // 刷新可能移除 / 隐藏已勾选的条目：先剔除失效 id。
   // 否则多选计数虚高，批量操作对着已不存在的条目调 IPC 直接报错并中断在半路。
   if (state.gridSel.size) {

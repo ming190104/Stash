@@ -106,3 +106,16 @@ html[data-theme="nerv"]{
   --accg:linear-gradient(135deg,#ff7a1a,#ffc24b);
   --glass:rgba(24,15,7,.7); --gline:rgba(255,122,26,.2);
 }
+/* REI / 零号机：白瓷 + 亮天蓝，绫波丽（浅色主题 · 结构与装甲在 eva-ui.css） */
+html[data-theme="rei"]{
+  --bg0:#f7fafc; --bg1:#e4edf5;
+  /* ink3 需 ≥4.5:1（白底小字）：α .44 只有 2.7:1，.64 约 4.6:1 */
+  --ink1:#13242f; --ink2:rgba(19,36,47,.7); --ink3:rgba(19,36,47,.64);
+  --acc:#4d86a8; --acc2:#a8cbe0; --acc-ink:#3b6b88; --acc-on:#0f1d27;
+  --accg:linear-gradient(135deg,#8fbfd8,#4d86a8);
+  --warn:#c8262f;
+  --glass:rgba(255,255,255,.76); --gline:rgba(19,36,47,.14);
+  /* 白底上 42% 透明只有 1.6:1，焦点环改用实色（acc 3.5:1 / acc-ink 6.3:1） */
+  --focus-ring:var(--acc);
+  --focus-ring-strong:var(--acc-ink);
+}

@@ -1,7 +1,7 @@
 //! settings / library 持久化：原子写 + 双副本恢复（总案 10.3）。
 //!
-//! library.json 是全应用唯一不可再生的数据（游玩记录），保存前先滚动 .bak，
-//! 读取顺序 library.json → .bak → 空库。
+//! library.json 是全应用唯一不可再生的数据（游玩记录），保存时先把新内容写进
+//! 临时文件并刷盘、再滚动 .bak、最后 rename 落位，读取顺序 library.json → .bak → 空库。
 
 use crate::models::{DetectedGame, Game, ScanReport, Settings};
 use std::fs;
@@ -248,22 +248,38 @@ impl Store {
     }
 
     pub fn save_library(&self, games: &[Game]) -> std::io::Result<()> {
-        // 滚动备份：现行 → .bak，再写新文件。
+        let main = self.library_path();
+        let json = serde_json::to_string_pretty(games)?;
+        // ① 先把新内容完整写进临时文件并刷盘。主文件在这期间始终可用，
+        // 并发读取不会撞上「主文件已被 rename 走、新文件还没落位」的空窗。
+        let tmp = write_tmp(&main, &json)?;
+        // ② 滚动备份：现行 → .bak。
         // 只有现行文件**能被解析**时才滚动：library.json 损坏时把它覆盖到 .bak，
         // 等于把唯一还能恢复的副本也毁掉（load_library 的二级兜底从此失效）。
         // 用 rename 而不是 copy：同卷 rename 只改元数据，省掉一次全量读 + 全量写。
-        if self.library_path().exists() {
-            let current_ok = fs::read_to_string(self.library_path())
+        if main.exists() {
+            let current_ok = fs::read_to_string(&main)
                 .ok()
                 .and_then(|s| serde_json::from_str::<Vec<Game>>(&s).ok())
                 .is_some();
             if current_ok {
-                let _ = fs::rename(self.library_path(), self.library_bak_path());
+                if let Err(e) = fs::rename(&main, self.library_bak_path()) {
+                    // 滚动失败就别再动主文件：至少还能保住现行这一代
+                    let _ = fs::remove_file(&tmp);
+                    return Err(e);
+                }
             } else {
                 tracing::warn!("library.json 无法解析，跳过 .bak 滚动以保住可恢复副本");
             }
         }
-        save_atomic(&self.library_path(), &serde_json::to_string_pretty(games)?)
+        // ③ 临时文件 → 主文件。失败时 .bak 仍在，load_library 的二级兜底能恢复。
+        match rename_with_retry(&tmp, &main) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                let _ = fs::remove_file(&tmp);
+                Err(e)
+            }
+        }
     }
 }
 
@@ -276,6 +292,22 @@ static TMP_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new
 /// 只 rename 不 fsync 的话，断电后可能「元数据先落盘、数据没落盘」，
 /// 留下 0 字节 / 截断的 JSON —— 正是这个函数要避免的情况。
 pub fn save_atomic(path: &Path, json: &str) -> std::io::Result<()> {
+    let tmp = write_tmp(path, json)?;
+    match rename_with_retry(&tmp, path) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // 重试后仍失败：把临时文件带走，不留垃圾
+            let _ = fs::remove_file(&tmp);
+            Err(e)
+        }
+    }
+}
+
+/// 写临时文件并刷盘，返回临时文件路径；任一步失败都删掉半成品再报错。
+///
+/// 临时名带 pid + 原子序号：固定 `.json.tmp` 在两个入口同时写同一文件时会互相截断，
+/// rename 后可能落下一份「两条 JSON 拼在一起」的坏文件。
+fn write_tmp(path: &Path, json: &str) -> std::io::Result<PathBuf> {
     use std::io::Write;
     let seq = TMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let name = path
@@ -300,12 +332,16 @@ pub fn save_atomic(path: &Path, json: &str) -> std::io::Result<()> {
         return Err(e);
     }
     drop(f);
-    // Windows 上杀软扫描 / 另一个实例短暂持有目标文件时 rename 会报「拒绝访问」。
-    // 这类占用通常几十毫秒内就释放，重试两次能过掉绝大多数瞬时失败；
-    // 仍失败才把临时文件带走并报错（调用方有的会重试 / 提示，绝不能当成写成功）。
+    Ok(tmp)
+}
+
+/// rename 重试：Windows 上杀软扫描 / 另一个实例短暂持有目标文件时会报「拒绝访问」。
+/// 这类占用通常几十毫秒内就释放，重试两次能过掉绝大多数瞬时失败；
+/// 仍失败则原样返回错误，由调用方决定清理临时文件 / 提示（绝不能当成写成功）。
+fn rename_with_retry(from: &Path, to: &Path) -> std::io::Result<()> {
     let mut last: Option<std::io::Error> = None;
     for attempt in 0..3 {
-        match fs::rename(&tmp, path) {
+        match fs::rename(from, to) {
             Ok(()) => return Ok(()),
             Err(e) => {
                 last = Some(e);
@@ -315,8 +351,6 @@ pub fn save_atomic(path: &Path, json: &str) -> std::io::Result<()> {
             }
         }
     }
-    // 重试后仍失败：把临时文件带走，不留垃圾
-    let _ = fs::remove_file(&tmp);
     Err(last.unwrap_or_else(|| std::io::Error::other("rename failed")))
 }
 
@@ -729,6 +763,57 @@ mod tests {
                     .starts_with("library.json.corrupt-")
             });
         assert!(quarantined, "应留下 library.json.corrupt-* 现场");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// save_library 成功后主文件必须是完整可解析的新内容，.bak 保留上一代 ——
+    /// 这正是「先写 tmp、再滚动 .bak、最后 rename」的顺序要保证的
+    #[test]
+    fn save_library_rolls_previous_generation_into_bak() {
+        let dir = std::env::temp_dir().join(format!("stash-roll-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = Store { dir: dir.clone() };
+        let (mut games, _) = merge_games(&[], vec![detected("D:/games/GEN")]);
+
+        games[0].play_seconds = 10;
+        store.save_library(&games).unwrap();
+        assert!(!store.library_bak_path().exists(), "第一代没有上一代可滚动");
+
+        games[0].play_seconds = 20;
+        store.save_library(&games).unwrap();
+        let main: Vec<Game> =
+            serde_json::from_str(&std::fs::read_to_string(store.library_path()).unwrap())
+                .expect("主文件必须完整可解析");
+        let bak: Vec<Game> =
+            serde_json::from_str(&std::fs::read_to_string(store.library_bak_path()).unwrap())
+                .expect(".bak 必须完整可解析");
+        assert_eq!(main[0].play_seconds, 20, "主文件是新内容");
+        assert_eq!(bak[0].play_seconds, 10, ".bak 是上一代内容");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 主文件损坏时 save_library 跳过 .bak 滚动：坏文件不能把唯一可恢复的副本顶掉
+    #[test]
+    fn save_library_keeps_bak_when_main_unparseable() {
+        let dir = std::env::temp_dir().join(format!("stash-roll-bad-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = Store { dir: dir.clone() };
+        std::fs::write(store.library_path(), "{ not json").unwrap();
+        std::fs::write(store.library_bak_path(), "[]").unwrap();
+
+        let (games, _) = merge_games(&[], vec![detected("D:/games/NEW")]);
+        store.save_library(&games).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(store.library_bak_path()).unwrap(),
+            "[]",
+            "坏主文件不能覆盖 .bak"
+        );
+        assert_eq!(store.load_library().len(), 1, "新内容仍要写入主文件");
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 

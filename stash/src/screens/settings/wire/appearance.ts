@@ -2,7 +2,7 @@
 
 import type { LayoutName, ThemeName } from '../../../types';
 import { state } from '../../../state';
-import { toast, esc, applyTheme, applyLayout, applyMotion, applyFontScale, normalizeFontScale, applyAnimSpeed, applyBootAnim, normalizeBootAnim } from '../../../ui';
+import { toast, esc, applyTheme, applyLayout, applyMotion, applyFontScale, normalizeFontScale, applyAnimSpeed, applyBootAnim, normalizeBootAnim, bootForTheme, themeForBoot } from '../../../ui';
 import { previewBootAnim } from '../../../splash';
 import { applySoundSettings, sfx } from '../../../sfx';
 import { openMenu } from '../../../quick';
@@ -23,16 +23,29 @@ export function wireAppearance(body: HTMLElement): void {
       THEME_OPTS.map((t) => ({
         key: t.v,
         label: t.label,
-        hint: t.v === cur ? '当前' : undefined,
+        hint: t.v === cur ? '当前' : bootForTheme(t.v) ? '启动动画随主题' : undefined,
         run: async () => {
           if (!state.settings) return;
           state.settings.theme = t.v;
           applyTheme(t.v);
+          // EVA 主题与起动序列绑定：换成哪台机体就用同一台的开机动画。
+          // 「关闭」是用户明确选择，不被主题覆盖；退回普通主题时把仍在 EVA 档的动画收回流光跃迁。
+          let note = '';
+          const bound = bootForTheme(t.v);
+          if (bound && normalizeBootAnim(state.settings.bootAnim) !== 'off') {
+            const v = applyBootAnim(bound);
+            state.settings.bootAnim = v;
+            note = ` · 启动动画 ${BOOT_LABEL[v]}`;
+          } else if (!bound && themeForBoot(normalizeBootAnim(state.settings.bootAnim))) {
+            const v = applyBootAnim('warp');
+            state.settings.bootAnim = v;
+            note = ' · 启动动画回到流光跃迁';
+          }
           // 先落盘再报成功：persist() 失败时已按磁盘值把主题回滚，
           // 此时再弹「主题 · 樱夜」会让人以为切换成功了
           try {
             await persist();
-            toast(`主题 · ${THEME_LABEL[t.v]}`);
+            toast(`主题 · ${THEME_LABEL[t.v]}${note}`);
           } catch (err) {
             toast(esc(String((err as { message?: string })?.message ?? err)), true);
           }
@@ -84,16 +97,24 @@ export function wireAppearance(body: HTMLElement): void {
       BOOT_OPTS.map((m) => ({
         key: m.v,
         label: m.label,
-        hint: m.v === cur ? '当前' : undefined,
+        hint: m.v === cur ? '当前' : themeForBoot(m.v) ? '主题随动画' : undefined,
         run: async () => {
           if (!state.settings) return;
           const v = applyBootAnim(m.v);
           state.settings.bootAnim = v;
+          // 反向绑定：选了哪台机体的起动序列，界面主题也切到同一台
+          let note = '';
+          const boundTheme = themeForBoot(v);
+          if (boundTheme && state.settings.theme !== boundTheme) {
+            state.settings.theme = boundTheme;
+            applyTheme(boundTheme);
+            note = ` · 主题 ${THEME_LABEL[boundTheme]}`;
+          }
           previewBootAnim(v);
           // 先落盘再报成功：persist() 失败时会按磁盘值回滚，此时不能再提示已切换
           try {
             await persist();
-            toast(`启动动画 · ${BOOT_LABEL[v]} · 下次启动生效`);
+            toast(`启动动画 · ${BOOT_LABEL[v]}${note} · 下次启动生效`);
           } catch (err) {
             toast(esc(String((err as { message?: string })?.message ?? err)), true);
           }

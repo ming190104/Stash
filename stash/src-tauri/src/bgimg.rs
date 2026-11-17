@@ -111,12 +111,21 @@ pub fn write_from_file(src: &std::path::Path, dst: &std::path::Path) -> Result<(
     write_prepared(prepare(&img), dst)
 }
 
+/// 临时文件名序号：只用 pid 命名时，同一进程内并发写同一个 dst 会互相截断，
+/// rename 后可能落下一份半截图。序号保证每次写的临时文件互不相同。
+static TMP_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 fn write_prepared(buf: image::RgbImage, dst: &std::path::Path) -> Result<(), String> {
     if let Some(dir) = dst.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     // 先写临时文件再改名：写到一半失败不会留下损坏的缓存
-    let tmp = dst.with_extension(format!("{}.tmp", std::process::id()));
+    let seq = TMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let name = dst
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "bg.jpg".into());
+    let tmp = dst.with_file_name(format!("{name}.{}-{seq}.tmp", std::process::id()));
     let fail = |e: String| {
         let _ = std::fs::remove_file(&tmp);
         e

@@ -2,7 +2,7 @@
  *  结构与 design/launch-eva.html 的舞台一致；三套配色只换机号与分身层，
  *  动画时间轴写在 styles/eva.css 里，音效写在 boot-sfx.ts 里。 */
 
-export type EvaPal = '01' | 'aska' | 'nerv';
+export type EvaPal = '01' | 'aska' | 'nerv' | '00';
 
 interface EvaUnit {
   unit: string;
@@ -15,7 +15,16 @@ const UNIT: Record<EvaPal, EvaUnit> = {
   '01': { unit: '初号機 起動準備', code: 'UNIT-01 / STANDBY', ghost: '01', children: 'FIRST CHILDREN' },
   aska: { unit: '弐号機 起動準備', code: 'UNIT-02 / STANDBY', ghost: '02', children: 'SECOND CHILDREN' },
   nerv: { unit: '初号機 起動準備', code: 'UNIT-01 / STANDBY', ghost: '01', children: 'FIRST CHILDREN' },
+  '00': { unit: '零号機 起動準備', code: 'UNIT-00 / STANDBY', ghost: '00', children: 'FIRST CHILDREN' },
 };
+
+/** 三贤者面板：零号机换成 LCL / 生体リンク / パターン（设计稿同款遥测） */
+function magiCols(ghost: string): string {
+  const cols: [string, string][] = ghost === '00'
+    ? [['LCL PRESSURE', '01'], ['BIO-LINK', '02'], ['PATTERN', '03']]
+    : [['MELCHIOR', '01'], ['BALTHASAR', '02'], ['CASPER', '03']];
+  return cols.map(([em, b]) => `<div class="col"><em>${em}</em><b>${b}</b><i></i></div>`).join('');
+}
 
 const STAGE = (u: EvaUnit): string => `
   <div class="ev-bg"></div>
@@ -62,9 +71,7 @@ const STAGE = (u: EvaUnit): string => `
   </div>
 
   <div class="ev-magi">
-    <div class="col"><em>MELCHIOR</em><b>01</b><i></i></div>
-    <div class="col"><em>BALTHASAR</em><b>02</b><i></i></div>
-    <div class="col"><em>CASPER</em><b>03</b><i></i></div>
+    ${magiCols(u.ghost)}
   </div>
 
   <div class="ev-side ev-side-l">
@@ -100,6 +107,10 @@ const STAGE = (u: EvaUnit): string => `
     <i class="ring"></i>
     <i class="ring2"></i>
   </div>
+  ${u.ghost === '00'
+    ? '<div class="ev-rteeth"></div><div class="ev-rcore"></div><div class="ev-rslit"></div>'
+      + '<div class="ev-rplate t"></div><div class="ev-rplate b"></div>'
+    : ''}
   <div class="ev-flash"></div>
 
   <div class="ev-word">

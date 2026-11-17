@@ -154,6 +154,7 @@ async function importPicked(): Promise<void> {
 
 async function removeRoot(root: string): Promise<void> {
   if (busy) return;
+  busy = true;
   try {
     await removeLibraryRoot(root);
     if (state.settings) {
@@ -164,6 +165,8 @@ async function removeRoot(root: string): Promise<void> {
     toast('已移除目录配置，已入库作品仍保留');
   } catch (e) {
     fail(e);
+  } finally {
+    busy = false;
   }
 }
 

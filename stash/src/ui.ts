@@ -17,7 +17,7 @@ const TOAST_SHOW_MS = 1800;
 /** 队列上限：极端连点不把提示排到十几秒后，超出丢最早的一条 */
 const TOAST_QUEUE_MAX = 5;
 
-const THEMES: ThemeName[] = ['cinema', 'oled', 'sakura', 'frost', 'amber', 'iris', 'moss', 'crimson', 'eva01', 'eva02', 'nerv'];
+const THEMES: ThemeName[] = ['cinema', 'oled', 'sakura', 'frost', 'amber', 'iris', 'moss', 'crimson', 'eva01', 'eva02', 'nerv', 'rei'];
 const LAYOUTS: LayoutName[] = ['classic', 'list', 'wall'];
 
 /** 应用主题：写 html[data-theme]，并缓存一份用于下次启动首帧（避免设置读盘前的闪色） */
@@ -62,7 +62,7 @@ export function normalizeAnimSpeed(v: number | undefined): number {
 }
 
 /** 冷启动动画档位：warp 流光跃迁 / 三档 EVA 起动序列 / off 关闭 */
-const BOOT_ANIMS: BootAnim[] = ['warp', 'eva01', 'eva02', 'evaNerv', 'off'];
+const BOOT_ANIMS: BootAnim[] = ['warp', 'eva01', 'eva02', 'evaNerv', 'eva00', 'off'];
 
 export function normalizeBootAnim(v: unknown): BootAnim {
   return (BOOT_ANIMS as unknown[]).includes(v) ? (v as BootAnim) : 'warp';
@@ -85,6 +85,25 @@ export function cachedBootAnim(): BootAnim {
   } catch {
     return 'warp';
   }
+}
+
+/** EVA 主题与 EVA 起动序列一一绑定：界面换成哪台机体，开机动画就是同一台。
+ *  否则会出现「NERV 界面 + 初号机启动」这种对不上的组合。 */
+const EVA_BIND: { theme: ThemeName; boot: BootAnim }[] = [
+  { theme: 'eva01', boot: 'eva01' },
+  { theme: 'eva02', boot: 'eva02' },
+  { theme: 'nerv', boot: 'evaNerv' },
+  { theme: 'rei', boot: 'eva00' },
+];
+
+/** 主题绑定的启动动画；非 EVA 主题返回 null */
+export function bootForTheme(theme: ThemeName): BootAnim | null {
+  return EVA_BIND.find((b) => b.theme === theme)?.boot ?? null;
+}
+
+/** 启动动画绑定的主题；warp / off 返回 null */
+export function themeForBoot(anim: BootAnim): ThemeName | null {
+  return EVA_BIND.find((b) => b.boot === anim)?.theme ?? null;
 }
 
 /** 记住速度，供下次冷启动在设置读盘前就能按同一速度播放。 */

@@ -7,13 +7,8 @@ import { html, setHTML, setRawHTML } from './html';
 import { promptConfirm, promptShown } from './prompt';
 import { warpToggle, warpBusy } from './splash';
 import { modalState, openSearch } from './overlay';
-import {
-  stopGame,
-  getSettings,
-  updateSettings,
-  setFullscreen,
-  TAURI,
-} from './ipc';
+import { persist } from './screens/settings/persist';
+import { stopGame, getSettings, setFullscreen, TAURI } from './ipc';
 
 export type MenuItem = {
   key: string;
@@ -119,10 +114,10 @@ function buildItems(): Item[] {
     run: async () => {
       // 转场进行中再来一次会排成反向切换（进入后 1.0s 又退出）：直接忽略
       if (warpBusy()) return;
-      const s = state.settings ?? (await getSettings());
-      const on = !s.fullscreen;
+      if (!state.settings) state.settings = await getSettings();
+      const on = !state.settings.fullscreen;
       // 先记目标状态，连点两次时第二次才能算出反向；换边藏在锁定闪光下完成
-      s.fullscreen = on;
+      state.settings.fullscreen = on;
       try {
         await warpToggle(
           async () => {
@@ -133,10 +128,11 @@ function buildItems(): Item[] {
           { dropIfBusy: true }
         );
       } catch (err) {
-        s.fullscreen = !on;
+        state.settings.fullscreen = !on;
         throw err;
       }
-      await updateSettings(s);
+      // 走统一落盘队列：直接整份写旧快照会覆盖期间在设置页改的其它字段
+      await persist();
       toast(`全屏 · ${on ? '开' : '关'}`);
     },
   });

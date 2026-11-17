@@ -696,7 +696,22 @@ pub async fn import_data(store: State<'_, Store>, path: String) -> Result<usize,
         .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
 }
 
+/// 备份文件上限：备份是纯 JSON，正常也就几 MB。超过这个量级一定是误选了大文件
+/// （或恶意构造），整读进内存会把进程打爆，所以先看 metadata 再决定读不读。
+const MAX_BACKUP_BYTES: u64 = 64 * 1024 * 1024;
+
 pub fn import_data_sync(store: &Store, path: &str) -> Result<usize, AppError> {
+    // metadata 失败按读写失败的常规路径透传（文件不存在 / 无权限等）
+    let len = std::fs::metadata(path)?.len();
+    if len > MAX_BACKUP_BYTES {
+        return Err(AppError::new(
+            ErrCode::ConfigInvalid,
+            format!(
+                "备份文件过大（{}MB，上限 64MB），已拒绝导入",
+                len / (1024 * 1024)
+            ),
+        ));
+    }
     let text = std::fs::read_to_string(path)?;
     let b: BackupBundle = serde_json::from_str(&text)
         .map_err(|e| AppError::new(ErrCode::ConfigInvalid, format!("备份文件无法解析：{e}")))?;
@@ -720,6 +735,34 @@ pub fn import_data_sync(store: &Store, path: &str) -> Result<usize, AppError> {
             // 越界路径；一律收编成本机缓存目录下的文件名，后续删除才敢直接删。
             g.cover = adopt_cache_name(store.covers_dir().as_path(), g.cover);
             g.thumb = adopt_cache_name(store.thumbs_dir().as_path(), g.thumb);
+            // exe 会被 launcher 原样 `Command::new`：外来备份可指向任意程序，
+            // 因此只接受「在 dir 之下」的主程序（含 `..` / 空值一律不可信）。
+            // 不整批拒绝：只把这一条标记待修复，其它合法条目照常导入。
+            let exe_ok = !g.exe.trim().is_empty()
+                && crate::commands::library::path_under(
+                    std::path::Path::new(&g.dir),
+                    std::path::Path::new(&g.exe),
+                );
+            if !exe_ok {
+                tracing::warn!(
+                    "import: 丢弃不可信主程序 exe={:?} dir={:?} title={:?}",
+                    g.exe,
+                    g.dir,
+                    g.title
+                );
+                g.exe = String::new();
+                g.pending = true;
+            }
+            // launch_args 也会原样追加到命令行：超长的主要是恶意 / 手改产物，
+            // 直接清空（游戏仍可正常启动），避免把命令行走廊塞满。
+            let args_len: usize = g.launch_args.iter().map(|a| a.chars().count()).sum();
+            if args_len > 1024 {
+                tracing::warn!(
+                    "import: 启动参数过长（{args_len} 字符），已清空 dir={:?}",
+                    g.dir
+                );
+                g.launch_args.clear();
+            }
             g
         })
         .collect::<Vec<_>>();
@@ -825,6 +868,59 @@ mod tests {
     }
 
     #[test]
+    fn import_drops_exe_outside_dir_and_marks_pending() {
+        let store = temp_store("exe-outside");
+        let game = Game {
+            dir: r"D:\Games\AIR".into(),
+            exe: r"D:\Windows\System32\cmd.exe".into(),
+            ..Default::default()
+        };
+        let backup = store.dir.join("backup.json");
+        std::fs::write(
+            &backup,
+            serde_json::to_string(&serde_json::json!({
+                "version": 1,
+                "settings": Settings::default(),
+                "library": [game],
+            })).unwrap(),
+        ).unwrap();
+
+        import_data_sync(&store, &backup.to_string_lossy()).unwrap();
+        let games = store.load_library();
+        // 越界 exe 只让该条目待修复，条目本身照常入库（不整批拒绝）
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0].exe, "", "越界 exe 必须被清空");
+        assert!(games[0].pending, "越界 exe 的条目必须标记待修复");
+        let _ = std::fs::remove_dir_all(&store.dir);
+    }
+
+    #[test]
+    fn import_keeps_exe_inside_dir() {
+        let store = temp_store("exe-inside");
+        let game = Game {
+            dir: r"D:\Games\AIR".into(),
+            exe: r"D:\Games\AIR\game.exe".into(),
+            ..Default::default()
+        };
+        let backup = store.dir.join("backup.json");
+        std::fs::write(
+            &backup,
+            serde_json::to_string(&serde_json::json!({
+                "version": 1,
+                "settings": Settings::default(),
+                "library": [game],
+            })).unwrap(),
+        ).unwrap();
+
+        // D:\Games\AIR 在本机不存在：path_under 词法判定即可通过，不能被误杀
+        import_data_sync(&store, &backup.to_string_lossy()).unwrap();
+        let games = store.load_library();
+        assert_eq!(games[0].exe, r"D:\Games\AIR\game.exe");
+        assert!(!games[0].pending);
+        let _ = std::fs::remove_dir_all(&store.dir);
+    }
+
+    #[test]
     fn fresh_tmp_is_not_reported_as_garbage() {
         let store = temp_store("tmp");
         let thumbs = store.thumbs_dir();
@@ -853,6 +949,26 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert_eq!(value["notice"], "已排除凭据，导入后需重填");
         let _ = std::fs::remove_file(&backup);
+        let _ = std::fs::remove_dir_all(&store.dir);
+    }
+
+    /// 回归：超大备份不整读进内存，直接拒绝，且库里已有数据不能被改动
+    #[test]
+    fn import_rejects_oversized_backup() {
+        let store = temp_store("oversized");
+        let seed = Game { dir: r"D:\Games\AIR".into(), title: "AIR".into(), ..Default::default() };
+        store.save_library(std::slice::from_ref(&seed)).unwrap();
+        let backup = store.dir.join("huge.json");
+        // 稀疏文件：只有逻辑大小超限，不真的占 64MB 内存 / 磁盘
+        let f = std::fs::File::create(&backup).unwrap();
+        f.set_len(64 * 1024 * 1024 + 1).unwrap();
+        drop(f);
+
+        let err = import_data_sync(&store, &backup.to_string_lossy()).unwrap_err();
+        assert_eq!(err.code, ErrCode::ConfigInvalid);
+        let games = store.load_library();
+        assert_eq!(games.len(), 1, "被拒绝的导入不能改动现有库");
+        assert_eq!(games[0].title, "AIR");
         let _ = std::fs::remove_dir_all(&store.dir);
     }
 

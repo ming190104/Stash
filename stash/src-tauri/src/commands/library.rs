@@ -392,7 +392,7 @@ fn preview_candidates(st: &Store, root: &Path) -> Vec<ScanCandidate> {
 /// normalize_dir 只统一分隔符 / 大小写 / 尾斜杠，不解析 `..`，所以
 /// `D:\Games\..\Other\x.exe` 仍会以 `d:\games\` 开头、骗过前缀比较。
 /// 这里先显式拒绝含父目录组件的路径，再做归一化比较。
-fn path_under(root: &Path, p: &Path) -> bool {
+pub(crate) fn path_under(root: &Path, p: &Path) -> bool {
     use std::path::Component;
     let has_parent = |path: &Path| path.components().any(|c| c == Component::ParentDir);
     if has_parent(root) || has_parent(p) {

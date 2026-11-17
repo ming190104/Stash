@@ -3,7 +3,7 @@
 import './app.css';
 import { state, setScreen, SORT_MODES } from './state';
 import { getLibrary, getSettings, onEvent, runningGame, TAURI, reportTiming, checkUpdate } from './ipc';
-import { initLibrary, renderRail, openDetail, updateEmpty, refreshLibrary } from './screens/library';
+import { initLibrary, renderRail, openDetail, updateEmpty, scheduleLibraryRefresh } from './screens/library';
 import { initGrid, renderGrid } from './screens/grid';
 import { initDetail } from './screens/detail';
 import { initSettings, renderSettings } from './screens/settings';
@@ -214,9 +214,10 @@ async function boot(): Promise<void> {
     toast('手柄映射鼠标被系统拒绝 · 请让游戏与应用以相同权限运行', true);
   });
 
-  // 后台缩略图完成 → 刷新（thumb 路径已落盘）
+  // 后台缩略图完成 → 防抖刷新（thumb 路径已落盘）
+  // 批量导入时 N 次 done 合并成一次全库 IPC + 重绘；失败只打日志（scheduleLibraryRefresh 内）
   void onEvent('thumbs://done', () => {
-    void refreshLibrary().catch((e) => console.warn('[thumbs] 刷新库失败', e));
+    scheduleLibraryRefresh();
   });
 
   // 缩放适配

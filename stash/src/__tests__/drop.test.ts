@@ -119,6 +119,24 @@ describe('拖入后入库', () => {
     expect(toastLog()).toContain('权限不足');
     expect(toastLog()).toContain('已添加《第二部》');
   });
+
+  it('并发 drop：第一轮未完成时第二轮直接放弃，不重复入库', async () => {
+    let release!: (v: { id: string; title: string; dir: string }) => void;
+    H.addGame.mockImplementationOnce(
+      () =>
+        new Promise<{ id: string; title: string; dir: string }>((res) => {
+          release = res;
+        }),
+    );
+    const first = importDropped(['D:\\VN\\A\\a.exe']);
+    const second = importDropped(['D:\\VN\\B\\b.exe']);
+    await expect(second).resolves.toBe(0);
+    expect(toastLog()).toContain('已有拖拽入库在进行中');
+    expect(H.addGame).toHaveBeenCalledTimes(1);
+    release({ id: 'a', title: 'A', dir: 'D:\\VN\\A' });
+    await expect(first).resolves.toBe(1);
+    expect(H.addGame).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('订阅兜底', () => {

@@ -161,6 +161,8 @@ fn client() -> Result<reqwest::blocking::Client, AppError> {
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(TOTAL_TIMEOUT)
         .no_proxy()
+        // 站点跳转同样来自远端：与主客户端一致，逐跳校验重定向目标
+        .redirect(crate::net::redirect_policy())
         .build()
         .map_err(|e| AppError::new(ErrCode::NetworkOffline, format!("鲲 Galgame 客户端失败：{e}")))
 }

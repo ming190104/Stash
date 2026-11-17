@@ -351,7 +351,7 @@ fn private_v4(v4: std::net::Ipv4Addr) -> bool {
 }
 
 /// 重定向逐跳校验：最多 5 跳，每一跳都过 `check_remote_url`。
-fn redirect_policy() -> Policy {
+pub(crate) fn redirect_policy() -> Policy {
     Policy::custom(|attempt| {
         if attempt.previous().len() >= 5 {
             return attempt.error("重定向次数过多");
@@ -435,6 +435,8 @@ fn bangumi_direct() -> Result<reqwest::blocking::Client, AppError> {
         .connect_timeout(BANGUMI_CONNECT)
         .timeout(TOTAL_TIMEOUT)
         .no_proxy()
+        // 直连客户端同样会跟随远端跳转：与主客户端保持一致，逐跳校验目标
+        .redirect(redirect_policy())
         .build()
         .map_err(|e| AppError::new(ErrCode::NetworkOffline, e.to_string()))
 }

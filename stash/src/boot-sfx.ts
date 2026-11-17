@@ -380,6 +380,13 @@ function evaScoreAska(c: AudioContext, out: AudioNode): void {
   evaClick(c, out, 4.72, 2400, 0.0045);
 }
 
+/** 零号机：与 NERV 同源的设施底噪，叠加一条更冷的下行正弦与高音点 */
+function evaScore00(c: AudioContext, out: AudioNode): void {
+  evaScoreNerv(c, out);
+  tone(c, out, { f0: 61.7, dur: 3, gain: 0.006, at: 0.3, attack: 0.9, release: 1, type: 'sine' });
+  tone(c, out, { f0: 1174, dur: 0.5, gain: 0.0045, at: 1.12, attack: 0.012, release: 0.4, type: 'sine' });
+}
+
 /** NERV · 设施：液压、绘图仪、扫描下行与声呐锁定；警告是广播两音 */
 function evaScoreNerv(c: AudioContext, out: AudioNode): void {
   evaHit(c, out, 0, 66, 38, 0.5, 0.06);
@@ -515,6 +522,7 @@ export function playBootSfx(motionMs: number, anim: BootAnim = 'warp'): void {
 
   if (anim === 'eva02') evaScoreAska(ctx, out);
   else if (anim === 'evaNerv') evaScoreNerv(ctx, out);
+  else if (anim === 'eva00') evaScore00(ctx, out);
   else evaScore01(ctx, out);
 }
 

@@ -37,11 +37,12 @@ describe('initSplash', () => {
     expect(document.querySelector('#warpSplash')).not.toBeNull();
   });
 
-  it('EVA 三档：按档建层、写配色与时长，换档整层重建', async () => {
+  it('EVA 四档：按档建层、写配色与时长，换档整层重建', async () => {
     const cases: Array<[BootAnim, string]> = [
       ['eva01', '01'],
       ['eva02', 'aska'],
       ['evaNerv', 'nerv'],
+      ['eva00', '00'],
     ];
     for (const [mode, pal] of cases) {
       previewBootAnim(mode);

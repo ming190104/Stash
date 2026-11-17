@@ -19,6 +19,7 @@ export const THEME_OPTS: { v: ThemeName; label: string }[] = [
   { v: 'eva01', label: 'EVA-01 · 初号机' },
   { v: 'eva02', label: 'EVA-02 · 明日香' },
   { v: 'nerv', label: 'NERV · MAGI' },
+  { v: 'rei', label: 'REI · 零号机' },
 ];
 export const THEME_LABEL: Record<ThemeName, string> = Object.fromEntries(
   THEME_OPTS.map((t) => [t.v, t.label]),
@@ -30,6 +31,7 @@ export const BOOT_OPTS: { v: BootAnim; label: string }[] = [
   { v: 'eva01', label: 'EVA-01 · 初号机' },
   { v: 'eva02', label: 'EVA-02 · 明日香' },
   { v: 'evaNerv', label: 'NERV · 设施' },
+  { v: 'eva00', label: 'EVA-00 · 零号机' },
   { v: 'off', label: '关闭' },
 ];
 export const BOOT_LABEL: Record<BootAnim, string> = Object.fromEntries(

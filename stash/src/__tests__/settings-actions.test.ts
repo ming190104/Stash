@@ -27,6 +27,7 @@ const H = vi.hoisted(() => ({
     network: { metadataEnabled: false },
   })),
   updateSettings: vi.fn(async (_s: unknown) => undefined),
+  setFullscreen: vi.fn(async (_on: boolean) => undefined),
   getLibrary: vi.fn(async (): Promise<unknown[]> => []),
   openAppDir: vi.fn(async (_k: string) => undefined),
   exportDiagnostics: vi.fn(async () => 'D:\\data\\diagnostics\\report.json'),
@@ -52,6 +53,7 @@ vi.mock('../ipc', async (importOriginal) => {
     importData: H.importData,
     getSettings: H.getSettings,
     updateSettings: H.updateSettings,
+    setFullscreen: H.setFullscreen,
     getLibrary: H.getLibrary,
     openAppDir: H.openAppDir,
     exportDiagnostics: H.exportDiagnostics,
@@ -91,6 +93,8 @@ vi.mock('../screens/settings/health', () => ({ runHealth: H.runHealth }));
 vi.mock('../screens/settings/ui', () => ({ rerender: vi.fn() }));
 
 import { addManualGame, sameDir, suggestTitle, wireActions } from '../screens/settings/actions';
+import { wirePerf } from '../screens/settings/wire/perf';
+import { sanitizeSettings } from '../ipc';
 
 const lastToast = (): string => String(H.toast.mock.calls[H.toast.mock.calls.length - 1]?.[0] ?? '');
 const toastLog = (): string => H.toast.mock.calls.map((c) => String(c[0])).join('｜');
@@ -110,6 +114,11 @@ beforeAll(() => {
     .map((a) => `<button data-act="${a}">${a}</button>`)
     .join('');
   wireActions(bar);
+  // 性能页签的全屏开关：单独挂一小块面板，避免引入整套设置渲染
+  const perfBody = document.createElement('div');
+  perfBody.innerHTML = '<button class="tg" id="tgFullMode"></button>';
+  document.getElementById('app')!.appendChild(perfBody);
+  wirePerf(perfBody);
 });
 
 beforeEach(() => {
@@ -316,5 +325,33 @@ describe('诊断与网络动作', () => {
     H.pickExeFile.mockRejectedValueOnce(new Error('对话框插件缺失'));
     press('addgame');
     await vi.waitFor(() => expect(lastToast()).toContain('对话框插件缺失'));
+  });
+});
+
+describe('性能页签 · 全屏开关', () => {
+  it('落盘失败时按钮 / 设置 / 窗口一起回退', async () => {
+    // 逻辑测试不等转场：直接按「减少动态效果」走，warpToggle 同步完成
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: true,
+      media: q,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    const base = sanitizeSettings({ fullscreen: false });
+    state.settings = { ...base };
+    // 落盘失败后 persist 按磁盘值回滚，这里让磁盘值也是「关闭」
+    H.getSettings.mockResolvedValueOnce({ ...base, fontScale: base.fontScale ?? 1 });
+    H.updateSettings.mockRejectedValueOnce(new Error('磁盘只读'));
+    H.setFullscreen.mockClear();
+
+    const btn = document.getElementById('tgFullMode') as HTMLButtonElement;
+    expect(btn.classList.contains('on')).toBe(false);
+    btn.click();
+
+    await vi.waitFor(() => expect(lastToast()).toContain('磁盘只读'));
+    expect(state.settings!.fullscreen).toBe(false);
+    expect(btn.classList.contains('on')).toBe(false);
+    // 先切到全屏，失败后再用反向值把窗口恢复回来
+    expect(H.setFullscreen.mock.calls.map((c) => c[0])).toEqual([true, false]);
   });
 });

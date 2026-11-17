@@ -113,14 +113,26 @@ export function flushSearchRender(): void {
 
 let lastSig = '';
 
+/** 空查询时最多渲染的行数：1000 部库打开搜索面板不该一次插入上千行 DOM。
+ *  有关键词时命中量通常可控，保持全量，避免「搜到了却翻不到」。 */
+const EMPTY_QUERY_CAP = 50;
+
 export function renderSearch(): void {
   const box = document.getElementById('spList');
   if (!box) return;
-  const list = searchList();
-  const hist = state.query.trim() ? [] : readHistory();
+  const all = searchList();
+  const querying = !!state.query.trim();
+  const list = querying ? all : all.slice(0, EMPTY_QUERY_CAP);
+  const hist = querying ? [] : readHistory();
   // 结果数量与 A 键语义都跟着结果变化：空结果时 A 不再是「打开」，而是「清除搜索」
   const count = document.getElementById('spCount');
-  if (count) count.textContent = state.query.trim() ? `${list.length} 部命中` : `全部 ${list.length} 部`;
+  if (count) {
+    count.textContent = querying
+      ? `${list.length} 部命中`
+      : all.length > EMPTY_QUERY_CAP
+        ? `全部 ${all.length} 部 · 显示前 ${EMPTY_QUERY_CAP}`
+        : `全部 ${all.length} 部`;
+  }
   const action = document.getElementById('spAHint');
   if (action) action.textContent = list.length ? '打开' : '清除';
   // 内容没变就只更新上方的计数，不整表重建：否则每次防抖都会重排 + 重新绑定 click，

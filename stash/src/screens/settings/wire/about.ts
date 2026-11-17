@@ -61,19 +61,32 @@ let pending: Update | null = null;
 let fallbackUrl: string | null = null;
 /** 下载 / 安装期间禁止重复触发 */
 let busy = false;
+/** 激活中的检查轮次：面板重建不会作废它，只有后发起的检查会作废前一轮的结果 */
+let checkSeq = 0;
+/** 最后写入的文案：面板重建后据此还原，避免下载中切页签把界面打回「检查」 */
+let tipText: string | null = null;
+let btnText: string | null = null;
 
 /** 更新失败时的手动下载页 */
 const RELEASES = 'https://github.com/zhao1171921108-cyber/Stash/releases';
 
 function setTip(t: string): void {
+  tipText = t;
   // 请求期间面板可能被重建（换页签 / 重渲染）：每次写入都重新取节点，拿不到就丢弃
   const el = document.getElementById('updTip');
   if (el) el.textContent = t;
 }
 
 function setBtn(t: string): void {
+  btnText = t;
   const el = document.getElementById('updBtn');
   if (el) el.textContent = t;
+}
+
+/** 关于页是否还在界面上：切到别的页签后异步结果不能再往抽屉外写 */
+function panelAlive(): boolean {
+  const el = document.getElementById('updTip');
+  return !!el && el.isConnected;
 }
 
 function mb(n: number): string {
@@ -93,15 +106,16 @@ async function runningTitle(): Promise<string | null> {
 
 /** 下载（带进度）→ 再确认一次没游戏在跑 → 安装并重启 */
 async function doInstall(u: Update): Promise<void> {
-  const running = await runningTitle();
-  if (running) {
-    setTip(`《${running}》正在运行：先退出游戏再更新`);
-    setBtn('重试');
-    return;
-  }
+  // 进入即占位：下载可能挂很久，期间任何入口（按钮 / 方向键重建面板后）都不能再起一轮
   busy = true;
-  setBtn('更新中…');
   try {
+    const running = await runningTitle();
+    if (running) {
+      setTip(`《${running}》正在运行：先退出游戏再更新`);
+      setBtn('重试');
+      return;
+    }
+    setBtn('更新中…');
     let total = 0;
     let got = 0;
     await u.download((ev) => {
@@ -135,6 +149,7 @@ async function doInstall(u: Update): Promise<void> {
     setTip(`更新失败：${String((e as { message?: string })?.message ?? e)}`);
     setBtn('重试');
   } finally {
+    // busy 是模块级状态，面板重建不会复位它：这里必须保证任何分支都放行更新入口
     busy = false;
   }
 }
@@ -153,10 +168,16 @@ async function runUpdateCheck(): Promise<void> {
     setTip('浏览器预览不检查更新');
     return;
   }
+  const token = ++checkSeq;
   setTip('正在检查…');
   setBtn('…');
   try {
     const u = await checkUpdate();
+    // 已有后发起的检查 / 用户已切走页签：这轮结果作废，别把旧版本号写进新面板
+    if (token !== checkSeq || !panelAlive()) {
+      if (u) void u.close();
+      return;
+    }
     if (u) {
       pending = u;
       setTip(`发现新版本 ${u.version}（当前 ${u.currentVersion}），点击更新会自动安装并重启`);
@@ -166,6 +187,7 @@ async function runUpdateCheck(): Promise<void> {
       setBtn('检查');
     }
   } catch (e) {
+    if (token !== checkSeq || !panelAlive()) return;
     // 国内网络常被拦、仓库也可能还没发 Release：留一个手动下载出口
     fallbackUrl = RELEASES;
     setTip(`${String((e as { message?: string })?.message ?? e)}（可到 Releases 手动下载）`);
@@ -176,10 +198,9 @@ async function runUpdateCheck(): Promise<void> {
 export function wireAbout(body: HTMLElement): void {
   // 关于 · 快捷键总览：手柄不再直接呼出，统一从设置里打开
   body.querySelector('#openHelpBtn')?.addEventListener('click', () => openHelp());
-  // 面板每次打开都是新节点：上一轮查到的版本句柄 / 兜底地址都不再对应当前界面
-  if (pending) void pending.close();
-  pending = null;
-  fallbackUrl = null;
-  busy = false;
+  // 面板每次打开都是新节点，但更新状态（待装句柄 / 兜底地址 / 进行中）是模块级的：
+  // 重建后只把最后写入的文案还原，不关句柄、不复位 busy，否则下载中切页签会中断安装
+  if (tipText !== null) setTip(tipText);
+  if (btnText !== null) setBtn(btnText);
   body.querySelector('#updBtn')?.addEventListener('click', () => void runUpdateCheck());
 }

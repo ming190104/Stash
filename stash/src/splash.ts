@@ -1,5 +1,5 @@
 /** 冷启动动画（设置 · 外观 → 启动动画）：
- *    warp = 流光跃迁 5.0s（默认）/ eva01·eva02·evaNerv = EVA 起动序列 5.0s / off = 关闭。
+ *    warp = 流光跃迁 5.0s（默认）/ eva01·eva02·evaNerv·eva00 = EVA 起动序列 5.0s / off = 关闭。
  *  全屏切换复用同一段完整动画，和冷启动共用同一个速度倍率与时长公式。
  *  视觉只用 transform / opacity；跃迁走主题令牌（各主题自动适配），
  *  EVA 自带三套机体配色（初号机 / 明日香 / NERV）。
@@ -23,11 +23,11 @@ const WARP_FLASH_AT = 0.6;
 /** EVA 的白闪峰值在 66.2%（1× = 3.31s） */
 const EVA_FLASH_AT = 0.662;
 
-type EvaBoot = 'eva01' | 'eva02' | 'evaNerv';
-const EVA_PAL: Record<EvaBoot, EvaPal> = { eva01: '01', eva02: 'aska', evaNerv: 'nerv' };
+type EvaBoot = 'eva01' | 'eva02' | 'evaNerv' | 'eva00';
+const EVA_PAL: Record<EvaBoot, EvaPal> = { eva01: '01', eva02: 'aska', evaNerv: 'nerv', eva00: '00' };
 
 function isEva(anim: BootAnim): anim is EvaBoot {
-  return anim === 'eva01' || anim === 'eva02' || anim === 'evaNerv';
+  return anim === 'eva01' || anim === 'eva02' || anim === 'evaNerv' || anim === 'eva00';
 }
 
 /** 冷启动时长下限按时长倍率换算：极端倍率下仍保留 1.1s 亮场。

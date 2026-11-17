@@ -11,7 +11,7 @@ const H = vi.hoisted(() => ({
   toast: vi.fn(),
   promptShown: vi.fn(() => false),
   stopGame: vi.fn(async (_id: string) => undefined),
-  getSettings: vi.fn(async () => ({ fullscreen: false })),
+  getSettings: vi.fn(async () => ({ fullscreen: false, theme: 'cinema' })),
   setFullscreen: vi.fn(async (_on: boolean) => undefined),
   updateSettings: vi.fn(async (_s: unknown) => undefined),
 }));
@@ -121,6 +121,21 @@ describe('条目构建与执行', () => {
     item('full')!.click();
     await vi.waitFor(() => expect(lastToast()).toContain('切换失败'));
     expect(quickShown()).toBe(false);
+  });
+
+  it('全屏走统一落盘队列：转场期间改的其它设置不会被旧快照覆盖', async () => {
+    H.updateSettings.mockClear();
+    // 转场尚未完成时，设置页并发改了主题（同一份 state.settings）
+    H.setFullscreen.mockImplementationOnce(async () => {
+      state.settings!.theme = 'oled';
+    });
+    await toggleQuickMenu();
+    item('full')!.click();
+    await vi.waitFor(() => expect(lastToast()).toContain('全屏 · 开'));
+    const calls = H.updateSettings.mock.calls;
+    const submitted = calls[calls.length - 1]?.[0] as { fullscreen: boolean; theme: string };
+    expect(submitted.fullscreen).toBe(true);
+    expect(submitted.theme).toBe('oled');
   });
 
   it('模态层打开时不叠加菜单', async () => {

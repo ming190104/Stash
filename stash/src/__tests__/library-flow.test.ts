@@ -66,6 +66,7 @@ import {
   openDetailFromRail,
   refreshLibrary,
   renderRail,
+  scheduleLibraryRefresh,
   setFocus,
   toggleFav,
   updateEmpty,
@@ -546,5 +547,53 @@ describe('网格渲染兜底', () => {
     renderGrid();
     expect(document.querySelectorAll('#gridCards .gcell').length).toBe(0);
     expect(document.getElementById('emptyState')!.classList.contains('show')).toBe(true);
+  });
+});
+
+describe('刷新防抖（B1）', () => {
+  it('连续 5 次 scheduleLibraryRefresh 只触发一次全库 IPC', async () => {
+    vi.useFakeTimers();
+    try {
+      H.getLibrary.mockClear();
+      for (let i = 0; i < 5; i++) scheduleLibraryRefresh();
+      expect(H.getLibrary).not.toHaveBeenCalled(); // 300ms 内都在攒着
+      await vi.advanceTimersByTimeAsync(300);
+      expect(H.getLibrary).toHaveBeenCalledTimes(1);
+      // 让这次刷新后面的重绘走完，避免残留微任务串到别的用例
+      await vi.advanceTimersByTimeAsync(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('网格索引（B6）', () => {
+  it('1000 部：单元格数量与首尾卡片的 data-g 索引正确', () => {
+    state.games = Array.from({ length: 1000 }, (_, i) => game(`g${i}`));
+    state.gridFilter = 'all';
+    state.screen = 'grid';
+    renderGrid();
+    const cells = document.querySelectorAll<HTMLElement>('#gridCards .gcell');
+    expect(cells.length).toBe(1000);
+    expect(cells[0].dataset.id).toBe('g0');
+    expect(cells[0].dataset.g).toBe('0');
+    expect(cells[999].dataset.id).toBe('g999');
+    expect(cells[999].dataset.g).toBe('999');
+    // 点击末尾卡片：焦点落到 999，回查的仍是 all[999]
+    cells[999].click();
+    expect(state.gridFocus).toBe(999);
+  });
+
+  it('筛选后的 data-g 仍是轨道位置（按 id 映射，不按筛选后下标）', () => {
+    state.games = Array.from({ length: 1000 }, (_, i) => game(`g${i}`));
+    state.games[999].favorite = true;
+    state.gridFilter = 'fav';
+    state.screen = 'grid';
+    renderGrid();
+    const cells = document.querySelectorAll<HTMLElement>('#gridCards .gcell');
+    expect(cells.length).toBe(1);
+    expect(cells[0].dataset.id).toBe('g999');
+    expect(cells[0].dataset.i).toBe('0'); // 筛选后第 0 个
+    expect(cells[0].dataset.g).toBe('999'); // 但轨道里是第 999 个
   });
 });

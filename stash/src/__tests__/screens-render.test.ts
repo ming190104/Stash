@@ -15,7 +15,8 @@ vi.mock('../ipc', () => ({
 
 import { activateCard, buildCard, buildSlot, initCard, launchFromCard, openCard, openFromCard } from '../screens/card';
 import { renderList, renderListPreview } from '../screens/list';
-import { fmtBytes, healthHTML } from '../screens/settings/health';
+import { fmtBytes, healthHTML, runHealth } from '../screens/settings/health';
+import { libraryHealth } from '../ipc';
 import type { CardActions } from '../screens/card';
 import type { HealthReport } from '../types';
 
@@ -160,5 +161,35 @@ describe('库体检 HTML', () => {
     expect(out).toContain('&lt;b&gt;失效&lt;/b&gt;'); // 标题被转义
     expect(out).toContain('失效目录'); // 已知 kind 走中文标签
     expect(out).toContain('x'.repeat(56) + '…'); // 详情截到 56 字
+  });
+
+  it('体检在途锁：上一轮未完成时重复调用直接返回', async () => {
+    const report: HealthReport = {
+      total: 0,
+      missingDirs: 0,
+      missingExes: 0,
+      duplicates: 0,
+      unknownEngines: 0,
+      missingCovers: 0,
+      orphanThumbs: 0,
+      orphanCovers: 0,
+      tmpLeftovers: 0,
+      issues: [],
+    };
+    let release!: (r: HealthReport) => void;
+    vi.mocked(libraryHealth)
+      .mockReset()
+      .mockImplementationOnce(
+        () =>
+          new Promise<HealthReport>((res) => {
+            release = res;
+          }),
+      );
+    const first = runHealth(false);
+    await expect(runHealth(false)).resolves.toBeUndefined();
+    expect(libraryHealth).toHaveBeenCalledTimes(1);
+    release(report);
+    await first;
+    expect(libraryHealth).toHaveBeenCalledTimes(1);
   });
 });

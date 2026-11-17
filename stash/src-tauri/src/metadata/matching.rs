@@ -3,6 +3,7 @@
 use crate::models::{AppError, ErrCode, Game};
 use crate::store::{self, Store};
 use crate::{egs, moegirl, net};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, State};
 
@@ -129,9 +130,13 @@ pub async fn match_all(app: AppHandle, store: State<'_, Store>, force: Option<bo
         let ids: Vec<String> = store.load_library().iter().map(|g| g.id.clone()).collect();
         let total = ids.len();
         let mut done = 0usize;
+        // 命中结果先攒着，每 FLUSH_BATCH 条才落盘一次：避免 1000 部作品产生
+        // 1000 次整库 JSON 写。锁内重新 load，所以并发期间对别的作品的修改不会被覆盖。
+        let mut pending: Vec<(String, Option<MatchHit>, bool)> = Vec::new();
 
-        for id in ids {
+        for chunk in ids.chunks(FLUSH_BATCH) {
             if MATCH_CANCEL.load(Ordering::Relaxed) {
+                flush_hits(&store, &mut pending);
                 let _ = app.emit(
                     "match://done",
                     serde_json::json!({ "total": total, "done": done, "cancelled": true }),
@@ -139,41 +144,94 @@ pub async fn match_all(app: AppHandle, store: State<'_, Store>, force: Option<bo
                 tracing::info!("match cancelled at {done}/{total}");
                 return;
             }
-            // ① 取快照判断要不要跑（不持锁）
-            let Some(snap) = store.load_library().into_iter().find(|g| g.id == id) else {
-                continue;
-            };
-            // 已确认的绑定不重复匹配：Bangumi 有正式条目 id；萌娘百科命中只写 match_score
-            // （不写条目 id），漏掉它会让每次「开始匹配」都把这批作品重搜一遍、
-            // 重下一遍封面——1req/s 下整轮白等；待确认（pending）的仍要重试
-            if !needs_match(&snap, force) {
-                done += 1;
-                continue;
-            }
+            // ① 批次开头读一次库：本轮 20 部共用同一份快照，省掉每部一次整库解析
+            let lib = store.load_library();
+            let index: HashMap<String, usize> =
+                lib.iter().enumerate().map(|(i, g)| (g.id.clone(), i)).collect();
 
-            // ② 锁外：搜索 / 打分 / 补标签 / 下封面（可能耗时数秒）
-            match resolve_hit(&store, &snap) {
-                Ok(hit) => {
-                    // ③ 锁内：回写「此刻最新」的记录，不覆盖这期间的其它改动
-                    let tier = write_hit_locked(&store, &id, hit.as_ref(), force);
+            for id in chunk {
+                if MATCH_CANCEL.load(Ordering::Relaxed) {
+                    flush_hits(&store, &mut pending);
                     let _ = app.emit(
-                        "match://progress",
-                        serde_json::json!({ "done": done + 1, "total": total, "id": id, "tier": tier }),
+                        "match://done",
+                        serde_json::json!({ "total": total, "done": done, "cancelled": true }),
                     );
+                    tracing::info!("match cancelled at {done}/{total}");
+                    return;
                 }
-                Err(e) => {
-                    tracing::warn!("match failed {id}: {}", e.message);
-                    // 网络类错误不中断整批：单部失败继续下一部；限流也要让用户看见
-                    if matches!(e.code, ErrCode::NetworkOffline | ErrCode::RateLimited) {
-                        let _ = app.emit("match://error", &e);
+                // 取快照判断要不要跑（不持锁）；匹配期间被移出库的跳过
+                let Some(snap) = index.get(id).map(|&i| lib[i].clone()) else {
+                    continue;
+                };
+                // 已确认的绑定不重复匹配：Bangumi 有正式条目 id；萌娘百科命中只写 match_score
+                // （不写条目 id），漏掉它会让每次「开始匹配」都把这批作品重搜一遍、
+                // 重下一遍封面——1req/s 下整轮白等；待确认（pending）的仍要重试
+                if !needs_match(&snap, force) {
+                    done += 1;
+                    continue;
+                }
+
+                // ② 锁外：搜索 / 打分 / 补标签 / 下封面（可能耗时数秒）
+                match resolve_hit(&store, &snap) {
+                    Ok(hit) => {
+                        // tier 与 apply_hit 的返回值一致：这里只用于进度事件
+                        let tier = match hit.as_ref() {
+                            Some(h) if h.pending => "pending",
+                            Some(_) => "auto",
+                            None => "none",
+                        };
+                        // ③ 攒起来，锁内批量写盘（flush_hits），不覆盖这期间的其它改动
+                        pending.push((id.clone(), hit, force));
+                        if pending.len() >= FLUSH_BATCH {
+                            flush_hits(&store, &mut pending);
+                        }
+                        let _ = app.emit(
+                            "match://progress",
+                            serde_json::json!({ "done": done + 1, "total": total, "id": id, "tier": tier }),
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!("match failed {id}: {}", e.message);
+                        // 网络类错误不中断整批：单部失败继续下一部；限流也要让用户看见
+                        if matches!(e.code, ErrCode::NetworkOffline | ErrCode::RateLimited) {
+                            let _ = app.emit("match://error", &e);
+                        }
                     }
                 }
+                done += 1;
             }
-            done += 1;
+            // 批次结束：把不足一批的结果也落盘
+            flush_hits(&store, &mut pending);
         }
+        flush_hits(&store, &mut pending);
         let _ = app.emit("match://done", serde_json::json!({ "total": total, "done": done }));
     });
     Ok(())
+}
+
+/// 全量匹配每批攒多少条命中再统一写盘。写盘是整库 JSON，条数太少会退化成逐部落盘。
+const FLUSH_BATCH: usize = 20;
+
+/// 锁内批量回写：重新 load → 逐条 apply_hit → 一次 save。
+/// 必须重新 load 而不是沿用批次快照，否则这段时间里其它命令对「别的作品」的修改会被覆盖。
+fn flush_hits(store: &Store, pending: &mut Vec<(String, Option<MatchHit>, bool)>) {
+    if pending.is_empty() {
+        return;
+    }
+    let count = pending.len();
+    let _lock = store::lock_library();
+    let mut games = store.load_library();
+    for (id, hit, force) in pending.iter() {
+        // 匹配期间被移出库（目录被删）的条目：放弃这次结果
+        if let Some(g) = games.iter_mut().find(|g| g.id == *id) {
+            apply_hit(g, hit.as_ref(), *force);
+        }
+    }
+    // 写盘失败不能静默：否则界面收到 tier=auto、重启后匹配结果全没了
+    if let Err(e) = store.save_library(&games) {
+        tracing::error!("match: 匹配结果批量写盘失败（{count} 条）：{e}");
+    }
+    pending.clear();
 }
 
 /// 这条记录是否需要跑一次联网匹配。`force` = 用户主动点「重新匹配」。
@@ -196,7 +254,18 @@ pub fn write_hit_locked(store: &Store, id: &str, hit: Option<&MatchHit>, force: 
     let Some(g) = games.iter_mut().find(|g| g.id == id) else {
         return "none"; // 匹配期间被移出库（目录被删）：放弃这次结果
     };
-    let tier = match hit {
+    let tier = apply_hit(g, hit, force);
+    // 写盘失败不能静默：否则界面收到 tier=auto、重启后匹配结果全没了
+    if let Err(e) = store.save_library(&games) {
+        tracing::error!("match {id}: 匹配结果写盘失败：{e}");
+    }
+    tier
+}
+
+/// 把一份匹配结果合并进一条记录，返回档位字符串（pending / auto / none）。
+/// 纯内存改写：加锁与写盘由调用方负责（单条走 write_hit_locked，批量走 flush_hits）。
+fn apply_hit(g: &mut Game, hit: Option<&MatchHit>, force: bool) -> &'static str {
+    match hit {
         Some(h) => {
             if force {
                 g.meta_manual = false;
@@ -240,17 +309,12 @@ pub fn write_hit_locked(store: &Store, id: &str, hit: Option<&MatchHit>, force: 
             // 低于阈值：机器自动写的旧结论（<80）清掉，避免「界面显示已匹配、条目其实是错的」；
             // 人工绑定（bind_subject 记 100 分）不动——那是用户明确确认过的。
             if stale_auto_match(g.bangumi_id.is_some() || g.meta_source.is_some(), g.match_score) {
-                tracing::info!("match {id}: 低于阈值，清除自动匹配（标题保留）");
+                tracing::info!("match {}: 低于阈值，清除自动匹配（标题保留）", g.id);
                 clear_match(g);
             }
             "none"
         }
-    };
-    // 写盘失败不能静默：否则界面收到 tier=auto、重启后匹配结果全没了
-    if let Err(e) = store.save_library(&games) {
-        tracing::error!("match {id}: 匹配结果写盘失败：{e}");
     }
-    tier
 }
 
 /// Bangumi 只回一条结果、但字面相似度低于「待确认」门槛时，给 50 分。
@@ -534,5 +598,93 @@ mod tests {
         assert_eq!(pick_summary(None, Some(CN)).as_deref(), Some(CN.trim()));
         assert_eq!(pick_summary(Some(EN), None).as_deref(), Some(EN.trim()));
         assert_eq!(pick_summary(Some("  "), None), None);
+    }
+
+    fn bangumi_subject() -> net::Subject {
+        net::Subject {
+            id: 42,
+            name: "Kanon".to_string(),
+            name_cn: Some("雪之少女".to_string()),
+            images_large: None,
+            summary: Some("简介".to_string()),
+            year: Some(1999),
+            score: Some(8.5),
+            tags: vec!["恋爱".to_string()],
+            collection: 100,
+        }
+    }
+
+    /// 批量回写只合并 pending 里的条目：取快照之后、flush 之前，
+    /// 其它命令对「别的作品」（B）的修改必须原样保留，不能被批次快照覆盖回去
+    #[test]
+    fn flush_hits_keeps_concurrent_edits_to_other_games() {
+        let dir = std::env::temp_dir().join(format!("stash-match-flush-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = Store { dir: dir.clone() };
+
+        let a = Game { id: "A".into(), title: "A 原题".into(), ..Default::default() };
+        let b = Game { id: "B".into(), title: "B 原题".into(), ..Default::default() };
+        store.save_library(&[a, b]).unwrap();
+
+        // 批次快照：此时 B 还是旧值
+        let lib = store.load_library();
+        let index: HashMap<String, usize> =
+            lib.iter().enumerate().map(|(i, g)| (g.id.clone(), i)).collect();
+        let a_idx = *index.get("A").expect("快照里应有 A");
+        assert_eq!(lib[a_idx].title, "A 原题");
+        assert_eq!(lib[*index.get("B").expect("快照里应有 B")].title, "B 原题");
+
+        // 取快照之后、flush 之前：别的命令修改了磁盘上的 B 并保存
+        let mut latest = store.load_library();
+        let b_idx = latest.iter().position(|g| g.id == "B").unwrap();
+        latest[b_idx].favorite = true;
+        latest[b_idx].title = "B 并发改题".into();
+        store.save_library(&latest).unwrap();
+
+        let hit = MatchHit {
+            subject: Some(bangumi_subject()),
+            moegirl: None,
+            score: 100,
+            pending: false,
+            cover: None,
+            thumb: None,
+            summary: None,
+            egs: None,
+        };
+        let mut pending = vec![("A".to_string(), Some(hit), false)];
+        flush_hits(&store, &mut pending);
+
+        assert!(pending.is_empty(), "flush 后应清空已写条目");
+        let after = store.load_library();
+        let a = after.iter().find(|g| g.id == "A").unwrap();
+        assert_eq!(a.bangumi_id, Some(42), "A 的命中字段应已写入");
+        assert_eq!(a.title, "雪之少女");
+        assert!(!a.pending);
+        let b = after.iter().find(|g| g.id == "B").unwrap();
+        assert!(b.favorite, "并发改的收藏不能被覆盖");
+        assert_eq!(b.title, "B 并发改题", "并发改的标题不能被覆盖");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// apply_hit 的返回值与进度事件里的 tier 语义一致
+    #[test]
+    fn apply_hit_reports_tier() {
+        let mut g = Game::default();
+        let mut hit = MatchHit {
+            subject: Some(bangumi_subject()),
+            moegirl: None,
+            score: 60,
+            pending: true,
+            cover: None,
+            thumb: None,
+            summary: None,
+            egs: None,
+        };
+        assert_eq!(apply_hit(&mut g, Some(&hit), false), "pending");
+        hit.pending = false;
+        assert_eq!(apply_hit(&mut g, Some(&hit), false), "auto");
+        assert_eq!(apply_hit(&mut g, None, false), "none");
     }
 }

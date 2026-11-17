@@ -381,7 +381,7 @@ pub struct Settings {
     /// 启动与全屏转场速度：1 标准 / 1.5 快 / 2 很快（只缩放转场时长）
     #[serde(default = "default_anim_speed")]
     pub anim_speed: f64,
-    /// 冷启动动画：warp 流光跃迁 / eva01·eva02·evaNerv EVA 起动序列 / off 关闭
+    /// 冷启动动画：warp 流光跃迁 / eva01·eva02·evaNerv·eva00 EVA 起动序列 / off 关闭
     /// （全屏切换复用同一段动画；旧版的 core 档与前端一致收敛为 warp）
     #[serde(default = "default_boot_anim")]
     pub boot_anim: String,
@@ -513,7 +513,7 @@ impl Settings {
     pub fn normalized(mut self) -> Self {
         const THEMES: &[&str] = &[
             "cinema", "oled", "sakura", "frost", "amber", "iris", "moss", "crimson", "eva01",
-            "eva02", "nerv",
+            "eva02", "nerv", "rei",
         ];
         const LAYOUTS: &[&str] = &["classic", "list", "wall"];
         // v2：掌机优先，升级后默认全屏；用户之后仍可在设置里关掉（version 已是 2，不会反复改）
@@ -559,7 +559,7 @@ impl Settings {
         // 与前端 normalizeBootAnim 的兜底保持一致
         if !matches!(
             self.boot_anim.as_str(),
-            "warp" | "eva01" | "eva02" | "evaNerv" | "off"
+            "warp" | "eva01" | "eva02" | "evaNerv" | "eva00" | "off"
         ) {
             self.boot_anim = "warp".into();
         }

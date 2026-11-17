@@ -25,21 +25,33 @@ export function uniqueExePaths(paths: string[]): string[] {
   return out;
 }
 
+/** 在途标记：连续 drop 时后一次直接放弃，避免两轮串写库互相覆盖 */
+let importing = false;
+
 /** 处理一次 drop：逐个入库（串行，避免并发写库），返回成功添加的部数。
  *  失败项由 addGameByExe 自己提示，这里只补一句「跳过了几个非 exe」。 */
 export async function importDropped(paths: string[]): Promise<number> {
-  const exes = uniqueExePaths(paths);
-  if (!exes.length) {
-    toast(paths.length ? '拖入的内容里没有 .exe 主程序，已忽略' : '没有可入库的文件');
+  if (importing) {
+    toast('已有拖拽入库在进行中');
     return 0;
   }
-  let added = 0;
-  for (const exe of exes) {
-    if (await addGameByExe(exe, suggestTitle(exe))) added += 1;
+  importing = true;
+  try {
+    const exes = uniqueExePaths(paths);
+    if (!exes.length) {
+      toast(paths.length ? '拖入的内容里没有 .exe 主程序，已忽略' : '没有可入库的文件');
+      return 0;
+    }
+    let added = 0;
+    for (const exe of exes) {
+      if (await addGameByExe(exe, suggestTitle(exe))) added += 1;
+    }
+    const skipped = paths.filter((p) => !isGameExe(p)).length;
+    if (skipped > 0) toast(`已跳过 ${skipped} 个非 exe 文件`);
+    return added;
+  } finally {
+    importing = false;
   }
-  const skipped = paths.filter((p) => !isGameExe(p)).length;
-  if (skipped > 0) toast(`已跳过 ${skipped} 个非 exe 文件`);
-  return added;
 }
 
 let inited = false;

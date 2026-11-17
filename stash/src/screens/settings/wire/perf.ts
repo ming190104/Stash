@@ -28,15 +28,12 @@ export function wirePerf(body: HTMLElement): void {
     togglePanel();
     (e.currentTarget as HTMLElement).classList.toggle('on', localStorage.getItem('fpsPanel') === '1');
   });
-  // 全屏模式：先切窗口，成功才落盘（失败保持原状态，避免设置显示已开但实际没切）
+  // 全屏模式：先切窗口，成功才落盘（失败时按钮 / 设置 / 窗口一起退回，避免三者不一致）
   body.querySelector('#tgFullMode')?.addEventListener('click', (e) => {
     if (!state.settings) return;
     // 转场还没结束就再来一次：直接忽略。否则同一按键的第二次投递会在动画播完后
     // 把刚进入的全屏又切回去（「只按了一次 A 却进出各一次」）。
     if (warpBusy()) return;
-    // 诊断：detail>1 是快速连点，isTrusted=false 是脚本合成（手柄 A 走 ringActivate）
-    const me = e as MouseEvent;
-    console.debug('[settings] 全屏开关点击', { detail: me.detail, trusted: me.isTrusted });
     const on = !state.settings.fullscreen;
     const btn = e.currentTarget as HTMLElement;
     // 立刻记下目标状态：连点两次时第二次才能正确算出反向，而不是重复「进入全屏」
@@ -49,9 +46,15 @@ export function wirePerf(body: HTMLElement): void {
         return persist();
       })
       .then(() => toast(`全屏模式 · ${on ? '已开启' : '已关闭'}`))
-      .catch((err) => {
+      .catch(async (err) => {
         state.settings!.fullscreen = !on;
         btn.classList.toggle('on', !on);
+        // 窗口已切过去但落盘失败：把窗口也退回，别停在「设置显示已关、窗口却全屏」
+        applyFullscreenUI(!on);
+        // 恢复窗口本身也可能失败：只记日志，仍把落盘错误提示给用户
+        await setFullscreen(!on).catch((e2) => {
+          console.warn('[settings] 全屏回退失败', e2);
+        });
         toast(esc(String((err as { message?: string })?.message ?? err)), true);
       });
   });

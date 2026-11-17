@@ -124,8 +124,8 @@ describe('playBootSfx', () => {
     expect(Math.max(...starts)).toBeLessThanOrEqual(2.7);
   });
 
-  it('EVA 三档：各自排程，白闪落在 3.3s，压缩器接在总线上', () => {
-    for (const mode of ['eva01', 'eva02', 'evaNerv'] as const) {
+  it('EVA 四档：各自排程，白闪落在 3.3s，压缩器接在总线上', () => {
+    for (const mode of ['eva01', 'eva02', 'evaNerv', 'eva00'] as const) {
       const { starts, gains, comp } = harness();
       playBootSfx(5000, mode);
 

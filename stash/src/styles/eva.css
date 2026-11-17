@@ -504,3 +504,177 @@
   63%, 66% { opacity: 1; }
   68%, 100% { opacity: 0; }
 }
+
+/* ============================================================
+   00 · 零号机 / 绫波丽：白瓷 + 亮天蓝
+   ------------------------------------------------------------------
+   与三套共用同一条 5.0s 叙事；白场要把米白遥测全部反相成墨蓝，
+   并新增装甲板 / 核心球 / 齿环 / 传感器红缝（只在 00 渲染）。
+   ============================================================ */
+.eva[data-pal="00"] {
+  --ink: #13242f;
+  --acc: #4d86a8;
+  --acc2: #a8cbe0;
+  --warn: #c8262f;
+  background: #f7fafc;
+}
+.eva[data-pal="00"] .ev-bg { background:
+  radial-gradient(120% 80% at 50% 46%, rgba(255,255,255,.72), transparent 62%),
+  radial-gradient(90% 60% at 50% 108%, rgba(77,134,168,.2), transparent 70%),
+  linear-gradient(180deg, #fbfdfe 0%, #eaf2f8 56%, #dde9f2 100%); }
+.eva[data-pal="00"] .ev-grid { background-image:
+  repeating-linear-gradient(90deg, rgba(19,36,47,.05) 0 1px, transparent 1px 64px),
+  repeating-linear-gradient(0deg, rgba(19,36,47,.05) 0 1px, transparent 1px 64px); }
+.eva[data-pal="00"] .ev-ghost { color: rgba(19,36,47,.05); }
+.eva[data-pal="00"] .ev-tape {
+  background: repeating-linear-gradient(-45deg, #d98a3c 0 10px, #f4f8fb 10px 21px);
+  box-shadow: 0 0 0 1px rgba(19,36,47,.12) inset; }
+.eva[data-pal="00"] .ev-frame i { background: rgba(19,36,47,.26); }
+.eva[data-pal="00"] .ev-corner { border-color: rgba(77,134,168,.7); }
+.eva[data-pal="00"] .ev-top { color: rgba(19,36,47,.6); }
+.eva[data-pal="00"] .ev-top b { color: #13242f; }
+.eva[data-pal="00"] .ev-top span:nth-child(2) { color: rgba(19,36,47,.38); }
+.eva[data-pal="00"] .ev-top .ev-clock { color: var(--acc); }
+.eva[data-pal="00"] .ev-magi .col {
+  border-color: rgba(19,36,47,.16); background: rgba(255,255,255,.55); }
+.eva[data-pal="00"] .ev-magi .col em { color: rgba(19,36,47,.5); }
+.eva[data-pal="00"] .ev-magi .col i { background: rgba(19,36,47,.12); }
+.eva[data-pal="00"] .ev-magi .col b { color: rgba(19,36,47,.34); }
+.eva[data-pal="00"] .ev-vtext span { color: rgba(19,36,47,.72); }
+.eva[data-pal="00"] .ev-vtext small { color: rgba(19,36,47,.4); }
+.eva[data-pal="00"] .ev-mini b { color: rgba(19,36,47,.45); }
+.eva[data-pal="00"] .ev-chips b { color: rgba(19,36,47,.45); border-color: rgba(19,36,47,.16); }
+.eva[data-pal="00"] .ev-chips b.ok { color: var(--acc); border-color: rgba(77,134,168,.42); }
+.eva[data-pal="00"] .ev-sync-lab { color: rgba(19,36,47,.5); }
+.eva[data-pal="00"] .ev-sync-lab::before,
+.eva[data-pal="00"] .ev-sync-lab::after { background: rgba(19,36,47,.24); }
+.eva[data-pal="00"] .ev-sync-num { color: #13242f; }
+.eva[data-pal="00"] .ev-sync-num small { color: rgba(19,36,47,.5); }
+.eva[data-pal="00"] .ev-sync-bar { background: rgba(19,36,47,.12); }
+.eva[data-pal="00"] .ev-warn span { color: var(--warn); text-shadow: 0 0 26px rgba(200,38,47,.3); }
+.eva[data-pal="00"] .ev-warn em { color: rgba(19,36,47,.6); }
+.eva[data-pal="00"] .ev-cross .ring { border-color: rgba(19,36,47,.5); }
+.eva[data-pal="00"] .ev-word-kana { color: rgba(19,36,47,.55); }
+.eva[data-pal="00"] .ev-word-main { color: #13242f; text-shadow: 0 0 46px rgba(77,134,168,.28); }
+.eva[data-pal="00"] .ev-word-sub { color: rgba(19,36,47,.5); }
+.eva[data-pal="00"] .ev-word-sub i { background: rgba(19,36,47,.28); }
+.eva[data-pal="00"] .ev-stamp { background: rgba(77,134,168,.08); }
+.eva[data-pal="00"] .ev-stamp em { color: rgba(19,36,47,.45); }
+.eva[data-pal="00"] .ev-stamp b { color: rgba(19,36,47,.3); }
+.eva[data-pal="00"] .ev-cap { color: rgba(19,36,47,.34); }
+.eva[data-pal="00"] .ev-cap b { color: rgba(19,36,47,.6); }
+.eva[data-pal="00"] .ev-prog { background: rgba(19,36,47,.1); }
+.eva[data-pal="00"] .ev-scan {
+  background: repeating-linear-gradient(0deg, rgba(19,36,47,.05) 0 1px, transparent 1px 3px);
+  opacity: .5; }
+.eva[data-pal="00"] .ev-vig {
+  background: radial-gradient(120% 100% at 50% 50%, transparent 46%, rgba(29,70,96,.18) 100%); }
+.eva[data-pal="00"] .ev-dust i {
+  background: rgba(77,134,168,.55); box-shadow: 0 0 5px rgba(77,134,168,.5); opacity: .9; }
+.eva[data-pal="00"] .ev-circuit path { stroke: rgba(77,134,168,.34); }
+.eva[data-pal="00"] .ev-circuit circle { fill: var(--acc); opacity: .4; }
+.eva[data-pal="00"] .ev-survey { color: rgba(19,36,47,.35); }
+
+/* ---------- 00 专属：装甲板 / 核心球 / 齿环 / 传感器红缝 ---------- */
+.ev-rplate,
+.ev-rcore,
+.ev-rteeth,
+.ev-rslit { display: none; }
+.eva[data-pal="00"] .ev-rplate,
+.eva[data-pal="00"] .ev-rcore,
+.eva[data-pal="00"] .ev-rteeth,
+.eva[data-pal="00"] .ev-rslit { display: block; }
+
+/* 顶装甲板：白瓷条，倒角 + 00 刻印 */
+.eva[data-pal="00"] .ev-rplate.t {
+  left: 0; right: 0; top: 0; height: 84px; z-index: 19;
+  background: linear-gradient(180deg, #fff 0%, #f7fbfd 68%, #eaf2f8 100%);
+  clip-path: polygon(0 0, 100% 0, 100% 66px, calc(100% - 26px) 78px, 26px 78px, 0 66px);
+  border-bottom: 1px solid rgba(77,134,168,.3);
+  animation: ev-rplate-t var(--dur) linear both;
+}
+.eva[data-pal="00"] .ev-rplate.t::after {
+  content: '00'; position: absolute; left: 46px; top: 16px;
+  font-family: var(--latin); font-size: 44px; font-weight: 800; letter-spacing: -.04em;
+  color: rgba(19,36,47,.1); line-height: 1;
+}
+/* 底装甲板：28 格刻度 + 编号带 */
+.eva[data-pal="00"] .ev-rplate.b {
+  left: 0; right: 0; bottom: 0; height: 78px; z-index: 19;
+  background: linear-gradient(0deg, #fff 0%, #f5fafc 62%, #e8f1f7 100%);
+  clip-path: polygon(0 100%, 100% 100%, 100% 16px, calc(100% - 26px) 4px, 26px 4px, 0 16px);
+  border-top: 1px solid rgba(77,134,168,.3);
+  animation: ev-rplate-b var(--dur) linear both;
+}
+.eva[data-pal="00"] .ev-rplate.b::before {
+  content: ''; position: absolute; left: 44px; right: 44px; bottom: 30px; height: 7px;
+  background: repeating-linear-gradient(90deg, rgba(19,36,47,.34) 0 1px, transparent 1px 16px);
+}
+.eva[data-pal="00"] .ev-rplate.b::after {
+  content: 'NERV · 極東支部 / PROTOTYPE-00 · FIRST CHILDREN';
+  position: absolute; left: 44px; bottom: 11px;
+  font-family: var(--mono); font-size: 8px; letter-spacing: .2em;
+  color: rgba(19,36,47,.42);
+}
+/* 核心球：蓝环 + 白瓷圈 + 红核 */
+.eva[data-pal="00"] .ev-rcore {
+  left: 50%; top: 44%; width: 300px; height: 300px; z-index: 20;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(77,134,168,.42); border-radius: 50%;
+  box-shadow: inset 0 0 0 12px rgba(255,255,255,.55), inset 0 0 0 13px rgba(77,134,168,.18);
+  animation: ev-rcore var(--dur) linear both;
+}
+.eva[data-pal="00"] .ev-rcore::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 24px; height: 24px;
+  transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, var(--pcore, #c8262f) 0 34%, #fff 36% 52%, var(--acc) 54% 100%);
+  box-shadow: 0 0 22px rgba(200,38,47,.42);
+}
+/* 24 根齿环：局部刻度，转 30° */
+.eva[data-pal="00"] .ev-rteeth {
+  left: 50%; top: 44%; width: 340px; height: 340px; z-index: 20;
+  transform: translate(-50%, -50%);
+  background: repeating-conic-gradient(from 0deg,
+    rgba(19,36,47,.34) 0 .45deg, transparent .45deg 15deg);
+  -webkit-mask: radial-gradient(circle, transparent 49%, #000 50%, #000 54%, transparent 55%);
+  mask: radial-gradient(circle, transparent 49%, #000 50%, #000 54%, transparent 55%);
+  animation: ev-rteeth var(--dur) linear both;
+}
+/* 传感器红缝：一条水平红缝，不是眼睛 */
+.eva[data-pal="00"] .ev-rslit {
+  left: 50%; top: 36%; width: 520px; height: 2px; z-index: 20;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(90deg, transparent, var(--warn) 18%, #ff8a90 50%, var(--warn) 82%, transparent);
+  box-shadow: 0 0 18px rgba(200,38,47,.55);
+  animation: ev-rslit var(--dur) linear both;
+}
+
+@keyframes ev-rplate-t {
+  0%, 32% { opacity: 0; transform: translateY(-100%); }
+  36% { opacity: 1; }
+  44%, 90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-100%); }
+}
+@keyframes ev-rplate-b {
+  0%, 32% { opacity: 0; transform: translateY(100%); }
+  36% { opacity: 1; }
+  44%, 90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(100%); }
+}
+@keyframes ev-rcore {
+  0%, 22% { opacity: 0; transform: translate(-50%, -50%) scale(.42); }
+  32% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  54% { opacity: 1; }
+  64%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.14); }
+}
+@keyframes ev-rteeth {
+  0%, 22% { opacity: 0; transform: translate(-50%, -50%) rotate(0deg); }
+  30% { opacity: .85; }
+  56%, 100% { opacity: 0; transform: translate(-50%, -50%) rotate(30deg); }
+}
+@keyframes ev-rslit {
+  0%, 30% { opacity: 0; transform: translate(-50%, -50%) scaleX(0); }
+  36% { opacity: 1; transform: translate(-50%, -50%) scaleX(1); }
+  44% { opacity: 1; }
+  50%, 100% { opacity: 0; transform: translate(-50%, -50%) scaleX(1); }
+}

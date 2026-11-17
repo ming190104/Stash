@@ -281,7 +281,8 @@ describe('信息面板操作', () => {
     state.detailId = 'a';
     await renderDetail();
     document.querySelector<HTMLElement>('[data-ver="b"]')!.click();
-    expect(state.detailId).toBe('b');
+    // detailId 要等 prepareDetailBg 解码完才改，避免等待期间按键作用到新作品
+    await vi.waitFor(() => expect(state.detailId).toBe('b'));
   });
 });
 
@@ -437,7 +438,61 @@ describe('导航与快捷键', () => {
     dispatchNav({ intent: 'move', dir: 'down' });
     expect(document.querySelectorAll('#dSide .focus').length).toBe(before);
     dispatchNav({ intent: 'move', dir: 'right' });
-    expect(state.detailId).toBe('b');
+    await vi.waitFor(() => expect(state.detailId).toBe('b'));
+  });
+
+  it('三个同名版本按环顺序左右循环', async () => {
+    state.games = [
+      game('r1', { title: '同名作品' }),
+      game('r2', { title: '同名作品' }),
+      game('r3', { title: '同名作品' }),
+    ];
+    state.detailId = 'r1';
+    setScreen('detail');
+    await renderDetail();
+
+    const stepTo = async (dir: 'left' | 'right', id: string): Promise<void> => {
+      dispatchNav({ intent: 'move', dir });
+      await vi.waitFor(() => expect(state.detailId).toBe(id));
+      // 等这一轮 renderDetail 收尾：版本环游标要按新作品同步后，下一次 ← / → 才接着走
+      await vi.waitFor(() => expect(document.querySelectorAll('#dInfo .vchip').length).toBe(2));
+    };
+
+    await stepTo('right', 'r2');
+    await stepTo('right', 'r3');
+    await stepTo('right', 'r1');
+    await stepTo('left', 'r3');
+  });
+
+  it('切换版本等待背景解码期间不提前改 detailId', async () => {
+    state.games = [
+      game('w1', { title: '汉化版', bangumiId: 999 }),
+      game('w2', { title: '生肉版', bangumiId: 999 }),
+    ];
+    state.detailId = 'w1';
+    setScreen('detail');
+    await renderDetail();
+    expect(document.querySelector('#dInfo .d-cn')!.textContent).toBe('汉化版');
+
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    H.detailBackground.mockImplementation(async (id: string): Promise<string | null> => {
+      if (id === 'w2') await gate;
+      return null;
+    });
+
+    dispatchNav({ intent: 'move', dir: 'right' });
+    await new Promise((r) => window.setTimeout(r, 20));
+    // 背景还在解码：detailId 与 DOM 都必须是旧作品
+    expect(state.detailId).toBe('w1');
+    expect(document.querySelector('#dInfo .d-cn')!.textContent).toBe('汉化版');
+
+    release();
+    await vi.waitFor(() => expect(state.detailId).toBe('w2'));
+    await vi.waitFor(() => expect(document.querySelector('#dInfo .d-cn')!.textContent).toBe('生肉版'));
+    H.detailBackground.mockImplementation(async () => null);
   });
 
   it('删除最后一条结局时不会残留已通关状态', () => {

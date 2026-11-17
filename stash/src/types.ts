@@ -134,11 +134,12 @@ export type ThemeName =
   | 'crimson'
   | 'eva01'
   | 'eva02'
-  | 'nerv';
+  | 'nerv'
+  | 'rei';
 
-/** 冷启动动画：warp = 流光跃迁（5.0s）/ eva01·eva02·evaNerv = EVA 起动序列（5.0s）/ off = 关闭。
+/** 冷启动动画：warp = 流光跃迁（5.0s）/ eva01·eva02·evaNerv·eva00 = EVA 起动序列（5.0s）/ off = 关闭。
  *  全屏切换复用同一段完整动画，速度与冷启动共用一个倍率。 */
-export type BootAnim = 'warp' | 'eva01' | 'eva02' | 'evaNerv' | 'off';
+export type BootAnim = 'warp' | 'eva01' | 'eva02' | 'evaNerv' | 'eva00' | 'off';
 
 /** 后端命令错误（Rust AppError）。code 是稳定分类（camelCase），
  *  message 是可直接展示的文案；前端只按 code 分支，绝不匹配 message。 */

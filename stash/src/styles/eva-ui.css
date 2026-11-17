@@ -502,7 +502,7 @@ html[data-theme="eva02"] #app[data-screen="library"] .evd-slash{display:block;po
 html[data-theme="nerv"] .evd-floor{display:block;position:absolute;inset:0 0 40px;opacity:.38;
   -webkit-mask-image:linear-gradient(180deg,transparent 42%,rgba(0,0,0,.45) 56%,#000 78%);
   mask-image:linear-gradient(180deg,transparent 42%,rgba(0,0,0,.45) 56%,#000 78%)}
-.evd-floor i{position:absolute;left:-12%;right:-12%;bottom:0;height:1800px;
+.evd-floor i{position:absolute;left:-12%;right:-12%;bottom:-44px;height:1800px;
   transform:perspective(2300px) rotateX(62deg);transform-origin:50% 100%;
   background-image:
     repeating-linear-gradient(90deg,rgba(255,122,26,.85) 0 1px,transparent 1px 74px),
@@ -588,7 +588,12 @@ html[data-theme="eva02"] #toast,
 html[data-theme="nerv"] #toast{background:color-mix(in srgb,var(--bg0) 92%,#000);border-color:var(--gline)}
 
 /* ---------- 18 组关键帧 ---------- */
-@keyframes eva-ui-floor{to{background-position:0 44px,0 44px}}
+/* 平移一格（44px）正好与网格周期重合，循环无跳变；用 transform 走合成层，
+   不再每帧重绘 1800px 高的背景 */
+@keyframes eva-ui-floor{
+  from{transform:perspective(2300px) rotateX(62deg) translateY(0)}
+  to{transform:perspective(2300px) rotateX(62deg) translateY(44px)}
+}
 @keyframes eva-ui-circuit{to{stroke-dashoffset:0}}
 @keyframes eva-ui-slash{
   0%,68%{transform:translateX(-115%) skewX(-18deg);opacity:0}
@@ -649,3 +654,405 @@ html[data-theme="nerv"] #toast{background:color-mix(in srgb,var(--bg0) 92%,#000)
 #app.paused .eva-fx *,
 #app.idle .eva-deco *,
 #app.idle .eva-fx *{animation-play-state:paused!important}
+
+/* ============================================================
+   REI · 零号机：白瓷 + 亮天蓝（绫波丽） · 第 4 套 EVA 皮肤
+   ------------------------------------------------------------------
+   令牌在 tokens.css：--bg0 白瓷 / --bg1 冷瓷 / --acc 亮天蓝。
+   造型语言：装甲直边小圆角 · 橙色警示角标 · 蓝色接口环 · 红核焦点。
+   浅色主题要先把默认的「白色半透明抬升面」换成「深色低透明面」，
+   否则白底上所有面板都会消失。
+   ============================================================ */
+html[data-theme="rei"]{
+  --plate:#1d4660;
+  --pamber:#d98a3c;
+  --pcore:#c8262f;
+  --proof:#eef5f9;
+}
+html[data-theme="rei"] body{background:#f7fafc}
+html[data-theme="rei"] #app{
+  background:
+    radial-gradient(120% 80% at 50% 0%,rgba(255,255,255,.9),transparent 62%),
+    linear-gradient(180deg,#f7fafc 0%,#e9f1f7 58%,#dfeaf3 100%);
+}
+/* 氛围层：默认压暗到 .5，白场上要提亮并压低存在感，只做冷色晕 */
+html[data-theme="rei"] .amb{filter:blur(60px) saturate(.85) brightness(1.12);opacity:0}
+html[data-theme="rei"] .amb.show{opacity:.26}
+
+/* 首帧遮罩与启动层：白场，避免切主题时闪一下深色 */
+html[data-theme="rei"] #bootCover{
+  background:radial-gradient(120% 90% at 50% 42%,#fdfeff 0%,#eaf2f8 62%,#dde9f2 100%);
+}
+html[data-theme="rei"] #bootCover i{background:linear-gradient(90deg,transparent,var(--acc),transparent)}
+
+/* ---------- 顶部装甲条：白瓷 + 蓝线 + 倒角投影 ---------- */
+html[data-theme="rei"] .topbar{
+  height:54px;
+  background:linear-gradient(180deg,#fff 0%,#f8fbfd 58%,#eef5f9 100%);
+  border-bottom:1px solid rgba(19,36,47,.08);
+  box-shadow:0 1px 0 rgba(77,134,168,.26),0 12px 26px rgba(29,70,96,.06);
+}
+html[data-theme="rei"] .topbar::after{
+  content:'';position:absolute;left:50%;bottom:-1px;width:64px;height:2px;
+  transform:translateX(-50%);
+  background:linear-gradient(90deg,transparent,var(--acc),transparent);
+}
+html[data-theme="rei"] .tbtn{
+  background:rgba(29,70,96,.05);border-color:rgba(19,36,47,.13);color:var(--ink2);border-radius:2px;
+}
+html[data-theme="rei"] .tbtn:hover{background:rgba(77,134,168,.16);color:var(--ink1)}
+html[data-theme="rei"] .winclose:hover{background:rgba(200,38,47,.85);color:#fff}
+html[data-theme="rei"] .tstat{
+  font-family:var(--mono);letter-spacing:.16em;font-size:calc(10px * var(--fs,1));color:var(--acc-ink);
+}
+html[data-theme="rei"] .batt svg rect{stroke:rgba(19,36,47,.42)}
+html[data-theme="rei"] .batt svg rect:nth-child(2){fill:var(--acc)}
+html[data-theme="rei"] #clock{color:var(--ink2);font-family:var(--mono)}
+
+/* 装甲 00 刻印：右上角低对比，只在经典库屏出现 */
+html[data-theme="rei"] #app[data-screen="library"]::before{
+  content:'00';position:absolute;right:30px;top:56px;z-index:1;pointer-events:none;
+  font:800 88px/1 var(--sans);letter-spacing:-.05em;color:rgba(19,36,47,.045);
+}
+/* 底部红白危险带：2px，压在键位条之上 */
+html[data-theme="rei"] #app::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:2px;z-index:90;pointer-events:none;
+  background:repeating-linear-gradient(-45deg,var(--warn) 0 7px,#fff 7px 15px);opacity:.9;
+}
+
+/* ---------- 英雄区：白瓷封面 + 橙色警示角标 + 亮蓝 CTA ---------- */
+html[data-theme="rei"] .hero-art{
+  border-radius:3px;
+  box-shadow:0 28px 56px rgba(29,70,96,.22),0 0 0 1px rgba(77,134,168,.4),
+    inset 0 0 0 4px #fff,inset 0 0 0 5px rgba(77,134,168,.22);
+  animation:none;
+}
+html[data-theme="rei"] .hero-art .art{border-radius:3px}
+html[data-theme="rei"] .hero-art::before{
+  content:'';position:absolute;left:-5px;top:-5px;width:26px;height:26px;z-index:6;pointer-events:none;
+  border-left:2px solid var(--pamber);border-top:2px solid var(--pamber);
+}
+html[data-theme="rei"] .hero-art::after{
+  content:'00';position:absolute;right:9px;bottom:2px;z-index:6;pointer-events:none;
+  font:800 32px/1 var(--sans);letter-spacing:-.05em;color:rgba(255,255,255,.42);
+  text-shadow:0 1px 6px rgba(29,70,96,.35);
+}
+html[data-theme="rei"] .eyebrow{font-family:var(--mono);letter-spacing:.24em;color:var(--acc-ink)}
+html[data-theme="rei"] .h-rule{height:2px;background:linear-gradient(90deg,var(--acc),var(--acc2),transparent)}
+html[data-theme="rei"] .h-jp{color:var(--acc-ink);letter-spacing:.34em}
+html[data-theme="rei"] .cta{
+  border-radius:2px;background:linear-gradient(135deg,#7cb6d6,#4d86a8);color:var(--acc-on);
+  box-shadow:0 12px 26px rgba(77,134,168,.32),inset 0 0 0 1px rgba(255,255,255,.32);
+}
+html[data-theme="rei"] .cta:hover{background:linear-gradient(135deg,#8cc2df,#5a94b6)}
+html[data-theme="rei"] .ghost{
+  border-radius:2px;background:rgba(255,255,255,.76);border-color:rgba(77,134,168,.34);color:var(--acc-ink);
+}
+html[data-theme="rei"] .ghost:hover{background:#fff;color:var(--ink1);border-color:var(--acc)}
+html[data-theme="rei"] .pill{
+  border-radius:2px;background:rgba(255,255,255,.8);border-color:rgba(77,134,168,.26);color:var(--acc-ink);
+}
+html[data-theme="rei"] .pill.hot{background:rgba(77,134,168,.12);border-color:rgba(77,134,168,.44);color:var(--acc-ink)}
+html[data-theme="rei"] .kk{
+  border-radius:2px;background:#fff;border-color:rgba(19,36,47,.18);color:var(--acc-ink);
+}
+html[data-theme="rei"] .wm{color:rgba(19,36,47,.05)}
+
+/* ---------- 轨道卡片：装甲直边 + 蓝框 + 红核焦点 ---------- */
+html[data-theme="rei"] .card{
+  border-radius:3px;
+  box-shadow:0 14px 30px rgba(29,70,96,.16),0 0 0 1px rgba(19,36,47,.1);
+}
+html[data-theme="rei"] .card .art,
+html[data-theme="rei"] .card .dim,
+html[data-theme="rei"] .card .lift,
+html[data-theme="rei"] .card .sheen,
+html[data-theme="rei"] .card::after{border-radius:3px}
+html[data-theme="rei"] .card::after{box-shadow:inset 0 0 0 1px rgba(19,36,47,.12)}
+html[data-theme="rei"] .card .dim{background:#cfe0ec}
+html[data-theme="rei"] .card .sheen::before{
+  background:linear-gradient(100deg,transparent,rgba(77,134,168,.34),transparent);
+}
+html[data-theme="rei"] .card .ring{
+  border-radius:3px;
+  box-shadow:0 0 0 calc(var(--focus-w) + .5px) var(--acc),
+    0 18px 42px color-mix(in srgb,var(--acc) 36%,transparent),
+    inset 0 0 0 1px rgba(255,255,255,.9);
+}
+/* 焦点角标：左上橙色警示角 + 右下红核（核心球） */
+html[data-theme="rei"] .card.focus::before{
+  content:'';position:absolute;left:6px;top:6px;width:14px;height:14px;z-index:5;pointer-events:none;
+  border-left:2px solid var(--pamber);border-top:2px solid var(--pamber);
+}
+html[data-theme="rei"] .card.focus .ring::after{
+  content:'';position:absolute;right:5px;bottom:5px;width:9px;height:9px;border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,var(--pcore) 0 36%,#fff 38% 54%,var(--acc) 56% 100%);
+  box-shadow:0 0 0 1.5px #fff,0 0 10px rgba(200,38,47,.55);
+}
+html[data-theme="rei"] .card .new{
+  border-radius:2px;background:linear-gradient(135deg,#7cb6d6,#4d86a8);color:var(--acc-on);
+}
+html[data-theme="rei"] .card .fav{background:rgba(255,255,255,.82);border:1px solid rgba(19,36,47,.16);color:var(--acc)}
+html[data-theme="rei"] .card .ver{
+  border-radius:2px;background:rgba(255,255,255,.86);color:var(--acc-ink);border:1px solid rgba(77,134,168,.3);
+}
+/* 接口环：零号机插管服的橙色接口 */
+html[data-theme="rei"] .np{
+  border-radius:2px;background:rgba(255,255,255,.88);border:1px solid var(--pamber);color:var(--pamber);
+}
+html[data-theme="rei"] .np i{background:var(--pamber)}
+html[data-theme="rei"] .gcell.sel .card{
+  box-shadow:0 0 0 2px rgba(77,134,168,.7),0 18px 40px rgba(29,70,96,.28);
+}
+html[data-theme="rei"] .selmk{
+  border-radius:2px;border-color:#fff;background:linear-gradient(135deg,#7cb6d6,#4d86a8);color:var(--acc-on);
+}
+
+/* ---------- 键位条 ---------- */
+html[data-theme="rei"] .keybar{
+  background:linear-gradient(180deg,rgba(247,250,252,0),rgba(228,237,245,.96));
+  border-top:1px solid rgba(19,36,47,.08);color:var(--ink3);
+}
+
+/* ---------- 详情屏：深蓝对比（设计稿同款），文字令牌翻转 ---------- */
+/* 只翻转详情内容层：顶栏 / 键位条 / toast / 快捷菜单 / 浮层都在 .screen 之外，
+   若把令牌翻在 #app 上，它们会继承浅色 ink，落到白底白字 */
+html[data-theme="rei"] #app[data-screen="detail"] .screen[data-s="detail"]{
+  --ink1:#eef5f9;--ink2:rgba(238,245,249,.74);--ink3:rgba(238,245,249,.5);
+  --gline:rgba(238,245,249,.2);--glass:rgba(238,245,249,.08);
+}
+/* 详情屏里的键位条仍是浅色（本质是全局 chrome），不能跟着翻转 */
+html[data-theme="rei"] #app[data-screen="detail"] .keybar{
+  --ink1:#13242f;--ink2:rgba(19,36,47,.7);--ink3:rgba(19,36,47,.64);
+}
+html[data-theme="rei"] #app[data-screen="detail"] .shade{
+  background:
+    linear-gradient(90deg,rgba(19,36,47,.94) 0%,rgba(19,36,47,.86) 30%,rgba(19,36,47,.52) 58%,rgba(19,36,47,.18) 82%,transparent 100%),
+    linear-gradient(180deg,rgba(19,36,47,.6) 0%,rgba(19,36,47,.18) 24%,rgba(19,36,47,.5) 70%,rgba(13,24,31,.94) 100%);
+}
+html[data-theme="rei"] #app[data-screen="detail"] .amb{filter:blur(80px) saturate(.7) brightness(.3)}
+html[data-theme="rei"] #app[data-screen="detail"] .dcover{
+  border-radius:3px;
+  box-shadow:0 26px 54px rgba(0,0,0,.5),inset 0 0 0 1.5px rgba(168,203,224,.72),
+    inset 0 0 30px rgba(77,134,168,.22);
+}
+html[data-theme="rei"] #app[data-screen="detail"] .dcover .art{border-radius:3px}
+html[data-theme="rei"] #app[data-screen="detail"] .pill{
+  background:rgba(238,245,249,.07);border-color:rgba(238,245,249,.2);color:var(--ink2);
+}
+html[data-theme="rei"] #app[data-screen="detail"] .pill.hot{
+  background:rgba(168,203,224,.16);border-color:rgba(168,203,224,.46);color:#d8eaf4;
+}
+html[data-theme="rei"] #app[data-screen="detail"] .pill.end{
+  background:rgba(200,38,47,.16);border-color:rgba(200,38,47,.46);color:#ff9aa1;
+}
+html[data-theme="rei"] #app[data-screen="detail"] .ghost{
+  background:rgba(238,245,249,.07);border-color:rgba(238,245,249,.22);color:var(--ink2);
+}
+html[data-theme="rei"] #app[data-screen="detail"] .ghost:hover{
+  background:rgba(238,245,249,.14);border-color:rgba(168,203,224,.55);color:#fff;
+}
+html[data-theme="rei"] #app[data-screen="detail"] .ghost .k{background:rgba(238,245,249,.14);color:#d8eaf4}
+html[data-theme="rei"] #app[data-screen="detail"] .vchip{
+  border-color:rgba(238,245,249,.18);color:rgba(238,245,249,.52);
+}
+html[data-theme="rei"] #app[data-screen="detail"] .vchip.on{
+  border-color:rgba(168,203,224,.5);background:rgba(168,203,224,.12);color:#d8eaf4;
+}
+html[data-theme="rei"] #app[data-screen="detail"] .cta{
+  background:linear-gradient(135deg,#8fbfd8,#4d86a8);color:#0f1d27;
+}
+html[data-theme="rei"] #app[data-screen="detail"] .back{
+  border-radius:2px;background:rgba(238,245,249,.08);border-color:rgba(238,245,249,.22);color:var(--ink2);
+}
+
+/* ---------- 列表 / 海报墙 ---------- */
+html[data-theme="rei"] .lrow{
+  border-radius:2px;background:rgba(255,255,255,.66);border:1px solid rgba(19,36,47,.08);
+}
+html[data-theme="rei"] .lrow:hover,
+html[data-theme="rei"] .lrow.focus{background:#fff;border-color:rgba(77,134,168,.42)}
+html[data-theme="rei"] .lthumb,
+html[data-theme="rei"] .lthumb .art,
+html[data-theme="rei"] .lp-art{border-radius:3px}
+html[data-theme="rei"] .lp-art .art{border-radius:3px}
+html[data-theme="rei"] .ll-art{border-radius:3px}
+html[data-theme="rei"] .lp-art{
+  box-shadow:0 24px 48px rgba(29,70,96,.24),0 0 0 1px rgba(77,134,168,.36);
+}
+html[data-theme="rei"] .wall-grid .wall-cell{background:rgba(255,255,255,.6);border-color:rgba(19,36,47,.08)}
+
+/* ---------- 设置 / 文件：白瓷面板 ---------- */
+html[data-theme="rei"] .spanel{
+  background:rgba(255,255,255,.88);border-color:rgba(19,36,47,.1);border-radius:4px;
+  box-shadow:0 18px 40px rgba(29,70,96,.1);
+}
+html[data-theme="rei"] .snav{border-right-color:rgba(19,36,47,.08)}
+html[data-theme="rei"] .snav button{border-radius:2px;color:var(--ink2)}
+html[data-theme="rei"] .snav button:hover{background:rgba(77,134,168,.1);color:var(--ink1)}
+html[data-theme="rei"] .snav button.on{background:rgba(77,134,168,.13);color:var(--acc-ink)}
+html[data-theme="rei"] .snav button.on::before{width:2.5px;border-radius:0;background:var(--acc)}
+html[data-theme="rei"] .snav button.focus{background:rgba(77,134,168,.1);outline-offset:-2px}
+html[data-theme="rei"] .srow{border-bottom-color:rgba(19,36,47,.08)}
+html[data-theme="rei"] .seg{
+  border-radius:3px;background:rgba(19,36,47,.05);border-color:rgba(19,36,47,.12);
+}
+html[data-theme="rei"] .seg b{border-radius:2px;color:var(--ink2)}
+html[data-theme="rei"] .seg b.on{
+  background:linear-gradient(135deg,#7cb6d6,#4d86a8);color:var(--acc-on);box-shadow:0 4px 12px rgba(77,134,168,.3);
+}
+html[data-theme="rei"] .tg{background:rgba(19,36,47,.18)}
+html[data-theme="rei"] .tg.on{background:var(--acc)}
+html[data-theme="rei"] .tg::after{background:#fff;box-shadow:0 1px 3px rgba(19,36,47,.3)}
+html[data-theme="rei"] .inp{
+  background:#fff;border-color:rgba(19,36,47,.16);color:var(--ink1);border-radius:2px;
+}
+html[data-theme="rei"] .inp::placeholder{color:var(--ink3)}
+html[data-theme="rei"] .mini{
+  border-radius:2px;background:rgba(255,255,255,.9);border-color:rgba(19,36,47,.14);color:var(--acc-ink);
+}
+html[data-theme="rei"] .mini:hover{background:#fff;border-color:var(--acc)}
+html[data-theme="rei"] .fchip{
+  border-radius:2px;background:#fff;border-color:rgba(19,36,47,.14);color:var(--ink2);
+}
+html[data-theme="rei"] .fchip.on{background:rgba(77,134,168,.13);border-color:rgba(77,134,168,.44);color:var(--acc-ink)}
+html[data-theme="rei"] .pitem{background:rgba(19,36,47,.04)}
+html[data-theme="rei"] .pitem.on{background:rgba(77,134,168,.13)}
+html[data-theme="rei"] .frow{border-bottom-color:rgba(19,36,47,.07)}
+html[data-theme="rei"] .frow:hover{background:rgba(77,134,168,.07)}
+html[data-theme="rei"] .fpath{background:#fff;border-color:rgba(19,36,47,.14);color:var(--ink2);border-radius:2px}
+html[data-theme="rei"] .back{
+  border-radius:2px;background:rgba(255,255,255,.8);border-color:rgba(19,36,47,.14);color:var(--ink2);
+}
+html[data-theme="rei"] .back:hover{background:#fff;color:var(--ink1)}
+html[data-theme="rei"] .rel-chip{
+  border-radius:2px;background:#fff;border-color:rgba(19,36,47,.14);color:var(--ink2);
+}
+html[data-theme="rei"] .rel-chip:hover{background:rgba(77,134,168,.12);color:var(--ink1)}
+
+/* ---------- 浮层：白瓷卡 + 蓝描边 ---------- */
+html[data-theme="rei"] .sp-box,
+html[data-theme="rei"] .flt-box,
+html[data-theme="rei"] .bg-box,
+html[data-theme="rei"] .snap-box,
+html[data-theme="rei"] .help-box,
+html[data-theme="rei"] .cand-box,
+html[data-theme="rei"] .qmenu .qbox{
+  background:rgba(252,254,255,.97);border-color:rgba(19,36,47,.12);border-radius:4px;
+  box-shadow:0 30px 70px rgba(29,70,96,.24),0 0 0 1px rgba(255,255,255,.8) inset;
+}
+/* 深色主题的白色滚动条在白瓷面板上不可见 */
+html[data-theme="rei"] .sp-list,
+html[data-theme="rei"] .qmenu .qlist{scrollbar-color:rgba(19,36,47,.32) transparent}
+html[data-theme="rei"] .flt-head,
+html[data-theme="rei"] .flt-foot,
+html[data-theme="rei"] .sp-foot,
+html[data-theme="rei"] .bg-tip{border-color:rgba(19,36,47,.1)}
+html[data-theme="rei"] .flt-lab{color:var(--acc-ink);font-family:var(--mono);letter-spacing:.16em}
+html[data-theme="rei"] .flt-opt{background:rgba(19,36,47,.045);color:var(--ink2);border-radius:2px}
+html[data-theme="rei"] .flt-opt:hover{background:rgba(77,134,168,.12);color:var(--ink1)}
+html[data-theme="rei"] .flt-opt.on{background:rgba(77,134,168,.16);color:var(--acc-ink)}
+html[data-theme="rei"] #fltClear,
+html[data-theme="rei"] #bgAuto{
+  background:rgba(255,255,255,.9);border-color:rgba(19,36,47,.14);color:var(--ink2);
+}
+html[data-theme="rei"] #fltClear:hover,
+html[data-theme="rei"] #bgAuto:hover{background:#fff;color:var(--ink1)}
+html[data-theme="rei"] .sp-field{background:#fff;border-color:rgba(19,36,47,.14)}
+html[data-theme="rei"] .sp-field input{background:transparent;color:var(--ink1)}
+html[data-theme="rei"] .sp-item{
+  background:rgba(19,36,47,.04);border-radius:2px;border-color:transparent;color:var(--ink2);
+}
+html[data-theme="rei"] .sp-item:hover,
+html[data-theme="rei"] .sp-item.on{background:rgba(77,134,168,.12);color:var(--ink1)}
+html[data-theme="rei"] .sp-item.on{border-color:rgba(77,134,168,.4)}
+html[data-theme="rei"] .sp-hchip{background:rgba(19,36,47,.06);border-color:rgba(19,36,47,.12);color:var(--ink3)}
+html[data-theme="rei"] .bg-card,
+html[data-theme="rei"] .cand-card{
+  background:rgba(19,36,47,.045);border-radius:3px;color:var(--ink2);
+}
+html[data-theme="rei"] .bg-card:hover,
+html[data-theme="rei"] .cand-card:hover{background:rgba(77,134,168,.12)}
+html[data-theme="rei"] .bg-card.on,
+html[data-theme="rei"] .cand-card.on{border-color:rgba(77,134,168,.46);background:rgba(77,134,168,.14)}
+html[data-theme="rei"] .cprev-card{background:#fff;border-color:rgba(19,36,47,.12)}
+html[data-theme="rei"] .cprev-chip{background:#fff;border-color:rgba(19,36,47,.14);color:var(--ink3)}
+html[data-theme="rei"] .qitem{
+  background:rgba(19,36,47,.045);color:var(--ink1);border-radius:2px;
+}
+html[data-theme="rei"] .qitem:hover{background:rgba(77,134,168,.12)}
+html[data-theme="rei"] .qitem span{color:var(--ink3)}
+html[data-theme="rei"] .qitem.on{
+  background:rgba(77,134,168,.15);border-color:rgba(77,134,168,.5);color:var(--acc-ink);
+}
+html[data-theme="rei"] .qt span{color:var(--ink3)}
+html[data-theme="rei"] .pin{
+  border-radius:2px;background:#fff;border-color:rgba(19,36,47,.16);color:var(--ink1);
+}
+html[data-theme="rei"] .sk{background:rgba(19,36,47,.07)}
+html[data-theme="rei"] .sk::after,
+html[data-theme="rei"] .sk-lines{
+  background:linear-gradient(100deg,transparent 18%,rgba(255,255,255,.7) 50%,transparent 82%);
+}
+html[data-theme="rei"] .end-row{
+  background:rgba(19,36,47,.045);border-radius:2px;color:var(--ink2);
+}
+html[data-theme="rei"] .end-row.focus{background:rgba(77,134,168,.13)}
+html[data-theme="rei"] .end-dot{border-color:rgba(19,36,47,.3)}
+html[data-theme="rei"] .end-dot.on{background:var(--warn);border-color:var(--warn)}
+html[data-theme="rei"] .pmrow{
+  background:rgba(19,36,47,.045);border-color:rgba(19,36,47,.1);border-radius:2px;color:var(--ink2);
+}
+html[data-theme="rei"] .pmrow:hover{background:rgba(77,134,168,.12);color:var(--ink1)}
+html[data-theme="rei"] .pmkey{background:#fff;border-color:rgba(19,36,47,.18);color:var(--acc-ink)}
+html[data-theme="rei"] .gselbar{
+  border-radius:2px;background:rgba(255,255,255,.94);border-color:rgba(19,36,47,.12);
+}
+
+/* ---------- 装饰层：电路走线 / 遥测 / 指示灯（颜色全部走蓝令牌） ---------- */
+html[data-theme="rei"] .eva-deco{display:block}
+html[data-theme="rei"] .evd-circuit{display:block}
+html[data-theme="rei"] .evd-circuit path{stroke:rgba(77,134,168,.22)}
+html[data-theme="rei"] .evd-circuit circle{fill:var(--acc);opacity:.34}
+html[data-theme="rei"] .evd-circuit-pulse path{stroke:var(--acc);opacity:.5}
+html[data-theme="rei"] .evd-survey{display:block}
+html[data-theme="rei"] .evd-survey span{
+  color:rgba(19,36,47,.3);font-family:var(--mono);letter-spacing:.2em;
+}
+html[data-theme="rei"] .evd-led{
+  display:block;background:var(--pamber);box-shadow:0 0 9px var(--pamber);
+}
+/* 左侧接口环 + 红核：零号机驾驶舱的抽象符号 */
+html[data-theme="rei"] .eva-deco::before{
+  content:'';position:absolute;left:-96px;bottom:-96px;width:300px;height:300px;border-radius:50%;
+  border:1px solid rgba(77,134,168,.18);
+  box-shadow:inset 0 0 0 18px rgba(255,255,255,.5),inset 0 0 0 19px rgba(77,134,168,.14);
+}
+html[data-theme="rei"] .eva-deco::after{
+  content:'';position:absolute;left:52px;bottom:52px;width:8px;height:8px;border-radius:50%;
+  background:var(--pcore);box-shadow:0 0 0 4px rgba(255,255,255,.8),0 0 16px rgba(200,38,47,.45);
+}
+
+/* 浅色主题的收尾：把基础样式里为暗场写的「黑色投影 / 黑色小底」逐条换成冷色 */
+html[data-theme="rei"] .h-cn{text-shadow:0 2px 26px rgba(255,255,255,.85)}
+/* 启动转场层在任何主题下都是暗底，标题/状态不能跟随浅色 ink */
+html[data-theme="rei"] .ll-title{color:#eef5f9}
+html[data-theme="rei"] .ll-status{color:rgba(238,245,249,.62)}
+html[data-theme="rei"] .k{background:rgba(19,36,47,.08);color:var(--acc-ink)}
+html[data-theme="rei"] .ll-art{
+  box-shadow:0 30px 60px rgba(29,70,96,.28),inset 0 0 0 1px rgba(255,255,255,.8);
+}
+html[data-theme="rei"] .lfav{text-shadow:none}
+html[data-theme="rei"] .bg-th{background:rgba(19,36,47,.06)}
+html[data-theme="rei"] .np{backdrop-filter:none}
+html[data-theme="rei"] #toast{
+  background:rgba(252,254,255,.97);border-color:rgba(19,36,47,.12);color:var(--ink1);
+  box-shadow:0 14px 34px rgba(29,70,96,.22);
+}
+html[data-theme="rei"] .gselbar{box-shadow:0 16px 40px rgba(29,70,96,.18)}
+html[data-theme="rei"] .gcell.sel .card{
+  box-shadow:0 0 0 2px rgba(77,134,168,.7),0 18px 40px rgba(29,70,96,.26);
+}
+html[data-theme="rei"] .wall-cell.sel .card{
+  box-shadow:0 0 0 2px rgba(77,134,168,.7),0 16px 36px rgba(29,70,96,.22);
+}
