@@ -68,7 +68,7 @@ let tipText: string | null = null;
 let btnText: string | null = null;
 
 /** 更新失败时的手动下载页 */
-const RELEASES = 'https://github.com/zhao1171921108-cyber/Stash/releases';
+const RELEASES = 'https://github.com/ming190104/Stash/releases';
 
 function setTip(t: string): void {
   tipText = t;

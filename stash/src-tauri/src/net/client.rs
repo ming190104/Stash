@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 pub(crate) const UA: &str = concat!(
     "Stash/",
     env!("CARGO_PKG_VERSION"),
-    " (local Galgame library front-end; +https://github.com/zhao1171921108-cyber/Stash)"
+    " (local Galgame library front-end; +https://github.com/ming190104/Stash)"
 );
 pub(crate) const SEARCH_URL: &str = "https://api.bgm.tv/v0/search/subjects";
 /// 旧版搜索（GET）。v0 的 POST 检索对短标题召回极差——

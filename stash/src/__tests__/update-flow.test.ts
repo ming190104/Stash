@@ -24,7 +24,7 @@ vi.mock('../ipc', async (importOriginal) => {
 });
 vi.mock('@tauri-apps/plugin-process', () => ({ relaunch: H.relaunch, exit: vi.fn() }));
 
-const RELEASES = 'https://github.com/zhao1171921108-cyber/Stash/releases';
+const RELEASES = 'https://github.com/ming190104/Stash/releases';
 
 /** 插件 Update 的最小替身：版本信息 + 下载 / 安装 / 释放句柄 */
 function fakeUpdate(over: Record<string, unknown> = {}) {
