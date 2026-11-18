@@ -2,7 +2,7 @@
 
 import type { LayoutName, ThemeName } from '../../../types';
 import { state } from '../../../state';
-import { toast, esc, applyTheme, applyLayout, applyMotion, applyFontScale, normalizeFontScale, applyAnimSpeed, applyBootAnim, normalizeBootAnim, bootForTheme, themeForBoot } from '../../../ui';
+import { toast, toastNow, esc, applyTheme, applyLayout, applyMotion, applyFontScale, normalizeFontScale, applyAnimSpeed, applyBootAnim, normalizeBootAnim, bootForTheme, themeForBoot } from '../../../ui';
 import { previewBootAnim } from '../../../splash';
 import { applySoundSettings, sfx } from '../../../sfx';
 import { openMenu } from '../../../quick';
@@ -23,7 +23,7 @@ export function wireAppearance(body: HTMLElement): void {
       THEME_OPTS.map((t) => ({
         key: t.v,
         label: t.label,
-        hint: t.v === cur ? '当前' : bootForTheme(t.v) ? '启动动画随主题' : undefined,
+        hint: t.v === cur ? '✓ 当前' : bootForTheme(t.v) ? '启动动画随主题' : undefined,
         run: async () => {
           if (!state.settings) return;
           state.settings.theme = t.v;
@@ -45,13 +45,15 @@ export function wireAppearance(body: HTMLElement): void {
           // 此时再弹「主题 · 樱夜」会让人以为切换成功了
           try {
             await persist();
-            toast(`主题 · ${THEME_LABEL[t.v]}${note}`);
+            // 立即播报：菜单确认后不能被连续切档排队中的旧提示盖住
+            toastNow(`主题 · ${THEME_LABEL[t.v]}${note}`);
           } catch (err) {
             toast(esc(String((err as { message?: string })?.message ?? err)), true);
           }
           rerender();
         },
       })),
+      { activeKey: cur },
     );
   });
   // 动效强度：切 #app.motion-soft（mockup 机制真实接线）+ 落盘；系统减少动态效果时同样整档关闭
@@ -64,7 +66,7 @@ export function wireAppearance(body: HTMLElement): void {
         state.settings.motion = state.motion;
         persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
       }
-      toast(`动效强度 · ${state.motion === 1 ? '柔和' : '标准'}`);
+      toastNow(`动效强度 · ${state.motion === 1 ? '柔和' : '标准'}`);
     });
   });
   // 启动 / 全屏转场速度：只缩放这两段时长，同时写入缓存供下次冷启动在设置读盘前使用
@@ -76,7 +78,7 @@ export function wireAppearance(body: HTMLElement): void {
         state.settings.animSpeed = v;
         persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
       }
-      toast(`启动与转场速度 · ${v}×`);
+      toastNow(`启动与转场速度 · ${v}×`);
     });
   });
   // 速度预览：按当前档位立即播一段，改完马上能看出快慢（不用等下次启动）
@@ -97,7 +99,7 @@ export function wireAppearance(body: HTMLElement): void {
       BOOT_OPTS.map((m) => ({
         key: m.v,
         label: m.label,
-        hint: m.v === cur ? '当前' : themeForBoot(m.v) ? '主题随动画' : undefined,
+        hint: m.v === cur ? '✓ 当前' : themeForBoot(m.v) ? '主题随动画' : undefined,
         run: async () => {
           if (!state.settings) return;
           const v = applyBootAnim(m.v);
@@ -114,13 +116,14 @@ export function wireAppearance(body: HTMLElement): void {
           // 先落盘再报成功：persist() 失败时会按磁盘值回滚，此时不能再提示已切换
           try {
             await persist();
-            toast(`启动动画 · ${BOOT_LABEL[v]}${note} · 下次启动生效`);
+            toastNow(`启动动画 · ${BOOT_LABEL[v]}${note} · 下次启动生效`);
           } catch (err) {
             toast(esc(String((err as { message?: string })?.message ?? err)), true);
           }
           rerender();
         },
       })),
+      { activeKey: cur },
     );
   });
   // 界面字号：写 --fs 根变量（app.css 全部 font-size 乘它）+ 落盘，版式不动
@@ -133,7 +136,7 @@ export function wireAppearance(body: HTMLElement): void {
         state.settings.fontScale = v;
         persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
       }
-      toast(`界面字号 · ${v === 0.9 ? '小' : v === 1 ? '标准' : v === 1.12 ? '大' : '特大'}`);
+      toastNow(`界面字号 · ${v === 0.9 ? '小' : v === 1 ? '标准' : v === 1.12 ? '大' : '特大'}`);
     });
   });
   // 布局皮肤：立即重建库屏 / 网格（CSS 与 TS 两侧都要切）+ 落盘
@@ -150,7 +153,7 @@ export function wireAppearance(body: HTMLElement): void {
         toast(esc(String((err as { message?: string })?.message ?? err)), true);
         rerender();
       });
-      toast(`布局 · ${v === 'list' ? '列表' : v === 'wall' ? '海报墙' : '经典'}`);
+      toastNow(`布局 · ${v === 'list' ? '列表' : v === 'wall' ? '海报墙' : '经典'}`);
     });
   });
   // 排序：轨道 / 列表 / 海报墙 / 网格共用，落盘后重启仍生效
@@ -165,7 +168,7 @@ export function wireAppearance(body: HTMLElement): void {
         state.settings.sort = state.sortBy;
         persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
       }
-      toast('已重新排序');
+      toastNow('已重新排序');
     });
   });
   // 竖排原名（落盘）
@@ -178,7 +181,7 @@ export function wireAppearance(body: HTMLElement): void {
       state.settings.verticalTitle = state.verticalTitle;
       persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
     }
-    toast(`竖排原文名 · ${state.verticalTitle ? '开' : '关'}`);
+    toastNow(`竖排原文名 · ${state.verticalTitle ? '开' : '关'}`);
   });
   // 交互音效：开关即时生效（关闭后立刻静音）；打开时播一声确认，让用户马上听到效果
   body.querySelector('#tgSound')?.addEventListener('click', (e) => {
@@ -189,7 +192,7 @@ export function wireAppearance(body: HTMLElement): void {
     (e.currentTarget as HTMLElement).classList.toggle('on', on);
     sfx.toggle(on);
     persist()
-      .then(() => toast(`交互音效 · ${on ? '开' : '关'}`))
+      .then(() => toastNow(`交互音效 · ${on ? '开' : '关'}`))
       .catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
   });
   // 音效音量：三档，改完播一声让用户听到当前档位
@@ -202,8 +205,10 @@ export function wireAppearance(body: HTMLElement): void {
       body.querySelectorAll('#segSound b').forEach((x) => x.classList.toggle('on', x === b));
       sfx.confirm();
       persist()
-        .then(() => toast(`音效音量 · ${v <= 0.4 ? '小' : v >= 0.8 ? '大' : '中'}`))
+        .then(() => toastNow(`音效音量 · ${v <= 0.4 ? '小' : v >= 0.8 ? '大' : '中'}`))
         .catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
     });
   });
+  // 主题 / 启动动画都只通过 A 打开下拉菜单选择：左右键在掌机上太容易误触，
+  // 不做「顺手切一档」的快捷路径（用户明确要求左右不打开任何设置）。
 }

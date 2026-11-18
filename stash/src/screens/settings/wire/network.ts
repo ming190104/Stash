@@ -1,7 +1,7 @@
 /** 网络页签接线：元数据开关 / 代理 / 萌娘百科兜底 / SteamGridDB Key。 */
 
 import { state } from '../../../state';
-import { toast, esc } from '../../../ui';
+import { toast, toastNow, esc } from '../../../ui';
 import { persist } from '../persist';
 
 export function wireNetwork(body: HTMLElement): void {
@@ -11,7 +11,7 @@ export function wireNetwork(body: HTMLElement): void {
     state.settings.network.metadataEnabled = !state.settings.network.metadataEnabled;
     (e.currentTarget as HTMLElement).classList.toggle('on', state.settings.network.metadataEnabled);
     persist()
-      .then(() => toast(`在线元数据 · ${state.settings!.network.metadataEnabled ? '已开启' : '已关闭'}`))
+      .then(() => toastNow(`在线元数据 · ${state.settings!.network.metadataEnabled ? '已开启' : '已关闭'}`))
       .catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
   });
   // 图片备用源凭据：留空即静默跳过，不会拖慢主链路
@@ -33,7 +33,7 @@ export function wireNetwork(body: HTMLElement): void {
     state.settings.network.moegirlFallback = on;
     (e.currentTarget as HTMLElement).classList.toggle('on', on);
     persist()
-      .then(() => toast(`萌娘百科兜底 · ${on ? '开' : '关'}`))
+      .then(() => toastNow(`萌娘百科兜底 · ${on ? '开' : '关'}`))
       .catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
   });
 }

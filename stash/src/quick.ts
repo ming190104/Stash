@@ -39,7 +39,8 @@ function ensure(): HTMLElement {
   m.className = 'qmenu';
   setRawHTML(
     m,
-    `<div class="qbox"><div class="qt">快捷菜单<span>Start / 菜单键</span></div><div class="qlist"></div></div>`,
+    `<div class="qbox"><div class="qt">快捷菜单<span>Start / 菜单键</span></div><div class="qlist"></div>` +
+      `<div class="qfoot"><span>↑↓ 选择</span><span>A / Enter 确认</span><span>B / Esc 返回</span></div></div>`,
   );
   document.getElementById('app')?.appendChild(m);
   wireBackdrop(m);
@@ -244,12 +245,14 @@ export function quickShown(): boolean {
 }
 
 /** 打开任意动作菜单（快捷菜单与详情「更多操作」共用同一层与键位）。
- *  传 back 时该菜单是子菜单：B / Esc 先回上一层，而不是整个关掉。 */
+ *  传 back 时该菜单是子菜单：B / Esc 先回上一层，而不是整个关掉。
+ *  传 activeKey 时从该条目开始（主题 / 启动动画菜单用它停在当前值，
+ *  否则焦点总在第一项，用户会以为当前值没被选中）。 */
 export async function openMenu(
   title: string,
   sub: string,
   list: MenuItem[],
-  opts?: { back?: () => void },
+  opts?: { back?: () => void; activeKey?: string },
 ): Promise<void> {
   const m = ensure();
   // 菜单是模态层：先卸掉输入焦点。设置页正在输入时按 Start，若不主动失焦，
@@ -259,7 +262,8 @@ export async function openMenu(
   const t = m.querySelector<HTMLElement>('.qt');
   if (t) setRawHTML(t, `${esc(title)}<span>${esc(sub)}</span>`);
   items = list;
-  idx = 0;
+  const start = opts?.activeKey ? list.findIndex((x) => x.key === opts.activeKey) : -1;
+  idx = start >= 0 ? start : 0;
   parent = opts?.back ?? null;
   m.classList.add('show');
   paint();

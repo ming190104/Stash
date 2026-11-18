@@ -79,7 +79,7 @@ export function metadataHTML(): string {
   const hidden = state.games.filter((g) => g.hidden);
   return `
     <h2 class="sh">元数据</h2>
-    <div class="spanel">
+    <div class="spanel full">
       <div class="srow"><div class="lab"><b>本地元数据</b><span>meta.json · 原名 / 厂商 / 年份 / 标签 / 简介</span></div>
         <div class="stat"><b>${matched}</b><span>/ ${state.games.length} 已匹配</span></div></div>
       <div class="srow"><div class="lab"><b>Bangumi 匹配</b><span>≥80 自动入库 · 50–80 待确认 · &lt;50 手动绑定；可随时取消</span></div>
@@ -124,15 +124,13 @@ export function metadataHTML(): string {
       }
       <div class="srow"><div class="lab"><b>封面缓存</b><span>WebP · 255×340 轨道档 / 300×400 详情档</span></div>
         <div class="stat"><b>${state.games.filter((g) => g.thumb).length}</b><span>已生成</span></div></div>
+      <div class="srow"><div class="lab"><b>备份</b><span>导出库 + 设置到 JSON；导入会先另存当前库</span></div>
+        <div class="lacts"><span class="mini" data-act="export">导出…</span><span class="mini" data-act="import">导入…</span></div></div>
     </div>
     ${
       hidden.length
-        ? `<div class="spanel"><div class="srow"><div class="lab"><b>隐藏作品</b><span>默认视图不显示；恢复后回到轨道</span></div><div class="stat"><b>${hidden.length}</b><span>部</span></div></div>
+        ? `<div class="spanel full"><div class="srow"><div class="lab"><b>隐藏作品</b><span>默认视图不显示；恢复后回到轨道</span></div><div class="stat"><b>${hidden.length}</b><span>部</span></div></div>
         <div class="pending">${hidden.map((g) => `<div class="pitem"><span class="pnm">${esc(g.title)}</span><button class="mini" data-unhide="${esc(g.id)}">恢复</button></div>`).join('')}</div></div>`
         : ''
-    }
-    <div class="spanel">
-      <div class="srow"><div class="lab"><b>备份</b><span>导出库 + 设置到 JSON；导入会先另存当前库</span></div>
-        <span class="mini" data-act="export">导出…</span><span class="mini" data-act="import">导入…</span></div>
-    </div>`;
+    }`;
 }

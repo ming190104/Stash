@@ -3,6 +3,7 @@
 
 import type { PadMap } from '../../types';
 import { toast, ringEls, ringFocus, ringClear } from '../../ui';
+import { setSettingsZone, setSettingsLayout } from '../../keybar';
 
 export const sui = {
   /** 当前页签（0 性能 … 7 关于） */
@@ -49,6 +50,17 @@ export function enterRead(): void {
   toast('内容区 · ↑↓ 滚动 · B 返回页签');
 }
 
+/** 面板里是否有左右并排的控件：单列页签不该提示「←→ 换列」 */
+function sideBySide(els: HTMLElement[]): boolean {
+  const rs = els.slice(0, 24).map((e) => e.getBoundingClientRect());
+  for (let i = 0; i < rs.length; i++) {
+    for (let j = i + 1; j < rs.length; j++) {
+      if (Math.abs(rs[i].top - rs[j].top) < 48 && Math.abs(rs[i].left - rs[j].left) > 100) return true;
+    }
+  }
+  return false;
+}
+
 /** 只读内容区整页滚动（一屏 82%，留一点上下文） */
 export function scrollPanel(dir: 1 | -1): void {
   const body = document.getElementById('sbody');
@@ -72,4 +84,9 @@ export function applyRing(): void {
     ringClear(navBtns);
     sui.panelIdx = ringFocus(panelEls(), sui.panelIdx);
   }
+  // 底栏提示跟随焦点区与布局：单列页签不提示「换列」；
+  // 只有「整页没有可聚焦控件」的只读页才换成滚动提示（焦点环不会离开最后一项）
+  const els = panelEls();
+  setSettingsLayout(sideBySide(els), sui.zone === 'panel' && els.length === 0);
+  setSettingsZone(sui.zone);
 }

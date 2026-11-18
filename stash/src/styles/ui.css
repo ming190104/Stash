@@ -121,9 +121,9 @@ html[data-fs="1"] .winbtns,html[data-fs="1"] .fs-hide{display:none}
 .card .np{top:10px;left:10px}
 
 /* ===== 键位栏 ===== */
-.keybar{position:absolute;left:0;right:0;bottom:0;height:48px;display:flex;align-items:center;justify-content:center;gap:26px;background:linear-gradient(180deg,color-mix(in srgb,var(--bg0) 0%,transparent),color-mix(in srgb,var(--bg0) 74%,transparent));font-size:calc(12px * var(--fs,1));color:var(--ink3);letter-spacing:.5px;z-index:20}
+.keybar{position:absolute;left:0;right:0;bottom:0;height:48px;display:flex;align-items:center;justify-content:center;gap:26px;background:linear-gradient(180deg,color-mix(in srgb,var(--bg0) 0%,transparent),color-mix(in srgb,var(--bg0) 74%,transparent));font-size:calc(12.5px * var(--fs,1));color:var(--ink3);letter-spacing:.5px;z-index:20}
 .kg{display:flex;align-items:center;gap:8px}
-.kk{min-width:22px;height:22px;padding:0 7px;border-radius:6px;background:var(--surface-3);border:1px solid var(--surface-line);display:inline-flex;align-items:center;justify-content:center;font-size:calc(11px * var(--fs,1));color:var(--ink2);font-weight:700}
+.kk{min-width:22px;height:22px;padding:0 7px;border-radius:6px;background:var(--surface-3);border:1px solid var(--surface-line);display:inline-flex;align-items:center;justify-content:center;font-size:calc(11.5px * var(--fs,1));color:var(--ink2);font-weight:700}
 /* 布局专属提示：经典布局 ↓ 进网格，列表 / 海报墙用 Q/E 切网格 */
 .classickey{display:none}
 html[data-layout="classic"] .classickey{display:flex}
@@ -211,8 +211,8 @@ html[data-layout="classic"] .qekey{display:none}
 .snav button.on .ic{opacity:1;box-shadow:0 0 9px color-mix(in srgb,var(--acc) 55%,transparent)}
 /* 内容普遍高于一屏（720p 下键位 / 库与统计仍溢出）：细滚动条提示「还能滚」，
    底部渐隐交给 .set::after（只画一条，避免和遮罩叠加成两层雾）。
-   padding-bottom 10px：渐隐在滚到底时会收起，不必再为它预留 40px */
-.sbody{flex:1;padding:18px 30px 10px 36px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-padding-bottom:12px;
+   padding-bottom 44px：最后一行的说明文字不再被渐隐压住（渐隐只在「还能滚」时出现） */
+.sbody{flex:1;padding:18px 30px 44px 36px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-padding-bottom:28px;
   scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink1) 26%,transparent) transparent}
 .sbody::-webkit-scrollbar{width:6px}
 .sbody::-webkit-scrollbar-track{background:transparent}
@@ -227,17 +227,32 @@ html[data-layout="classic"] .qekey{display:none}
      每列只剩 ~225px，长说明会折成 7 行，反而比单列更高。
      键位页也走这条：键位表与调参行会在两列里自然分组 */
   .spanel:has(>.srow:nth-child(9)){grid-column:1/-1;columns:2;column-gap:26px}
+  /* 显式整宽：元数据 / 库与统计这类「主面板 + 若干附属块」的页面，
+     附属块若落到第二列顶部，右侧会留下一大片空白（评审截图 B-nerv-元数据） */
+  .sbody .spanel.full{grid-column:1/-1;columns:auto}
+  /* 外观页签：按「行」配对的两列网格。columns:2 让两列各自堆叠、行高互不相干，
+     截图里主题 / 启动动画那一排的下方分割线永远对不齐；网格行高取两侧较大值，
+     分割线与控件基线逐行对齐。 */
+  .sbody .spanel.cols2{columns:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:26px;align-items:stretch}
+  .sbody .spanel.cols2>.srow{align-items:center}
+  .sbody .spanel.cols2>.srow:nth-last-child(-n+2){border-bottom:none}
   /* 整页只有一个面板时也占满：否则右半屏空着，比滚动更难看 */
   .sbody>.spanel:nth-child(2):last-child{grid-column:1/-1}
 }
-.sh{font-family:var(--serif);font-size:calc(19px * var(--fs,1));font-weight:700;letter-spacing:2.5px;margin-bottom:12px}
+.sh{font-family:var(--serif);font-size:calc(21px * var(--fs,1));font-weight:700;letter-spacing:2.5px;margin-bottom:12px}
+/* 同一页里的第二层标题（库与统计页下半的「统计」）：排在页标题之下，不能同级 */
+.sh.sub{font-size:calc(15px * var(--fs,1));letter-spacing:2px;color:var(--ink2);margin:22px 0 10px}
 .spanel{background:var(--glass);border:1px solid var(--gline);border-radius:16px;padding:8px 22px;margin-bottom:12px}
 /* 设置页常驻说明（映射鼠标的权限提示等）：不参与焦点序列，只读 */
-.spanel .snote{font-size:calc(11px * var(--fs,1));line-height:1.7;color:var(--ink3);padding:10px 2px 12px}
-.srow{display:flex;justify-content:space-between;align-items:center;padding:14px 2px;border-bottom:1px solid rgba(255,255,255,.055)}
+.spanel .snote{font-size:calc(12px * var(--fs,1));line-height:1.65;color:var(--ink2);padding:10px 2px 12px}
+.srow{display:flex;justify-content:space-between;align-items:center;gap:24px;min-height:64px;padding:12px 2px;border-bottom:1px solid rgba(255,255,255,.055)}
 .srow:last-child{border-bottom:none}
+/* 左列说明承担「看起来一样高」的节奏：min-height 抬平短行；
+   说明限宽 78ch，避免 1920 下被拉成横贯整屏的长线 */
+.srow>.lab{flex:1 1 auto;min-width:0;max-width:78ch}
+.srow>*:not(.lab){flex:none}
 .srow .lab b{display:block;font-size:calc(13.5px * var(--fs,1));font-weight:700;letter-spacing:.5px}
-.srow .lab span{display:block;font-size:calc(11px * var(--fs,1));color:var(--ink3);margin-top:4px;letter-spacing:.3px}
+.srow .lab span{display:block;font-size:calc(12px * var(--fs,1));line-height:1.5;color:var(--ink2);margin-top:4px;letter-spacing:.3px}
 /* 待确认队列 / 候选列表（元数据页签，增补）：条目多于可视高度时列内滚动，
    不再截断——截断会让第 7 部之后的作品永远无法人工校正。
    滚动条隐藏：这一列只有 176px 高，系统默认的白条比内容还显眼（用户点名去掉） */
@@ -264,6 +279,7 @@ html[data-layout="classic"] .qekey{display:none}
 .lcands .lcand-aux{font-size:calc(10.5px * var(--fs,1));color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%}
 .lcands .lcand-dir{max-width:22%}
 .lcands input[type=checkbox]{accent-color:var(--acc);width:14px;height:14px;flex:none;cursor:pointer}
+.lcands input[type=checkbox].focus{outline:3px solid var(--acc-ink);outline-offset:3px;border-radius:3px}
 /* 候选条目卡片墙（改绑面板）：封面 3:4 + 标题两行 + 年份/得分。
    4 列固定，与 candKey 的上下步长一致；一屏放得下 5 条且各自可辨认。 */
 .cand-box{width:1080px;max-height:660px;display:flex;flex-direction:column;gap:14px;padding:20px 24px 14px;
@@ -305,8 +321,11 @@ html[data-layout="classic"] .qekey{display:none}
 .seg{display:inline-flex;flex:none;background:var(--surface-field);border:1px solid var(--gline);border-radius:12px;padding:4px;gap:4px}
 .seg b{padding:8px 17px;border-radius:9px;font-size:calc(12px * var(--fs,1));color:var(--ink3);cursor:pointer;font-weight:500;letter-spacing:.5px;white-space:nowrap}
 .seg b.on{background:var(--accg);color:var(--acc-on);font-weight:700;box-shadow:0 6px 18px color-mix(in srgb,var(--acc) 35%,transparent)}
-.tg{width:44px;height:24px;border-radius:99px;background:var(--surface-3);position:relative;cursor:pointer;transition:background .2s;flex:none;border:none}
-.tg::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s cubic-bezier(.3,.8,.4,1)}
+.tg{width:46px;height:26px;border-radius:99px;background:var(--surface-3);position:relative;cursor:pointer;transition:background .2s;flex:none;border:none}
+/* 视觉仍是 46×26 的小胶囊，但把可点/可聚焦范围向外扩到 58×42：
+   掌机上摇杆微调焦点时，36px 高的目标太容易擦边 */
+.tg::before{content:"";position:absolute;inset:-8px -6px;border-radius:16px}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s cubic-bezier(.3,.8,.4,1)}
 .tg.on{background:var(--accg)}
 .tg.on::after{transform:translateX(20px)}
 /* 输入框统一：input 不继承 body 字体（默认落 Arial），placeholder 不走设计 token
@@ -320,10 +339,10 @@ input::placeholder,textarea::placeholder{color:var(--ink3);opacity:1}
 .inp:focus-visible{outline:var(--focus-w) solid var(--focus-ring);outline-offset:1px;border-color:var(--focus-ring)}
 /* nowrap + 不收缩：标签较长时（如「流光跃迁 ▾」）箭头会被挤到第二行，
    控件变成两行高，和相邻行错位 */
-.mini{display:inline-flex;align-items:center;white-space:nowrap;flex:none;padding:9px 18px;border-radius:99px;background:color-mix(in srgb,var(--acc) 14%,transparent);border:1px solid color-mix(in srgb,var(--acc) 40%,transparent);color:var(--acc-ink);font-size:calc(12px * var(--fs,1));letter-spacing:1px;cursor:pointer}
+.mini{display:inline-flex;align-items:center;white-space:nowrap;flex:none;padding:9px 18px;border-radius:99px;background:color-mix(in srgb,var(--acc) 14%,transparent);border:1px solid color-mix(in srgb,var(--acc) 40%,transparent);color:var(--acc-ink);font-size:calc(12px * var(--fs,1));font-family:inherit;line-height:1.2;letter-spacing:1px;cursor:pointer}
 .mini:hover{background:color-mix(in srgb,var(--acc) 24%,transparent)}
 .stat{display:flex;gap:10px;align-items:baseline}
-.stat b{font-size:calc(20px * var(--fs,1));font-family:var(--serif);color:var(--ink1)}
+.stat b{font-size:calc(18px * var(--fs,1));font-family:var(--serif);color:var(--ink1)}
 .stat span{font-size:calc(11px * var(--fs,1));color:var(--ink3)}
 /* 统计页 · 近 7 天柱状：高度只走百分比，不写死像素；0 秒记成 2% 的细线便于看出「有这一天」 */
 .bars7{display:flex;align-items:flex-end;gap:10px;height:150px;padding:14px 2px 6px}
@@ -337,8 +356,9 @@ input::placeholder,textarea::placeholder{color:var(--ink3);opacity:1}
 .about{display:flex;flex-direction:column;gap:8px;padding:20px 2px;font-size:calc(12px * var(--fs,1));color:var(--ink3);letter-spacing:.5px}
 .about .big{display:flex;align-items:center;gap:14px;margin-bottom:10px}
 .about .big .mark{width:44px;height:44px;border-radius:13px;background:var(--accg);display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:700;font-size:calc(24px * var(--fs,1));color:var(--acc-on);box-shadow:0 8px 24px color-mix(in srgb,var(--acc) 35%,transparent)}
-/* 与应用图标同款（两本书斜倚成 V + 书架台），SVG 矢量，任意尺寸都清晰 */
-.about .big .mark.logo{background:none;box-shadow:0 10px 26px rgba(255,154,166,.28)}
+/* 与应用图标同款（两本书斜倚成 V + 书架台），SVG 矢量，任意尺寸都清晰。
+   外发光跟主题走：固定粉色在 REI 白瓷上最刺眼（评审 A） */
+.about .big .mark.logo{background:none;box-shadow:0 10px 26px color-mix(in srgb,var(--acc) 26%,transparent)}
 .about .big .mark.logo svg{display:block;width:100%;height:100%}
 /* 关于页 · 最近的问题（自助排障）：一行一条，长文本单行省略，悬停看全文 */
 .logrow{align-items:flex-start}
@@ -348,7 +368,7 @@ input::placeholder,textarea::placeholder{color:var(--ink3);opacity:1}
 .dimtxt{color:var(--ink3)}
 
 /* ===== Toast ===== */
-#toast{position:absolute;left:50%;bottom:70px;transform:translateX(-50%) translateY(14px);background:rgba(20,21,28,.92);border:1px solid var(--gline);border-radius:18px;padding:11px 22px;font-size:calc(12.5px * var(--fs,1));color:var(--ink1);letter-spacing:1px;line-height:1.6;opacity:0;transition:opacity .25s,transform .25s;z-index:80;pointer-events:none;box-shadow:0 12px 34px rgba(0,0,0,.5);white-space:normal;max-width:min(720px,82vw);text-align:center;overflow-wrap:anywhere}
+#toast{position:absolute;left:50%;bottom:70px;transform:translateX(-50%) translateY(14px);background:rgba(20,21,28,.92);border:1px solid var(--gline);border-radius:18px;padding:11px 22px;font-size:calc(13.5px * var(--fs,1));color:var(--ink1);letter-spacing:1px;line-height:1.6;opacity:0;transition:opacity .25s,transform .25s;z-index:80;pointer-events:none;box-shadow:0 12px 34px rgba(0,0,0,.5);white-space:normal;max-width:min(720px,82vw);text-align:center;overflow-wrap:anywhere}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast .kk{margin-right:10px}
 #toast.hot{border-color:rgba(255,120,130,.5);color:#ffc4ca}
@@ -558,10 +578,44 @@ html[data-fs-scale="1.25"] .help-grid h4{margin-bottom:3px}
 /* ===== 键盘/手柄焦点态（设置页与按钮） =====
    由 ui.ts 的 ringFocus 挂 `.focus`；seg 的每个选项单独高亮（外层 .seg.focus 保留兼容） */
 .seg.focus{outline:var(--focus-w) solid var(--focus-ring);outline-offset:var(--focus-off)}
-.seg b.focus{outline:var(--focus-w) solid var(--focus-ring-strong);outline-offset:-2px;color:var(--ink1)}
-.tg.focus,.mini.focus,.cta.focus,.ghost.focus,.fchip.focus,.back.focus,.tbtn.focus,.inp.focus,.linkbtn.focus,.dstar.focus,.pmrow.focus{outline:var(--focus-w) solid var(--focus-ring);outline-offset:var(--focus-off)}
+/* 分段选项带 role=button[tabindex]，会命中上面那条通用的 :focus-visible（2px / acc 55%），
+   特异性 0,3,0 高于本条 0,2,1 —— 必须把 :focus-visible 也写进来（0,3,1）才压得住。
+   环色用 acc-ink（各主题对比最高的一档），选中档改用 acc-on 反色，
+   否则环和填充同色，等于没有焦点（评审 C：1.0:1）。 */
+.seg b.focus,.seg b.focus:focus-visible{outline:3px solid var(--acc-ink);outline-offset:-2px;color:var(--ink1);border-radius:9px}
+.seg b.on.focus,.seg b.on.focus:focus-visible{outline-color:var(--acc-on);color:var(--acc-on)}
+/* 焦点环统一 3px + --acc-ink：暗底上 acc 88% 只有 2.2–2.6:1，
+   远距离认不出；acc-ink 是各主题里与底色对比最高的一档（≥3:1）。
+   外描边之外再垫 1px 深色，浅色主题（REI）也能压住白底。 */
+.tg.focus,.mini.focus,.cta.focus,.ghost.focus,.fchip.focus,.back.focus,.tbtn.focus,.inp.focus,.linkbtn.focus,.dstar.focus,.pmrow.focus{outline:3px solid var(--acc-ink);outline-offset:var(--focus-off)}
 .linkbtn.focus,.dstar.focus{border-radius:3px}
-.snav button.focus{background:var(--surface-3);outline:var(--focus-w) solid var(--focus-ring);outline-offset:-2px}
+/* 行级焦点：四角准星（方案 B）。整行不再铺紫色底，只用 4 个角标框住，
+   控件配 2px 细环 + 一圈柔光。掌机上比整行紫底更干净，也不和控件环抢重量。
+   角标画在 ::before 的 8 层背景上，不新增 DOM。 */
+.sbody .srow:has(.focus){position:relative;background:none;box-shadow:none}
+.sbody .srow:has(.focus)::before{
+  content:"";position:absolute;left:-11px;right:-11px;top:2px;bottom:2px;pointer-events:none;
+  --c:color-mix(in srgb,var(--acc-ink) 80%,transparent);
+  background:
+    linear-gradient(var(--c),var(--c)) 0 0/10px 1.5px no-repeat,
+    linear-gradient(var(--c),var(--c)) 0 0/1.5px 10px no-repeat,
+    linear-gradient(var(--c),var(--c)) 100% 0/10px 1.5px no-repeat,
+    linear-gradient(var(--c),var(--c)) 100% 0/1.5px 10px no-repeat,
+    linear-gradient(var(--c),var(--c)) 0 100%/10px 1.5px no-repeat,
+    linear-gradient(var(--c),var(--c)) 0 100%/1.5px 10px no-repeat,
+    linear-gradient(var(--c),var(--c)) 100% 100%/10px 1.5px no-repeat,
+    linear-gradient(var(--c),var(--c)) 100% 100%/1.5px 10px no-repeat;
+}
+/* 候选行（元数据 / 库预览）仍是紧凑组件：容器 overflow 会裁掉角标，保留轻色条 */
+.sbody .pitem:has(.focus){background:color-mix(in srgb,var(--acc) 18%,transparent);box-shadow:inset 6px 0 0 var(--acc);border-radius:8px}
+/* 按钮获得焦点时：2px 细环 + 6px 柔光（方案 B 的控件语言） */
+.mini.focus{outline:2px solid var(--acc-ink);outline-offset:3px;background:color-mix(in srgb,var(--acc) 18%,transparent);border-color:color-mix(in srgb,var(--acc) 50%,transparent);box-shadow:0 0 0 6px color-mix(in srgb,var(--acc) 12%,transparent)}
+.tg.focus{outline:2px solid var(--acc-ink);outline-offset:3px;box-shadow:0 0 0 6px color-mix(in srgb,var(--acc) 12%,transparent)}
+/* 页签列的焦点与面板用同一套语言：淡强调底 + 左侧竖条 + 1px 内描边。
+   旧版是 2px 近白方框，和面板里的「淡底 + 色条」像两套 UI（评审 A、C）。 */
+.snav button.focus{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--ink1);
+  outline:1px solid color-mix(in srgb,var(--acc-ink) 55%,transparent);outline-offset:-1px;
+  box-shadow:inset 3px 0 0 var(--acc)}
 /* 危险动作（恢复默认 / 退出应用）：虚线环，避免和普通按钮的实线混在一起 */
 [data-danger="1"].focus,[data-danger="1"]:focus-visible{outline:var(--focus-w) dashed var(--focus-danger);outline-offset:var(--focus-off)}
 
@@ -581,14 +635,20 @@ html[data-fs-scale="1.25"] .help-grid h4{margin-bottom:3px}
 .qmenu{position:fixed;inset:0;display:flex;align-items:center;justify-content:flex-end;padding:0 72px;background:rgba(6,7,10,.42);opacity:0;pointer-events:none;visibility:hidden;transition:opacity .18s ease,visibility 0s linear .18s;z-index:76}
 /* 关闭时 visibility:hidden：菜单项是真实 button，只靠 opacity 隐藏仍会被 Tab 聚焦 */
 .qmenu.show{opacity:1;pointer-events:auto;visibility:visible;transition:opacity .18s ease}
-.qmenu .qbox{width:380px;max-height:calc(100% - 56px);display:flex;flex-direction:column;padding:18px 18px 14px;border-radius:16px;background:rgba(16,18,24,.97);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(18px);box-shadow:0 24px 60px rgba(0,0,0,.55);transform:translateX(12px);transition:transform .18s ease}
+.qmenu .qbox{width:420px;max-height:calc(100% - 56px);display:flex;flex-direction:column;padding:18px 18px 14px;border-radius:16px;background:rgba(16,18,24,.97);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(18px);box-shadow:0 24px 60px rgba(0,0,0,.55);transform:translateX(12px);transition:transform .18s ease}
 .qmenu.show .qbox{transform:none}
 /* 菜单项可能变多（子菜单 / 以后新增）：列表自己滚动，标题固定，选中项由 paint() 滚进视野 */
 .qmenu .qlist{overflow-y:auto;overscroll-behavior:contain;min-height:0;padding-right:2px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
 .qmenu .qt{display:flex;justify-content:space-between;align-items:baseline;font-size:calc(13px * var(--fs,1));letter-spacing:3px;color:#e9ecf2;margin-bottom:12px}
 .qmenu .qt span{font-size:calc(10px * var(--fs,1));letter-spacing:1px;color:rgba(255,255,255,.42)}
-.qitem{display:flex;justify-content:space-between;align-items:center;width:100%;padding:11px 14px;margin-bottom:6px;border-radius:10px;background:var(--surface-1);color:#dfe3ea;font-size:calc(13px * var(--fs,1));border:1px solid transparent;transition:background .15s ease,border-color .15s ease}
+/* 菜单底部操作提示：模态层里底栏被压暗，这里补一份「怎么选 / 怎么确认」 */
+.qmenu .qfoot{display:flex;justify-content:center;gap:16px;flex:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-size:calc(10.5px * var(--fs,1));color:rgba(255,255,255,.45);letter-spacing:.5px}
+.qitem{position:relative;display:flex;justify-content:space-between;align-items:center;width:100%;min-height:44px;padding:11px 14px 11px 30px;margin-bottom:6px;border-radius:10px;background:var(--surface-1);color:#dfe3ea;font-family:inherit;font-size:calc(13.5px * var(--fs,1));border:1px solid transparent;transition:background .15s ease,border-color .15s ease}
+/* 焦点箭头常驻占位，只有选中项显示颜色：上下移动时一眼能看出焦点在哪 */
+.qitem::before{content:"▶";position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:9px;line-height:1;color:transparent;transition:color .15s ease}
 .qitem b{font-weight:500}
+.qitem.on b{font-weight:700}
+.qitem.on::before{color:var(--acc)}
 .qitem span{font-size:calc(10.5px * var(--fs,1));color:rgba(255,255,255,.45)}
 /* 快捷菜单的键位提示统一成键帽，不再是一串裸文字 */
 .qitem .kk.qhint{min-width:22px;height:22px;padding:0 7px;color:var(--ink2);font-size:calc(10.5px * var(--fs,1));letter-spacing:.5px}
@@ -596,7 +656,7 @@ html[data-fs-scale="1.25"] .help-grid h4{margin-bottom:3px}
 /* 危险项（移出库 / 退出应用）不靠焦点态才变红：平时也要和普通项拉开距离 */
 .qitem[data-danger="1"]{color:#ffc4ca;background:rgba(255,110,120,.08);border-color:rgba(255,110,120,.18)}
 /* 带封面的候选条目：小图在左，标题占剩余宽度（长名省略号），分数 / 年份固定右对齐 */
-.qitem.has-th{justify-content:flex-start;gap:10px;padding:8px 14px}
+.qitem.has-th{justify-content:flex-start;gap:10px;padding:8px 14px 8px 30px}
 .qitem.has-th .qthumb{width:34px;height:45px;border-radius:5px;object-fit:cover;flex:none;background:rgba(255,255,255,.06)}
 .qitem.has-th b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qitem.has-th span{flex:none}

@@ -3,7 +3,7 @@
 
 import type { FpsMode } from '../../../types';
 import { state } from '../../../state';
-import { toast, esc, applyFullscreenUI } from '../../../ui';
+import { toast, toastNow, esc, applyFullscreenUI } from '../../../ui';
 import { setFullscreen, setPower60 } from '../../../ipc';
 import { togglePanel } from '../../../fps';
 import { persist } from '../persist';
@@ -17,7 +17,7 @@ export function wirePerf(body: HTMLElement): void {
       if (state.settings) {
         state.settings.fpsMode = v;
         persist()
-          .then(() => toast(`帧率档位 · ${v === 'auto' ? 'Auto' : v + 'fps'}`))
+          .then(() => toastNow(`帧率档位 · ${v === 'auto' ? 'Auto' : v + 'fps'}`))
           .catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
       }
       body.querySelectorAll('#segFps b').forEach((x) => x.classList.toggle('on', x === b));

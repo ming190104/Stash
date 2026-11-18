@@ -58,7 +58,7 @@ export function aboutHTML(): string {
       <div class="srow"><div class="lab"><b>快捷键总览</b><span>手柄键位都在「键位」页签里改</span></div>
         <span class="mini" id="openHelpBtn">查看</span></div>
     </div>
-    <div class="spanel" id="logBox">
+    <div class="spanel full" id="logBox">
       <div class="srow"><div class="lab"><b>最近的问题</b><span>加载中…</span></div></div>
     </div>`;
 }

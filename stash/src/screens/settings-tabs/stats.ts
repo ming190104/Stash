@@ -34,7 +34,7 @@ export function statsHTML(): string {
     .sort((a, b) => b.playSeconds - a.playSeconds)
     .slice(0, 5);
   return `
-    <h2 class="sh">统计</h2>
+    <h2 class="sh sub">统计</h2>
     <div class="spanel">
       <div class="srow"><div class="lab"><b>累计游玩</b><span>${started} / ${games.length} 部已开始 · 按启动到退出的真实时长累加</span></div>
         <div class="stat"><b>${esc(fmtDuration(totalSec))}</b><span>总时长</span></div></div>

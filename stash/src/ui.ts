@@ -326,6 +326,19 @@ export function toast(msg: string, hot = false): void {
   playToast(el, { msg: safe, hot });
 }
 
+/** 立即播报并清掉排队中的普通提示：连续 ←→ 调值 / 菜单确认时，
+ *  反馈不能排在旧值后面，否则用户看到的还是上一条（以为没选中）。
+ *  错误提示（hot）留在队列里，播完当前条后仍会出现。 */
+export function toastNow(msg: string, hot = false): void {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  for (let i = toastQueue.length - 1; i >= 0; i--) {
+    if (!toastQueue[i].hot) toastQueue.splice(i, 1);
+  }
+  if (hot) sfx.error();
+  playToast(el, { msg: safeToast(msg), hot });
+}
+
 /** 按压反馈（mockup press 同款）：手柄 / 键盘激活时先缩一下再回弹——
  *  没有这层，按键就像"没反应"。`.kp` 规则见 app.css（`.cta` / `.ghost`），卡片走 `.press`。
  *  ms 默认 140，与 UI 规范 6.1 的「按压反馈 140ms」一致。 */
@@ -356,7 +369,7 @@ export function pressCard(card: HTMLElement | null, ms = 140): void {
    与 CSS 规则一一对应的可聚焦选择器集中在这里，避免三处各写一遍再漏一处。 */
 export const RING_SEL =
   '.tg,.mini,.cta,.ghost,.seg b[data-v],.inp,.back,.tbtn,.linkbtn,.dstar,.pmrow,.snav button,.cand-card,' +
-  '.sp-item,.flt-opt,.bg-card,.end-row,.lrow,.gcell,.wall-cell';
+  '.sp-item,.flt-opt,.bg-card,.end-row,.lrow,.gcell,.wall-cell,.lcand-cb,.steam-cb';
 
 /** 收集容器内可聚焦控件（文档序，与视觉顺序一致）。
  *  同一份 DOM 上多次调用（手柄连发 / 环移动后紧接着取列表）复用上次结果：
@@ -381,9 +394,16 @@ export function ringFocus(els: HTMLElement[], i: number): number {
   if (!els.length) return 0;
   const k = Math.max(0, Math.min(els.length - 1, i));
   els.forEach((el, j) => el.classList.toggle('focus', j === k));
+  const el = els[k];
+  // span / div 伪按钮默认不可聚焦：补 tabindex=-1 再 focus。
+  // 否则 DOM 焦点会留在页签列，底下的按钮一直显示 :focus-visible 白框，
+  // 看起来像「手柄焦点没进面板」。
+  if (!/^(BUTTON|INPUT|SELECT|TEXTAREA)$/.test(el.tagName) && el.tabIndex < 0) {
+    el.tabIndex = -1;
+  }
   // 手柄焦点环与 DOM 焦点同步，Tab / 键盘操作不会停留在旧控件上
-  els[k].focus({ preventScroll: true });
-  els[k].scrollIntoView({ block: 'nearest' });
+  el.focus({ preventScroll: true });
+  el.scrollIntoView({ block: 'nearest' });
   return k;
 }
 
@@ -391,11 +411,17 @@ export function ringClear(els: HTMLElement[]): void {
   els.forEach((el) => el.classList.remove('focus'));
 }
 
-/** 激活焦点元素：输入框取焦点让用户打字，其余走 click */
+/** 激活焦点元素：文本框取焦点让用户打字，勾选框直接切换，其余走 click */
 export function ringActivate(el: HTMLElement | undefined): void {
   if (!el) return;
-  if (el.tagName === 'INPUT') (el as HTMLInputElement).focus();
-  else el.click();
+  if (el.tagName === 'INPUT') {
+    const inp = el as HTMLInputElement;
+    // 勾选框：A 直接切换；文本框才是进入输入（手柄没有键盘）
+    if (inp.type === 'checkbox' || inp.type === 'radio') inp.click();
+    else inp.focus();
+    return;
+  }
+  el.click();
 }
 
 export function fmtRelative(ts: number | null): string {

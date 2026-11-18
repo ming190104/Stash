@@ -70,6 +70,11 @@ html[data-theme="eva01"] .lrow{border-radius:10px}
 html[data-theme="eva01"] .spanel{border-radius:16px}
 html[data-theme="eva01"] .seg{border-radius:12px}
 html[data-theme="eva01"] .seg b{border-radius:9px}
+/* 选中档收在同色系里：原来的紫→薄荷渐变让「绿色」在本页没有任何语义 */
+html[data-theme="eva01"] .seg b.on{
+  background:linear-gradient(135deg,var(--acc),color-mix(in srgb,var(--acc) 58%,#1a0b2e));
+  box-shadow:0 6px 16px color-mix(in srgb,var(--acc) 32%,transparent);
+}
 html[data-theme="eva01"] .snav button{border-radius:10px}
 html[data-theme="eva01"] .snav button.on::before{width:2.5px;border-radius:2px;background:var(--accg)}
 html[data-theme="eva01"] .back{border-radius:99px}
@@ -151,6 +156,25 @@ html[data-theme="eva02"] .mini{
   clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%);
 }
 html[data-theme="eva02"] .cta{box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+/* 切角主题的 clip-path 会把外描边与光晕一起裁掉（焦点几乎只剩一点填充差）。
+   焦点改用内描边：内阴影在裁剪区域内，视觉上仍然完整。 */
+html[data-theme="eva02"] .mini.focus,
+html[data-theme="eva02"] .cta.focus,
+html[data-theme="eva02"] .ghost.focus{
+  outline:none;
+  background:color-mix(in srgb,var(--acc) 40%,transparent);
+  border-color:var(--acc-ink);
+  box-shadow:inset 0 0 0 3px var(--acc-ink),inset 0 0 16px color-mix(in srgb,var(--acc) 45%,transparent);
+}
+/* 分段档位同样被切角裁掉外环：改成内描边；选中档用 acc-on 反色，避免红压红 */
+html[data-theme="eva02"] .seg b.focus,
+html[data-theme="eva02"] .seg b.focus:focus-visible{
+  outline:none;box-shadow:inset 0 0 0 3px var(--acc-ink);
+}
+html[data-theme="eva02"] .seg b.on.focus,
+html[data-theme="eva02"] .seg b.on.focus:focus-visible{
+  outline:none;box-shadow:inset 0 0 0 3px var(--acc-on);
+}
 html[data-theme="eva02"] .ghost:hover{background:rgba(255,255,255,.12)}
 html[data-theme="eva02"] .hero-art,
 html[data-theme="eva02"] .dcover,
@@ -324,7 +348,7 @@ html[data-theme="nerv"] .card.focus::before{
   content:'';position:absolute;left:6px;top:6px;width:12px;height:12px;z-index:5;pointer-events:none;
   border-left:1px solid var(--acc2);border-top:1px solid var(--acc2);
 }
-html[data-theme="nerv"] .spanel{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 26%,transparent)}
+html[data-theme="nerv"] .spanel{box-shadow:none}
 
 /* 标题：中文标题拉开字距，副题更暗 */
 html[data-theme="nerv"] .h-cn,
@@ -457,7 +481,8 @@ html[data-theme="eva01"] .evd-circuit{display:block}
 .evd-circuit-pulse path:nth-child(4){animation-delay:4.5s}
 
 /* ---------- 状态灯：01 呼吸（ui-led）/ 02、NERV 闪烁（ui-blink） ---------- */
-.evd-led{display:none;position:absolute;left:26px;top:24px;width:5px;height:5px;border-radius:50%}
+/* 状态灯留在窗口左缘：左上 24/16 起是 .back 的框，灯压在它的焦点环上会啃出缺口 */
+.evd-led{display:none;position:absolute;left:9px;top:31px;width:5px;height:5px;border-radius:50%}
 html[data-theme="eva01"] .evd-led{display:block;background:var(--acc2);box-shadow:0 0 9px var(--acc2);
   animation:eva-ui-led 2.4s ease-in-out infinite}
 html[data-theme="eva02"] .evd-led{display:block;background:var(--warn);box-shadow:0 0 9px var(--warn);
@@ -642,11 +667,11 @@ html[data-theme="nerv"] .qmenu .qitem{background:color-mix(in srgb,var(--ink1) 5
   color:var(--ink2);border-color:transparent}
 html[data-theme="eva02"] .qmenu .qitem,
 html[data-theme="nerv"] .qmenu .qitem{border-radius:0;font-family:var(--mono)}
-html[data-theme="eva01"] .qmenu .qitem.on{background:color-mix(in srgb,var(--acc) 18%,transparent);
+html[data-theme="eva01"] .qmenu .qitem.on{background:color-mix(in srgb,var(--acc) 24%,transparent);
   border-color:var(--acc2);color:var(--ink1)}
-html[data-theme="eva02"] .qmenu .qitem.on{background:color-mix(in srgb,var(--acc) 12%,transparent);
+html[data-theme="eva02"] .qmenu .qitem.on{background:color-mix(in srgb,var(--acc) 22%,transparent);
   border-color:var(--acc);box-shadow:inset 4px 0 0 var(--acc);color:var(--ink1)}
-html[data-theme="nerv"] .qmenu .qitem.on{background:color-mix(in srgb,var(--acc) 9%,transparent);
+html[data-theme="nerv"] .qmenu .qitem.on{background:color-mix(in srgb,var(--acc) 18%,transparent);
   border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc);color:var(--ink1)}
 html[data-theme="eva01"] .qmenu .qitem span,
 html[data-theme="eva02"] .qmenu .qitem span,
@@ -771,10 +796,10 @@ html[data-theme="rei"] #app[data-screen="library"]::before{
   content:'00';position:absolute;right:30px;top:56px;z-index:1;pointer-events:none;
   font:800 88px/1 var(--sans);letter-spacing:-.05em;color:rgba(19,36,47,.045);
 }
-/* 底部红白危险带：2px，压在键位条之上 */
+/* 底部红白危险带：保留 00 机体的警示记号，但白瓷主题上不该抢走注意力 */
 html[data-theme="rei"] #app::after{
   content:'';position:absolute;left:0;right:0;bottom:0;height:2px;z-index:90;pointer-events:none;
-  background:repeating-linear-gradient(-45deg,var(--warn) 0 7px,#fff 7px 15px);opacity:.9;
+  background:repeating-linear-gradient(-45deg,var(--warn) 0 7px,#fff 7px 15px);opacity:.45;
 }
 
 /* ---------- 英雄区：白瓷封面 + 橙色警示角标 + 亮蓝 CTA ---------- */
@@ -974,7 +999,7 @@ html[data-theme="rei"] .snav button{border-radius:2px;color:var(--ink2)}
 html[data-theme="rei"] .snav button:hover{background:var(--surface-2);color:var(--ink1)}
 html[data-theme="rei"] .snav button.on{background:var(--surface-3);color:var(--acc-ink)}
 html[data-theme="rei"] .snav button.on::before{width:2.5px;border-radius:0;background:var(--acc)}
-html[data-theme="rei"] .snav button.focus{background:var(--surface-2);outline-offset:-2px}
+html[data-theme="rei"] .snav button.focus{background:var(--surface-2);outline-offset:1px}
 /* 亮色主题的次级控件：基础样式用白色半透明（为深色底写的），
    在 #f7fafc 上等于白底白边，按钮只剩一圈描边。改成浅墨色薄底 */
 html[data-theme="rei"] .ghost{background:var(--surface-2);border-color:var(--gline);color:var(--ink2)}

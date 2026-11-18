@@ -95,3 +95,24 @@ describe('EVA 主题与启动动画绑定', () => {
     expect(themeForBoot('off')).toBeNull();
   });
 });
+
+describe('外观页 · 手柄下拉', () => {
+  it('主题 / 启动动画是真实按钮，能挂焦点环', () => {
+    mount('cinema', 'warp');
+    expect(document.getElementById('pickTheme')?.tagName).toBe('BUTTON');
+    expect(document.getElementById('pickBootAnim')?.tagName).toBe('BUTTON');
+  });
+
+  it('左右键不再改值：收到 pad-step 也不切换主题 / 启动动画', () => {
+    const s = mount('cinema', 'warp');
+    const detail = { dir: 'right', handled: false };
+    document.getElementById('pickTheme')!.dispatchEvent(new CustomEvent('pad-step', { detail }));
+    expect(detail.handled).toBe(false);
+    expect(s.theme).toBe('cinema');
+    const detail2 = { dir: 'right', handled: false };
+    document.getElementById('pickBootAnim')!.dispatchEvent(new CustomEvent('pad-step', { detail: detail2 }));
+    expect(detail2.handled).toBe(false);
+    expect(s.bootAnim).toBe('warp');
+    expect(mocks.openMenu).not.toHaveBeenCalled();
+  });
+});

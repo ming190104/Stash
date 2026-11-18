@@ -41,9 +41,106 @@ export { addManualGame } from './settings/actions';
 /** 进入面板时的首焦点：键位页右上角「恢复默认」在 DOM 里排在映射行之前，
  *  直接取 0 会让 A 落到清空键位上，必须跳到第一条映射。 */
 function panelEntryIndex(): number {
-  if (sui.tab !== 2) return 0;
-  const i = panelEls().findIndex((el) => el.classList.contains('pmrow'));
-  return i >= 0 ? i : 0;
+  if (sui.tab === 2) {
+    const i = panelEls().findIndex((el) => el.classList.contains('pmrow'));
+    if (i >= 0) return i;
+  }
+  // 元数据：首个焦点避开「开始匹配」——误按 A 会立刻发起一轮网络匹配；
+  // 落到只读的「测试」上，主操作仍然只差一次 ↓。
+  if (sui.tab === 6) {
+    const i = panelEls().findIndex((el) => el.dataset.act === 'probe');
+    if (i >= 0) return i;
+  }
+  return 0;
+}
+
+/** 按元素矩形找视觉相邻控件：↑↓ 优先同列，←→ 优先同行。
+ *  两列面板不能再按 DOM 顺序走——外观页的 DOM 是「左 1、右 1、左 2、右 2」，
+ *  线性上下会从右列斜跳到左列的下一行，看起来像方向键坏了。
+ *  返回 -1 表示该方向没有控件。 */
+function spatialTarget(
+  els: HTMLElement[],
+  idx: number,
+  dir: 'up' | 'down' | 'left' | 'right',
+): number {
+  const cur = els[idx];
+  if (!cur) return -1;
+  const c = cur.getBoundingClientRect();
+  if (c.width <= 0 && c.height <= 0) return -1;
+  const cx = (c.left + c.right) / 2;
+  const cy = (c.top + c.bottom) / 2;
+  // 用「行」的矩形判断同列 / 同行，而不是按钮本身：
+  // 右对齐的分段选择器（动效强度）和上一行左对齐的选择器可能完全不相交，
+  // 按按钮矩形算会把它当成另一列，↑↓ 就会直接跳过整行。
+  const cellSel = '.srow,.pitem,.pmrow,.cand-card,.sp-item,.flt-opt,.bg-card,.end-row,.lrow,.gcell,.wall-cell';
+  const cell = (el: HTMLElement): DOMRect => (el.closest<HTMLElement>(cellSel) ?? el).getBoundingClientRect();
+  const cc = cell(cur);
+  // 单列面板（性能 / 启动 / 网络）里左右键只在同一行内找控件；
+  // 允许斜跳到别行会让「帧率最后一档再按右」突然跳到上方的全屏开关。
+  const bodyW = document.getElementById('sbody')?.clientWidth ?? cc.width;
+  const multiCol = cc.width < bodyW * 0.7;
+  let best = -1;
+  let bestScore = Number.POSITIVE_INFINITY;
+  /** ←→ 的斜向兜底：只在向右时启用（右列与左列行高不齐也要能过去） */
+  let diag = -1;
+  let diagScore = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < els.length; i++) {
+    if (i === idx) continue;
+    const r = els[i].getBoundingClientRect();
+    if (r.width <= 0 && r.height <= 0) continue;
+    const x = (r.left + r.right) / 2;
+    const y = (r.top + r.bottom) / 2;
+    const rc = cell(els[i]);
+    const overlapX = Math.min(cc.right, rc.right) - Math.max(cc.left, rc.left);
+    const overlapY = Math.min(cc.bottom, rc.bottom) - Math.max(cc.top, rc.top);
+    // 同一个 cell 里上下堆叠的按钮（元数据「开始匹配 / 取消」）中心差一个按钮高，
+    // 仅凭行容器重叠会把它算成同一行，↓ 就会直接跳过下面那个。
+    const sameRow =
+      overlapY > Math.min(cc.height, rc.height) * 0.5 &&
+      Math.abs(y - cy) < Math.max(c.height, r.height) * 0.75;
+    const sameCol = overlapX > Math.min(cc.width, rc.width) * 0.5;
+    if (dir === 'up' || dir === 'down') {
+      if (sameRow) continue; // 同一行里的另一个控件不参与上下移动
+      const d = dir === 'down' ? y - cy : cy - y;
+      if (d <= 1) continue;
+      // 跨列只作为兜底：同方向同列没有控件时，才允许斜着过去
+      const score = d + Math.abs(x - cx) * 0.2 + (sameCol ? 0 : 100000);
+      if (score < bestScore) {
+        bestScore = score;
+        best = i;
+      }
+    } else {
+      const d = dir === 'right' ? x - cx : cx - x;
+      if (d <= 1) continue;
+      const score = d + Math.abs(y - cy) * 0.2;
+      if (sameRow) {
+        if (score < bestScore) {
+          bestScore = score;
+          best = i;
+        }
+      } else if (multiCol && dir === 'right') {
+        // 左键绝不斜跳：列边再按 ← 直接回页签列，否则会「从开始体检跳到上一行的添加游戏库」
+        if (score < diagScore) {
+          diagScore = score;
+          diag = i;
+        }
+      }
+    }
+  }
+  if (best < 0) best = diag;
+  if (best < 0) return -1;
+  // 只有上下进入分段选择器时才停在当前值（一行里各档紧凑，↑↓ 落到当前档最直观）；
+  // 左右必须按几何邻项走——左右只移焦点，若也吸附到 .on，焦点就永远停在当前档，
+  // 未选中的档位再也到不了，等于分段值无法修改。
+  if (dir === 'up' || dir === 'down') {
+    const seg = els[best].closest<HTMLElement>('.seg');
+    const on = seg?.querySelector<HTMLElement>('b.on');
+    if (on) {
+      const onIdx = els.indexOf(on);
+      if (onIdx >= 0) return onIdx;
+    }
+  }
+  return best;
 }
 
 export async function renderSettings(): Promise<void> {
@@ -261,7 +358,7 @@ export function initSettings(): void {
       return;
     }
 
-    // 面板区：上下遍历控件，左退回页签列
+    // 面板区：按几何位置做空间导航（双栏页签上下优先同列、左右优先同排）
     const els = panelEls();
     if (!els.length) {
       // 只读内容区：↑↓ 整页滚动，← / B 退回页签
@@ -273,14 +370,30 @@ export function initSettings(): void {
       }
       return;
     }
-    if (n.dir === 'up') sui.panelIdx = (sui.panelIdx + els.length - 1) % els.length;
-    if (n.dir === 'down') sui.panelIdx = (sui.panelIdx + 1) % els.length;
-    if (n.dir === 'left') {
-      sui.zone = 'nav';
-      applyRing();
+    // ← / → 只移动焦点：不调分段值、不展开下拉、不拨开关。
+    // 左右（左摇杆 / 十字键）在掌机上太容易误触，任何「顺手改一下」的设计
+    // 都会变成误操作；改值 / 打开统一走 A。
+    if (n.dir === 'up' || n.dir === 'down') {
+      const t = spatialTarget(els, sui.panelIdx, n.dir);
+      if (t >= 0) {
+        sui.panelIdx = t;
+        applyRing();
+      } else {
+        // 焦点已到可交互控件尽头：继续按上下翻只读内容（统计图 / 日志 / 长说明），
+        // 焦点环留在最后一个控件上，不另起「只读尾部」模式
+        scrollPanel(n.dir === 'down' ? 1 : -1);
+      }
       return;
     }
-    applyRing();
+    // ← / →：优先跨列；最左侧再按 ← 才退回页签列，最右侧再按 → 保持不动
+    const t = spatialTarget(els, sui.panelIdx, n.dir);
+    if (t >= 0) {
+      sui.panelIdx = t;
+      applyRing();
+    } else if (n.dir === 'left') {
+      sui.zone = 'nav';
+      applyRing();
+    }
   });
   // snav 点击
   document.querySelectorAll('#snav button').forEach((b, i) => {

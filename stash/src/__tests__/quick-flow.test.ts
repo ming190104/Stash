@@ -183,6 +183,24 @@ describe('键盘与指针', () => {
     expect(quickShown()).toBe(true);
   });
 
+  it('activeKey：下拉菜单从当前值开始，A 直接确认它', async () => {
+    const runB = vi.fn(() => undefined);
+    await openMenu(
+      '测试',
+      '当前 · B',
+      [
+        { key: 'a', label: 'A', run: () => undefined },
+        { key: 'b', label: 'B', run: runB },
+        { key: 'c', label: 'C', run: () => undefined },
+      ],
+      { activeKey: 'b' },
+    );
+    expect(item('a')!.classList.contains('on')).toBe(false);
+    expect(item('b')!.classList.contains('on')).toBe(true);
+    expect(handleQuickKey(key('Enter'))).toBe(true);
+    expect(runB).toHaveBeenCalledTimes(1);
+  });
+
   it('点暗底关闭菜单，点菜单内容不关', async () => {
     await toggleQuickMenu();
     const m = document.getElementById('qmenu')!;
