@@ -15,6 +15,9 @@ import {
   versionGroup,
   versionCounts,
   versionOthers,
+  markLocalEdit,
+  clearLocalEdit,
+  mergeLocalEdits,
 } from '../state';
 
 /** 最小可用 Game：按用例覆盖排序 / 筛选 / 集合相关字段 */
@@ -174,12 +177,12 @@ describe('智能集合', () => {
 describe('版本归并', () => {
   it('忽略大小写与分隔符，同一作品合并且不含自己', () => {
     state.games = [game('v1', { title: 'CLANNAD' }), game('v2', { title: 'clannad' }), game('v3', { title: 'C-LANNAD' })];
-    expect(ids(versionGroup(state.games[0]))).toEqual(['v2', 'v3']);
+    expect(ids(versionGroup(state.games[0]!))).toEqual(['v2', 'v3']);
   });
 
   it('隐藏的版本不参与归并（否则能从版本角标切进已隐藏的作品）', () => {
     state.games = [game('v1', { title: 'CLANNAD' }), game('v2', { title: 'clannad' }), game('v3', { title: 'C-LANNAD', hidden: true })];
-    expect(ids(versionGroup(state.games[0]))).toEqual(['v2']);
+    expect(ids(versionGroup(state.games[0]!))).toEqual(['v2']);
   });
 
   it('预建计数与逐条 versionGroup 结果一致（隐藏作品的语境）', () => {
@@ -194,15 +197,58 @@ describe('版本归并', () => {
     for (const g of state.games) {
       expect(versionOthers(g, counts)).toBe(versionGroup(g).length);
     }
-    expect(versionOthers(state.games[0], counts)).toBe(2);
-    expect(versionOthers(state.games[4], counts)).toBe(0);
+    expect(versionOthers(state.games[0]!, counts)).toBe(2);
+    expect(versionOthers(state.games[4]!, counts)).toBe(0);
   });
 
   it('改绑 Bangumi / 改标题后版本键缓存失效', () => {
     state.games = [game('a', { title: 'CLANNAD' }), game('b', { title: 'AIR' })];
-    expect(ids(versionGroup(state.games[0]))).toEqual([]);
-    state.games[1].bangumiId = 1;
-    state.games[0].bangumiId = 1;
-    expect(ids(versionGroup(state.games[0]))).toEqual(['b']);
+    expect(ids(versionGroup(state.games[0]!))).toEqual([]);
+    state.games[1]!.bangumiId = 1;
+    state.games[0]!.bangumiId = 1;
+    expect(ids(versionGroup(state.games[0]!))).toEqual(['b']);
+  });
+});
+
+describe('本地写入意图', () => {
+  beforeEach(() => {
+    state.games = [];
+  });
+
+  it('写盘前的旧快照会被意图覆盖', () => {
+    markLocalEdit('a', { notes: '刚写的备注' });
+    const disk = [game('a', { notes: '' })];
+    mergeLocalEdits(disk);
+    expect(disk[0]!.notes).toBe('刚写的备注');
+    clearLocalEdit('a');
+  });
+
+  it('后端归一化后的值视为已落盘：采用磁盘真值且意图出清', () => {
+    markLocalEdit('a', { notes: '  首尾空白  ' });
+    const disk = [game('a', { notes: '首尾空白' })];
+    mergeLocalEdits(disk);
+    expect(disk[0]!.notes).toBe('首尾空白');
+    // 意图已清：下一次真实变更必须能读到
+    const next = [game('a', { notes: '磁盘上的新备注' })];
+    mergeLocalEdits(next);
+    expect(next[0]!.notes).toBe('磁盘上的新备注');
+  });
+
+  it('超长标签被后端丢弃后不能再被意图写回内存', () => {
+    const longTag = 'x'.repeat(21);
+    markLocalEdit('a', { userTags: ['保留', longTag] });
+    const disk = [game('a', { userTags: ['保留'] })];
+    mergeLocalEdits(disk);
+    expect(disk[0]!.userTags).toEqual(['保留']);
+    const next = [game('a', { userTags: ['保留', '新标签'] })];
+    mergeLocalEdits(next);
+    expect(next[0]!.userTags).toEqual(['保留', '新标签']);
+  });
+
+  it('空 END 名被补成 END N 后按磁盘值收敛', () => {
+    markLocalEdit('a', { endings: [{ name: '   ', done: true }] });
+    const disk = [game('a', { endings: [{ name: 'END 1', done: true }] })];
+    mergeLocalEdits(disk);
+    expect(disk[0]!.endings).toEqual([{ name: 'END 1', done: true }]);
   });
 });

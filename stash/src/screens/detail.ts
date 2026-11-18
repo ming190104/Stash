@@ -24,13 +24,13 @@ import {
   removeGame,
   unmatchGame,
 } from '../ipc';
-import { state, gameById, setScreen, versionGroup } from '../state';
+import { state, gameById, setScreen, versionGroup, markLocalEdit, clearLocalEdit } from '../state';
 import { PAD_DEFAULT, padGlyph } from '../padmap';
 import { registerHandler } from '../nav';
 import { toast, esc, fmtRelative, fmtDuration, press, ringEls, ringFocus, ringClear, ringActivate, cnFirst, clickable } from '../ui';
 import { artHTML, hydrateArts } from './art';
 import { clearHTML, setRawHTML } from '../html';
-import { toggleFav, refreshLibrary } from './library';
+import { toggleFav, refreshLibrary } from '../library-bridge';
 import { paintDetailArt, forgetDetailBg, prepareDetailBg } from './detail-bg';
 import { anyState, openEndings } from '../overlay';
 import { promptConfirm, promptInput } from '../prompt';
@@ -289,6 +289,8 @@ export async function renderDetail(): Promise<void> {
     el.addEventListener('click', async () => {
       const v = Number(el.dataset.star);
       const next = rating === v ? 0 : v;
+      // 先登记意图：写盘期间后台缩略图刷新拿到旧快照时，不会被冲回旧评分
+      markLocalEdit(g.id, { rating: next });
       try {
         await setRating(g.id, next);
         // 写入期间后台可能刷新过库（state.games 换成新对象），
@@ -296,6 +298,7 @@ export async function renderDetail(): Promise<void> {
         (gameById(g.id) ?? g).rating = next;
         void renderDetail();
       } catch (e) {
+        clearLocalEdit(g.id, ['rating']);
         toast(esc(String((e as { message?: string })?.message ?? e)), true);
       }
     });
@@ -306,11 +309,13 @@ export async function renderDetail(): Promise<void> {
     el.addEventListener('click', async () => {
       const t = el.dataset.tag!;
       const next = userTags.filter((x) => x !== t);
+      markLocalEdit(g.id, { userTags: next });
       try {
         await setUserTags(g.id, next);
         (gameById(g.id) ?? g).userTags = next;
         void renderDetail();
       } catch (e) {
+        clearLocalEdit(g.id, ['userTags']);
         toast(esc(String((e as { message?: string })?.message ?? e)), true);
       }
     });
@@ -341,11 +346,13 @@ async function addUserTag(g: Game): Promise<void> {
   const v = await promptInput({ title: '添加标签', sub: '多个标签用空格分隔 · 点标签可移除', cap: 120 });
   if (!v || !v.trim()) return;
   const next = [...(g.userTags ?? []), ...v.trim().split(/\s+/)];
+  markLocalEdit(g.id, { userTags: next });
   try {
     await setUserTags(g.id, next);
     await afterChange();
     toast('标签已保存');
   } catch (e) {
+    clearLocalEdit(g.id, ['userTags']);
     toast(esc(String((e as { message?: string })?.message ?? e)), true);
   }
 }
@@ -359,11 +366,13 @@ async function editNotes(g: Game): Promise<void> {
     multiline: true,
   });
   if (v === null) return;
+  markLocalEdit(g.id, { notes: v });
   try {
     await setNotes(g.id, v);
     await afterChange();
     toast('备注已保存');
   } catch (e) {
+    clearLocalEdit(g.id, ['notes']);
     toast(esc(String((e as { message?: string })?.message ?? e)), true);
   }
 }
@@ -376,7 +385,15 @@ async function editArgs(g: Game): Promise<void> {
   });
   if (v === null) return;
   const args = v.trim() ? v.trim().split(/\s+/) : [];
-  await setLaunchArgs(g.id, args);
+  // 后端有 32 项 / 1024 字符上限：超限会被拒，必须接住并提示，不能让拒绝冒到全局
+  markLocalEdit(g.id, { launchArgs: args });
+  try {
+    await setLaunchArgs(g.id, args);
+  } catch (e) {
+    clearLocalEdit(g.id, ['launchArgs']);
+    toast(esc(String((e as { message?: string })?.message ?? e)), true);
+    return;
+  }
   g.launchArgs = args;
   toast(args.length ? `启动参数已保存 · ${args.length} 项` : '已清空启动参数');
   await afterChange();
@@ -427,7 +444,17 @@ export async function openDetailMenu(id: string): Promise<void> {
       run: async () => {
         const v = await promptInput({ title: '重命名', sub: '留空则恢复原名', value: g.title, cap: 120 });
         if (v === null) return;
-        await setGameTitle(id, v);
+        // 非空标题由前端确定，先记意图防止后台旧快照冲回；留空时最终标题由后端按目录重算，
+        // 这里无法预知，交给写盘后的 refreshLibrary 读取
+        if (v.trim()) markLocalEdit(id, { title: v.trim() });
+        else clearLocalEdit(id, ['title']);
+        try {
+          await setGameTitle(id, v);
+        } catch (e) {
+          clearLocalEdit(id, ['title']);
+          toast(esc(String((e as { message?: string })?.message ?? e)), true);
+          return;
+        }
         await afterChange();
         toast(v.trim() ? '标题已更新' : '已恢复自动标题');
       },
@@ -619,7 +646,14 @@ async function openRemoveMenu(id: string): Promise<void> {
         // 先记下「本来是不是隐藏的」：这次操作就是把它取反。
         // 写盘后不要去读刷新过的副本——刷新失败 / 慢一步时会读到旧值，把分支走反。
         const wasHidden = gameById(id)?.hidden ?? g.hidden;
-        await setHidden(id, !wasHidden);
+        markLocalEdit(id, { hidden: !wasHidden });
+        try {
+          await setHidden(id, !wasHidden);
+        } catch (e) {
+          clearLocalEdit(id, ['hidden']);
+          toast(esc(String((e as { message?: string })?.message ?? e)), true);
+          return;
+        }
         await afterChange();
         if (!wasHidden) {
           // 隐藏后作品不再属于四屏浏览：清掉残留 detailId，否则数字 3 会回到已隐藏作品的详情
@@ -682,7 +716,8 @@ export function initDetail(): void {
       if (verRing.length < 2) return;
       const step = n.dir === 'right' ? 1 : -1;
       verIdx = (verIdx + step + verRing.length) % verRing.length;
-      switchDetailGame(verRing[verIdx]);
+      const nextId = verRing[verIdx];
+      if (nextId) switchDetailGame(nextId);
     }
   });
   // Y 结局标记 / R 收藏（keybar 声明的键位此前只在设计稿生效，实机补接）

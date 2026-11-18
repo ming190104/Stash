@@ -4,6 +4,7 @@
 import type { PadMap } from '../../types';
 import { toast, ringEls, ringFocus, ringClear } from '../../ui';
 import { setSettingsZone, setSettingsLayout } from '../../keybar';
+import { state } from '../../state';
 
 export const sui = {
   /** 当前页签（0 性能 … 7 关于） */
@@ -36,6 +37,14 @@ export function rerender(): void {
   rerenderFn();
 }
 
+/** 进入 / 退出改键捕获：同时写 state.padCapture。
+ *  dispatchNav 只看 state：同一次手柄按压会同时投递 pad://button 与 nav://intent，
+ *  不在这里立标记的话，「按 A 绑定 A」会顺带把当前行激活 / 把焦点移走。 */
+export function setCapturePad(v: keyof PadMap | null): void {
+  sui.capturePad = v;
+  state.padCapture = v !== null;
+}
+
 /** 面板区可聚焦控件（每次 render 后 DOM 会重建，不能缓存） */
 export function panelEls(): HTMLElement[] {
   const body = document.getElementById('sbody');
@@ -55,7 +64,10 @@ function sideBySide(els: HTMLElement[]): boolean {
   const rs = els.slice(0, 24).map((e) => e.getBoundingClientRect());
   for (let i = 0; i < rs.length; i++) {
     for (let j = i + 1; j < rs.length; j++) {
-      if (Math.abs(rs[i].top - rs[j].top) < 48 && Math.abs(rs[i].left - rs[j].left) > 100) return true;
+      const a = rs[i];
+      const b = rs[j];
+      if (!a || !b) continue;
+      if (Math.abs(a.top - b.top) < 48 && Math.abs(a.left - b.left) > 100) return true;
     }
   }
   return false;

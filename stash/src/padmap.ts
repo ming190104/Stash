@@ -11,6 +11,7 @@ export const PAD_DEFAULT: PadMap = {
   y: 'north',
   r: 'rb',
   lb: 'lb',
+  random: 'l3',
 };
 
 /** 物理键名 → 键帽文字（未知值显示 —，不静默当成 A）。
@@ -60,12 +61,56 @@ export function padGlyph(key: string, kind: PadKind = 'xbox'): string {
   return PAD_GLYPHS[kind]?.[key] ?? PAD_KEY_LABEL[key] ?? '—';
 }
 
+/** 合法物理键名：与 Rust input.rs 的 named_button / 白名单一一对应。 */
+export const PAD_KEYS = [
+  'south',
+  'east',
+  'west',
+  'north',
+  'start',
+  'select',
+  'mode',
+  'lb',
+  'rb',
+  'lt',
+  'rt',
+  'l3',
+  'r3',
+] as const;
+
+/** 撞键时优先挪到这几颗「备用键」上：掌机背键 / 摇杆按下比占用主操作更合适。 */
+const PAD_SPARE = ['l3', 'r3', 'select', 'mode', 'lt', 'rt', 'lb', 'rb', 'start', 'south', 'east', 'west', 'north'] as const;
+
+/** 动作顺序：撞键时先到先得，后面的动作让位（与后端 Settings::normalized 同序）。 */
+const PAD_ACTION_ORDER: (keyof PadMap)[] = ['accept', 'back', 'menu', 'x', 'y', 'r', 'lb', 'random'];
+
+/** 收敛非法键名并修复撞键：同一颗物理键不能触发两个动作。
+ *  旧配置可能把某个动作绑到 L3（上一版允许），而新版本 random 默认也是 L3；
+ *  A/B 互换也可能让 random 与 back 重合。这里按固定顺序保留先出现的动作，
+ *  后面的动作改用默认键；默认键也被占用时取第一颗空闲键。 */
+export function dedupePadMap(input: PadMap): PadMap {
+  const out: PadMap = { ...input };
+  const used = new Set<string>();
+  for (const k of PAD_ACTION_ORDER) {
+    let v: string = out[k];
+    if (!(PAD_KEYS as readonly string[]).includes(v)) v = PAD_DEFAULT[k];
+    if (used.has(v)) {
+      // 撞键先回默认键；默认键也被占用时再挪到第一颗空闲备用键
+      const def = PAD_DEFAULT[k];
+      v = used.has(def) ? (PAD_SPARE.find((c) => !used.has(c)) ?? v) : def;
+    }
+    out[k] = v;
+    used.add(v);
+  }
+  return out;
+}
+
 /** 旧配置只有 abSwap、没有键位表：把互换结果回填进 padMap，
  *  否则设置页会显示「A/B 互换 = 开」但键位表还是 A/B 默认，一保存就把互换悄悄关掉。 */
 export function normalizePadMap(s: { abSwap?: boolean; padMap?: PadMap }): PadMap {
-  const base: PadMap = { ...PAD_DEFAULT, ...s.padMap };
+  const base = dedupePadMap({ ...PAD_DEFAULT, ...s.padMap });
   if (s.abSwap && base.accept === 'south' && base.back === 'east') {
-    return { ...base, accept: 'east', back: 'south' };
+    return dedupePadMap({ ...base, accept: 'east', back: 'south' });
   }
   return base;
 }

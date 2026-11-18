@@ -111,7 +111,7 @@ describe('playBootSfx', () => {
     expect(starts.some((t) => Math.abs(t - 3.0) < 0.06)).toBe(true); // 白闪 2.97
     expect(Math.max(...starts)).toBeLessThanOrEqual(5.2);
     // 总线接到 sfx 的 master 上，音量才由设置统一控制
-    expect(gains[0].connect).toHaveBeenCalledWith(master);
+    expect(gains[0]!.connect).toHaveBeenCalledWith(master);
   });
 
   it('2× 时整段减半：同一层的时刻按比例前移', () => {
@@ -132,7 +132,7 @@ describe('playBootSfx', () => {
       expect(starts.length).toBeGreaterThan(30);
       expect(starts.some((t) => Math.abs(t - 3.3) < 0.06)).toBe(true);
       expect(Math.max(...starts)).toBeLessThanOrEqual(5.2);
-      expect(gains[0].connect).toHaveBeenCalledWith(comp);
+      expect(gains[0]!.connect).toHaveBeenCalledWith(comp);
       stopBootSfx();
     }
   });
@@ -156,7 +156,7 @@ describe('stopBootSfx', () => {
   it('停止时总线 90ms 淡出，再断开——不留咔哒声', () => {
     const { gains } = harness();
     playBootSfx(5000);
-    const bus = gains[0];
+    const bus = gains[0]!;
 
     stopBootSfx();
     expect(bus.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.0001, 0.09);
@@ -167,7 +167,7 @@ describe('stopBootSfx', () => {
   it('连续起播会先停掉上一段，不会两层声音叠在一起', () => {
     const { gains } = harness();
     playBootSfx(5000);
-    const first = gains[0];
+    const first = gains[0]!;
     playBootSfx(5000);
 
     expect(first.gain.exponentialRampToValueAtTime).toHaveBeenCalled();

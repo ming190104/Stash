@@ -1,23 +1,50 @@
-/** 设置落盘：整份覆盖写串行执行；失败时按磁盘值回滚全部运行时镜像。 */
+/** 设置落盘：整份覆盖写串行执行；失败时按磁盘值回滚全部运行时镜像。
+ *
+ *  放在核心层（而不是 screens/settings 下）：筛选面板 / 快捷菜单这些核心模块也要落盘，
+ *  从核心反向 import 屏幕会形成循环依赖。回滚后的重绘由入口通过 `setSettingsAppliedHook`
+ *  注册，核心层不感知具体屏幕。 */
 
-import type { Settings } from '../../types';
-import { state } from '../../state';
-import { getSettings, updateSettings } from '../../ipc';
+import type { Settings } from './types';
+import { state, SORT_MODES } from './state';
+import { getSettings, updateSettings } from './ipc';
 import {
   applyAnimSpeed,
   applyBootAnim,
   applyFontScale,
+  applyFullscreenUI,
   applyLayout,
   applyMotion,
   applyTheme,
-} from '../../ui';
-import { applySoundSettings } from '../../sfx';
-import { renderRail } from '../library';
-import { renderGrid } from '../grid';
-import { rerender } from './ui';
+} from './ui';
+import { applySoundSettings } from './sfx';
 
 /** 写入链：连续修改排队提交，避免旧快照后到把新值覆盖回旧值。 */
 let chain: Promise<void> = Promise.resolve();
+
+/** 回滚后按磁盘值重建界面的钩子（入口注册：库屏 / 网格 / 设置页）。 */
+let appliedHook: () => void = () => {};
+
+export function setSettingsAppliedHook(fn: () => void): void {
+  appliedHook = fn;
+}
+
+/** 把一份设置同步到全部运行时镜像（主题 / 布局 / 排序 / 动效 / 字号 / 竖排 / 动画 / 音效 / 全屏）。
+ *  落盘失败回滚与「启动读设置失败后重试」共用：两处都必须退到同一份磁盘真值，
+ *  否则会出现「设置页显示 A、窗口/缓存还是 B」。 */
+export function applySettingsToRuntime(s: Settings): void {
+  if (SORT_MODES.some((m) => m.v === s.sort)) state.sortBy = s.sort;
+  state.motion = s.motion === 1 ? 1 : 0;
+  state.verticalTitle = s.verticalTitle !== false;
+  applyTheme(s.theme);
+  applyLayout(s.layout);
+  applyMotion(state.motion === 1);
+  applyFontScale(s.fontScale);
+  applyAnimSpeed(s.animSpeed);
+  applyBootAnim(s.bootAnim);
+  // 全屏也要回放：快捷菜单先改窗口再落盘，失败时界面/缓存不能停在「全屏」
+  applyFullscreenUI(!!s.fullscreen);
+  applySoundSettings(s);
+}
 
 /** 把当前设置整份落盘。
  *  排队轮到执行时才读取 state.settings：等待期间用户继续改动会合并进同一次提交。 */
@@ -49,7 +76,7 @@ async function save(): Promise<void> {
 async function rollback(submitted: Settings): Promise<void> {
   const disk = await getSettings().catch(() => null);
   if (!disk) {
-    rerender();
+    appliedHook();
     return;
   }
   const merged = JSON.parse(JSON.stringify(disk)) as Settings;
@@ -66,18 +93,6 @@ async function rollback(submitted: Settings): Promise<void> {
   }
   // 没有更新的改动：直接用磁盘对象本身（其余调用方按引用比较设置是否被换过）
   state.settings = dirty ? merged : disk;
-  const eff = state.settings;
-  state.sortBy = eff.sort;
-  state.motion = eff.motion;
-  state.verticalTitle = eff.verticalTitle !== false;
-  applyTheme(eff.theme);
-  applyLayout(eff.layout);
-  applyMotion(eff.motion === 1);
-  applyFontScale(eff.fontScale);
-  applyAnimSpeed(eff.animSpeed);
-  applyBootAnim(eff.bootAnim);
-  applySoundSettings(eff);
-  renderRail();
-  renderGrid();
-  rerender();
+  applySettingsToRuntime(state.settings);
+  appliedHook();
 }

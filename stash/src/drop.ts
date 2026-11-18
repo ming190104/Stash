@@ -3,7 +3,6 @@
 
 import { TAURI } from './ipc';
 import { toast } from './ui';
-import { addGameByExe, suggestTitle } from './screens/settings/actions';
 
 /** 只认 .exe（大小写不敏感）：拖文件夹 / 快捷方式 / 压缩包一律跳过并给出提示 */
 export function isGameExe(path: string): boolean {
@@ -43,6 +42,8 @@ export async function importDropped(paths: string[]): Promise<number> {
       return 0;
     }
     let added = 0;
+    // 动态载入：拖拽是核心层入口，静态 import 设置页会让依赖方向反转为 core → screens
+    const { addGameByExe, suggestTitle } = await import('./screens/settings/actions');
     for (const exe of exes) {
       if (await addGameByExe(exe, suggestTitle(exe))) added += 1;
     }

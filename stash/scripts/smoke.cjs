@@ -9,18 +9,20 @@ const path = require('path');
 
 const PORT = 9222;
 const EXE = process.env.STASH_EXE || path.join('src-tauri', 'target', 'release', 'stash.exe');
+/** @param {number} ms */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const WS = globalThis.WebSocket || require('ws');
+const WS = /** @type {any} */ (globalThis.WebSocket || require('ws'));
 
 if (!fs.existsSync(EXE)) {
   console.error(`[smoke] 找不到 ${EXE}，先运行 npx tauri build`);
   process.exit(1);
 }
 
+/** @returns {Promise<any>} */
 async function cdpTarget() {
   for (let i = 0; i < 80; i++) {
     try {
-      const list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json();
+      const list = /** @type {any[]} */ (await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json());
       const page = list.find((t) => t.type === 'page');
       if (page) return page;
     } catch {
@@ -49,24 +51,33 @@ async function cdpTarget() {
   }
 
   const ws = new WS(page.webSocketDebuggerUrl);
+  /** @type {Map<number, (v: any) => void>} */
   const pending = new Map();
   let seq = 0;
+  /** @type {string[]} */
   const errors = [];
-  ws.addEventListener('message', (ev) => {
+  ws.addEventListener('message', (/** @type {any} */ ev) => {
     const m = JSON.parse(ev.data);
     if (m.id && pending.has(m.id)) {
-      pending.get(m.id)(m);
+      pending.get(m.id)?.(m);
       pending.delete(m.id);
     }
     if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails?.text ?? 'exception');
     if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') {
-      errors.push(m.params.args.map((a) => a.value ?? a.description ?? '').join(' '));
+      /** @type {any[]} */
+      const args = m.params.args;
+      errors.push(args.map((a) => a.value ?? a.description ?? '').join(' '));
     }
   });
   await new Promise((resolve, reject) => {
     ws.addEventListener('open', resolve);
     ws.addEventListener('error', reject);
   });
+  /**
+   * @param {string} method
+   * @param {object} [params]
+   * @returns {Promise<any>}
+   */
   const call = (method, params = {}) =>
     new Promise((resolve) => {
       const id = ++seq;
@@ -82,6 +93,10 @@ async function cdpTarget() {
     if (typeof title === 'string' && title.includes('Stash')) break;
     await sleep(250);
   }
+  /**
+   * @param {string} expression
+   * @returns {Promise<any>}
+   */
   const evaluate = async (expression) => {
     const res = await call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
     if (res.result?.exceptionDetails) throw new Error(JSON.stringify(res.result.exceptionDetails));
@@ -138,7 +153,12 @@ async function cdpTarget() {
   ws.close();
   cleanup();
 
+  /** @type {string[]} */
   const fail = [];
+  /**
+   * @param {unknown} ok
+   * @param {string} msg
+   */
   const expect = (ok, msg) => {
     if (!ok) fail.push(msg);
   };

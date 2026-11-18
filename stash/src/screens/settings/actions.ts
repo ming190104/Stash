@@ -2,7 +2,7 @@
  *  以 data-act 为入口统一接线，各页签只负责画按钮，不重复写 IPC 逻辑。 */
 
 import { state, SORT_MODES } from '../../state';
-import { toast, esc, applyTheme, applyLayout, applyMotion, applyFontScale } from '../../ui';
+import { toast, esc, applyTheme, applyLayout, applyMotion, applyFontScale, applyAnimSpeed, applyBootAnim } from '../../ui';
 import { applySoundSettings } from '../../sfx';
 import {
   TAURI,
@@ -10,7 +10,6 @@ import {
   pickExeFile,
   getLibrary,
   getSettings,
-  updateSettings,
   cancelMatch,
   testNetwork,
   probeSources,
@@ -28,11 +27,13 @@ import { promptInput } from '../../prompt';
 import { hideStates } from '../../overlay';
 import type { AppError } from '../../types';
 import { runBaseline } from '../../fps';
-import { renderRail, updateCount, refreshLibrary, openDetail } from '../library';
+import { renderRail, updateCount, refreshLibrary, openDetail } from '../../library-bridge';
 import { renderGrid } from '../grid';
 import { runHealth } from './health';
 import { rerender } from './ui';
 import { setSourceProbe } from '../settings-tabs/metadata';
+import { persist } from '../../settings-persist';
+import { refreshPadHints } from '../../keybar';
 
 const TIER_LAB: Record<string, string> = { auto: '自动入库', pending: '待确认', none: '未匹配' };
 
@@ -156,14 +157,18 @@ async function importBundle(): Promise<void> {
     state.verticalTitle = s.verticalTitle !== false;
     applyMotion(state.motion === 1);
     applyFontScale(s.fontScale);
+    applyAnimSpeed(s.animSpeed);
+    applyBootAnim(s.bootAnim);
     applySoundSettings(s);
-    // 手柄键位是「进程内状态」：import_data 只写盘、不会重新下发，
-    // 不补这一步就会出现「设置页显示备份里的新键位、按下去还是旧映射」直到重启。
-    // 走一次 update_settings 让后端按新值重新应用（失败只提示，导入本身已成功）。
+    // 底栏键位提示是设置的另一份镜像：导入换了整套 padMap，不重画会一直显示旧键帽
+    refreshPadHints();
+    // 手柄键位是「进程内状态」：import_data 只写盘、不会重新下发。
+    // 走设置页同一条 persist 串行链，而不是直接 updateSettings——
+    // 设置页可能还有排队中的写入，它的快照晚到会把刚导入的配置整份覆盖回去。
     try {
-      await updateSettings(s);
+      await persist();
     } catch (e) {
-      toast(`设置已导入，但手柄键位未能即时生效：${esc(String((e as { message?: string })?.message ?? e))}`, true);
+      toast(`设置已导入，但未能即时生效：${esc(String((e as { message?: string })?.message ?? e))}`, true);
     }
     state.games = await getLibrary();
     hideStates();

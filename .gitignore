@@ -4,6 +4,8 @@ node_modules/
 dist/
 coverage/
 demo-library/
+# tsc 增量编译信息（tsconfig.node.json 的 composite 产物）
+*.tsbuildinfo
 # 含 / 的模式会被锚定到 .gitignore 所在目录，深层路径必须带 **/
 **/src-tauri/target/
 **/src-tauri/gen/

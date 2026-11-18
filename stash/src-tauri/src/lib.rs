@@ -183,6 +183,16 @@ pub fn run() {
             }
             input::set_map(pad_map);
             input::set_tuning(settings.pad_tuning);
+            // 手柄闸门的事件源：窗口失焦后手柄属于前台那个程序（桌面 / 游戏 / 别的应用），
+            // 不能再驱动 Stash。事件只在焦点变化时触发，input 线程每帧只读一个原子；
+            // 另有一次低频兜底校正，见 input.rs。
+            if let Some(w) = app.get_webview_window("main") {
+                w.on_window_event(|event| {
+                    if let tauri::WindowEvent::Focused(focused) = event {
+                        input::set_focused(*focused);
+                    }
+                });
+            }
             app.manage(store);
             // asset 白名单：缓存目录整目录放行（封面/缩略图会持续新增），
             // 游戏目录只在封面与 shots 上单独登记
@@ -442,6 +452,16 @@ pub(crate) fn guard_game_exe(
     exe: &std::path::Path,
     dir: &std::path::Path,
 ) -> Result<(), AppError> {
+    // 网络路径先判，且放在 path_under 之前：path_under 会 canonicalize（去连远端），
+    // 正好制造注释里要避免的启动卡顿。Windows 同时接受 / 与 \ 作为分隔符，
+    // 只判反斜杠会漏掉 `//server/share/...` 这种写法。
+    let raw = exe.to_string_lossy().replace('/', "\\");
+    if raw.starts_with(r"\\") {
+        return Err(AppError::new(
+            ErrCode::ConfigInvalid,
+            "不支持网络路径（\\\\server\\share）下的主程序",
+        ));
+    }
     if !crate::commands::library::path_under(dir, exe) {
         return Err(AppError::new(
             ErrCode::ConfigInvalid,
@@ -462,6 +482,15 @@ pub(crate) fn guard_game_exe(
         "mshta.exe",
         "rundll32.exe",
         "regsvr32.exe",
+        // 解释器：exe 在游戏目录内也依然是「执行任意脚本」的载体
+        "python.exe",
+        "pythonw.exe",
+        "node.exe",
+        "perl.exe",
+        "ruby.exe",
+        "php.exe",
+        "bash.exe",
+        "sh.exe",
     ];
     if SHELLS.contains(&name.as_str()) {
         return Err(AppError::new(
@@ -913,5 +942,41 @@ mod tests {
             merged.iter().find(|x| x.id == target).unwrap().favorite,
             "重新探测合并后收藏不能丢"
         );
+    }
+
+    /// 启动链信任边界：目录内的脚本宿主 / 解释器、UNC 路径、目录外的 exe 一律拒绝
+    #[test]
+    fn guard_game_exe_blocks_shells_interpreters_and_unc() {
+        let root = std::env::temp_dir().join(format!("stash-guard-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let game = root.join("gun.exe");
+        std::fs::write(&game, b"").unwrap();
+        assert!(guard_game_exe(&game, &root).is_ok(), "普通游戏 exe 应放行");
+
+        for name in ["cmd.exe", "powershell.exe", "python.exe", "node.exe"] {
+            let p = root.join(name);
+            std::fs::write(&p, b"").unwrap();
+            assert!(guard_game_exe(&p, &root).is_err(), "{name} 不能当游戏主程序");
+        }
+
+        let unc = std::path::Path::new(r"\\server\share\game\run.exe");
+        assert!(
+            guard_game_exe(unc, std::path::Path::new(r"\\server\share\game")).is_err(),
+            "UNC 路径一律拒绝"
+        );
+        // Windows 也接受正斜杠写法：只判反斜杠会被绕过
+        let unc_fwd = std::path::Path::new("//server/share/game/run.exe");
+        assert!(
+            guard_game_exe(unc_fwd, std::path::Path::new("//server/share/game")).is_err(),
+            "正斜杠 UNC 路径同样拒绝"
+        );
+
+        let outside = std::env::temp_dir().join(format!("stash-outside-{}.exe", std::process::id()));
+        std::fs::write(&outside, b"").unwrap();
+        assert!(guard_game_exe(&outside, &root).is_err(), "目录外的 exe 应拒绝");
+
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_file(&outside);
     }
 }

@@ -95,14 +95,14 @@ export function setAmbient(g: Game): void {
     asset(p)
       .then((u) => {
         if (seq !== ambSeq) return;
-        els[next].style.background = `${cssUrl(u)} center/cover no-repeat`;
+        els[next]!.style.background = `${cssUrl(u)} center/cover no-repeat`;
       })
       .catch(() => {});
   } else {
-    els[next].style.background = placeholderArt(g.id).bg;
+    els[next]!.style.background = placeholderArt(g.id).bg;
   }
-  els[next].classList.add('show');
-  els[ambActive].classList.remove('show');
+  els[next]!.classList.add('show');
+  els[ambActive]!.classList.remove('show');
   ambActive = next;
 }
 

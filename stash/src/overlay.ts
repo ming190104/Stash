@@ -174,8 +174,37 @@ export function initOverlay(): void {
   document.querySelectorAll('#errorState [data-state]').forEach((b) => {
     b.addEventListener('click', () => {
       if ((b as HTMLElement).dataset.state === 'retry') {
-        // 刷新失败已在 refreshLibrary 统一提示，这里只兜住发射后不管的 Promise
-        void import('./screens/library').then((m) => m.refreshLibrary().catch(() => undefined));
+        // 启动失败可能来自设置或库：两样都重读，设置也要真正应用回运行时。
+        // 只刷库会把默认设置留在内存里，之后任一保存就会覆盖磁盘上的真实配置。
+        void (async () => {
+          let settingsOk = true;
+          try {
+            const [{ getSettings }, { state }, { applySettingsToRuntime }] = await Promise.all([
+              import('./ipc'),
+              import('./state'),
+              import('./settings-persist'),
+            ] as const);
+            state.settings = await getSettings();
+            applySettingsToRuntime(state.settings);
+            // 设置页的 DOM 是启动时按默认值画的：重读成功后同步重建，避免打开设置还看到默认值
+            const { rerender } = await import('./screens/settings/ui');
+            rerender();
+            // 底栏手柄键位同理：启动时用的是默认映射，设置换成磁盘真值后必须重画
+            const { refreshPadHints } = await import('./keybar');
+            refreshPadHints();
+          } catch (e) {
+            settingsOk = false;
+            console.error('[retry] 重新读取设置失败', e);
+          }
+          try {
+            const { refreshLibrary } = await import('./screens/library');
+            await refreshLibrary();
+          } catch {
+            return; // refreshLibrary 已统一提示
+          }
+          // 设置失败时保持失败态：不能让用户误以为已经完全恢复
+          if (settingsOk) hideStates();
+        })();
       } else setScreen('settings');
     });
   });

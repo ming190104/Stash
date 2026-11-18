@@ -16,7 +16,7 @@ const body = (): HTMLElement => document.getElementById('sbody')!;
 const heading = (): string => (body().querySelector('.sh')?.textContent ?? '').trim();
 
 async function openTab(i: number): Promise<void> {
-  navBtns()[i].click();
+  navBtns()[i]!.click();
   await vi.waitFor(() => expect(heading()).toBe(TABS[i]));
 }
 
@@ -48,7 +48,7 @@ describe('设置页签路由', () => {
   it('键位映射：手柄键位表在这里', async () => {
     await openTab(2);
     expect(body().querySelector('#padMapRows')).not.toBeNull();
-    expect(body().querySelectorAll('#padMapRows .pmrow').length).toBe(7);
+    expect(body().querySelectorAll('#padMapRows .pmrow').length).toBe(8);
     expect(body().querySelector('#padReset')).not.toBeNull();
     expect(body().querySelector('#tgAbSwap')).not.toBeNull();
     expect(body().querySelector('#tgPadMouse')).not.toBeNull();

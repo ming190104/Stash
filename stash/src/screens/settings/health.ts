@@ -4,7 +4,7 @@ import type { HealthReport } from '../../types';
 import { esc, toast } from '../../ui';
 import { libraryHealth, pruneMissingGames, cleanStorage } from '../../ipc';
 import { promptInput } from '../../prompt';
-import { renderRail, refreshLibrary } from '../library';
+import { renderRail, refreshLibrary } from '../../library-bridge';
 import { renderGrid } from '../grid';
 import { rerender } from './ui';
 

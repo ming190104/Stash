@@ -12,6 +12,19 @@ const H = vi.hoisted(() => ({
   getLibrary: vi.fn(async (): Promise<unknown[]> => []),
   detailBackground: vi.fn(async (_id: string, _f?: boolean): Promise<string | null> => null),
   asset: vi.fn(async (p: string) => `asset://${p}`),
+  openDetail: vi.fn(),
+}));
+
+// 拖拽入库走设置页动作，动作再经桥接层刷新 / 打开详情：测试里用桩接住这两步
+vi.mock('../library-bridge', () => ({
+  refreshLibrary: async (): Promise<void> => {
+    await H.getLibrary();
+  },
+  openDetail: H.openDetail,
+  toggleFav: vi.fn(),
+  updateEmpty: vi.fn(),
+  updateCount: vi.fn(),
+  renderRail: vi.fn(),
 }));
 
 vi.mock('../ipc', async (importOriginal) => {
@@ -103,7 +116,7 @@ describe('拖入后入库', () => {
     state.games = [game('old', { title: '旧作', dir: 'D:\\VN\\Old' })];
     H.addGame.mockRejectedValueOnce({ code: 'alreadyInLibrary', message: '该目录已在库中' });
     await importDropped(['D:\\VN\\Old\\game.exe']);
-    await vi.waitFor(() => expect(state.detailId).toBe('old'));
+    await vi.waitFor(() => expect(H.openDetail).toHaveBeenCalledWith('old'));
     expect(toastLog()).toContain('已在库中，已打开详情');
     expect(toastLog()).not.toContain('该目录已在库中');
   });
@@ -132,7 +145,8 @@ describe('拖入后入库', () => {
     const second = importDropped(['D:\\VN\\B\\b.exe']);
     await expect(second).resolves.toBe(0);
     expect(toastLog()).toContain('已有拖拽入库在进行中');
-    expect(H.addGame).toHaveBeenCalledTimes(1);
+    // 第一轮先动态载入入库动作：等它真正调到 addGame 再断言
+    await vi.waitFor(() => expect(H.addGame).toHaveBeenCalledTimes(1));
     release({ id: 'a', title: 'A', dir: 'D:\\VN\\A' });
     await expect(first).resolves.toBe(1);
     expect(H.addGame).toHaveBeenCalledTimes(1);

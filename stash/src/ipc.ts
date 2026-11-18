@@ -1,7 +1,7 @@
 /** IPC 封装：Tauri 可用时走 invoke，浏览器直开（vite dev）时走 mock 数据。
  *  mock 模式用于纯 UI 开发与校验，占位美术同样是正式降级设计。 */
 
-import type { EndMark, Game, HealthReport, MetaCandidate, PlaySession, Settings } from './types';
+import type { EndMark, Game, HealthIssue, HealthReport, MetaCandidate, PlaySession, Settings } from './types';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { normalizePadMap, normalizePadTuning } from './padmap';
 
@@ -82,6 +82,53 @@ function sanitizeEndings(v: unknown): EndMark[] {
     .map((x) => ({ name: x.name, done: x.done === true }));
 }
 
+/** 单条作品兜底：缺 id/title/dir 视为结构不可用，返回 null 交给调用方丢弃 */
+function sanitizeGame(x: unknown): Game | null {
+  const g = x as Partial<Game> | null;
+  if (!g || typeof g.id !== 'string' || !g.id || typeof g.title !== 'string' || typeof g.dir !== 'string') {
+    return null;
+  }
+  return {
+    ...(g as Game),
+    // 逐字段收敛类型：下面这些字段会被直接拼进 DOM / 参与算术，
+    // 脏数据（数字标签、字符串时长、对象 END）至少会让界面显示成 [object Object] 或 NaN
+    engine: engineOf(g.engine),
+    tags: strArr(g.tags),
+    userTags: strArr(g.userTags),
+    aliases: strArr(g.aliases),
+    shots: strArr(g.shots),
+    launchArgs: strArr(g.launchArgs),
+    endings: sanitizeEndings(g.endings),
+    sessions: sanitizeSessions(g.sessions),
+    notes: typeof g.notes === 'string' ? g.notes : '',
+    summary: strOrNull(g.summary),
+    developer: strOrNull(g.developer),
+    peProduct: strOrNull(g.peProduct),
+    peCompany: strOrNull(g.peCompany),
+    metaSource: strOrNull(g.metaSource),
+    metaScoreSource: strOrNull(g.metaScoreSource),
+    playSeconds: numOr(g.playSeconds, 0),
+    playCount: numOr(g.playCount, 0),
+    sizeGb: numOr(g.sizeGb, 0),
+    addedAt: numOr(g.addedAt, 0),
+    year: numOr(g.year, null),
+    rating: numOr(g.rating, undefined),
+    lastPlayed: numOr(g.lastPlayed, null),
+    bangumiId: numOr(g.bangumiId, null),
+    matchScore: numOr(g.matchScore, null),
+    lengthMinutes: numOr(g.lengthMinutes, null),
+    metaScore: numOr(g.metaScore, null),
+    metaScoreCount: numOr(g.metaScoreCount, null),
+    favorite: boolOr(g.favorite, false),
+    hidden: boolOr(g.hidden, false),
+    pending: boolOr(g.pending, false),
+    needsLocale: boolOr(g.needsLocale, false),
+    matched: boolOr(g.matched, false),
+    manual: boolOr(g.manual, false),
+    metaManual: boolOr(g.metaManual, false),
+  } as Game;
+}
+
 /** 库返回兜底：缺 id/title/dir 的条目丢弃；数组字段缺失补空数组 */
 export function sanitizeLibrary(raw: unknown): Game[] {
   if (!Array.isArray(raw)) {
@@ -91,53 +138,43 @@ export function sanitizeLibrary(raw: unknown): Game[] {
   const out: Game[] = [];
   let dropped = 0;
   for (const x of raw) {
-    const g = x as Partial<Game> | null;
-    if (!g || typeof g.id !== 'string' || !g.id || typeof g.title !== 'string' || typeof g.dir !== 'string') {
+    const g = sanitizeGame(x);
+    if (!g) {
       dropped++;
       continue;
     }
-    out.push({
-      ...(g as Game),
-      // 逐字段收敛类型：下面这些字段会被直接拼进 DOM / 参与算术，
-      // 脏数据（数字标签、字符串时长、对象 END）至少会让界面显示成 [object Object] 或 NaN
-      engine: engineOf(g.engine),
-      tags: strArr(g.tags),
-      userTags: strArr(g.userTags),
-      aliases: strArr(g.aliases),
-      shots: strArr(g.shots),
-      launchArgs: strArr(g.launchArgs),
-      endings: sanitizeEndings(g.endings),
-      sessions: sanitizeSessions(g.sessions),
-      notes: typeof g.notes === 'string' ? g.notes : '',
-      summary: strOrNull(g.summary),
-      developer: strOrNull(g.developer),
-      peProduct: strOrNull(g.peProduct),
-      peCompany: strOrNull(g.peCompany),
-      metaSource: strOrNull(g.metaSource),
-      metaScoreSource: strOrNull(g.metaScoreSource),
-      playSeconds: numOr(g.playSeconds, 0),
-      playCount: numOr(g.playCount, 0),
-      sizeGb: numOr(g.sizeGb, 0),
-      addedAt: numOr(g.addedAt, 0),
-      year: numOr(g.year, null),
-      rating: numOr(g.rating, undefined),
-      lastPlayed: numOr(g.lastPlayed, null),
-      bangumiId: numOr(g.bangumiId, null),
-      matchScore: numOr(g.matchScore, null),
-      lengthMinutes: numOr(g.lengthMinutes, null),
-      metaScore: numOr(g.metaScore, null),
-      metaScoreCount: numOr(g.metaScoreCount, null),
-      favorite: boolOr(g.favorite, false),
-      hidden: boolOr(g.hidden, false),
-      pending: boolOr(g.pending, false),
-      needsLocale: boolOr(g.needsLocale, false),
-      matched: boolOr(g.matched, false),
-      manual: boolOr(g.manual, false),
-      metaManual: boolOr(g.metaManual, false),
-    });
+    out.push(g);
   }
   warnDropped('get_library', dropped);
   return out;
+}
+
+/** 设置里的枚举白名单：与 ui.ts THEMES / 后端 models.rs 的 normalized() 保持一致。
+ *  只做「不崩」兜底不够——手改 / 旧版本把 theme 写成 `neon` 时，界面会带着非法值运行，
+ *  下一次保存再原样写回，等于把脏值固化进 settings.json。 */
+const SETTINGS_THEMES = new Set<string>([
+  'cinema',
+  'oled',
+  'sakura',
+  'frost',
+  'amber',
+  'iris',
+  'moss',
+  'crimson',
+  'eva01',
+  'eva02',
+  'nerv',
+  'rei',
+]);
+const SETTINGS_FPS = new Set(['auto', '120', '90', '60']);
+const ANIM_SPEEDS = [1, 1.5, 2];
+
+/** 动画倍率收敛到设计档位（1 / 1.5 / 2），与后端 normalized() 同规则 */
+function snapAnimSpeed(v: unknown): number {
+  const n = typeof v === 'number' && Number.isFinite(v) ? v : 1;
+  let best = 1;
+  for (const s of ANIM_SPEEDS) if (Math.abs(s - n) < Math.abs(best - n)) best = s;
+  return best;
 }
 
 /** 设置返回兜底：界面会直接解引用的嵌套对象全部补默认值，非法枚举回落 */
@@ -150,11 +187,14 @@ export function sanitizeSettings(raw: unknown): Settings {
     return ok;
   };
   if (!need(typeof out.version === 'number')) out.version = 2;
-  if (!need(typeof out.theme === 'string')) out.theme = 'cinema';
+  if (!need(typeof out.theme === 'string' && SETTINGS_THEMES.has(out.theme))) out.theme = 'cinema';
   if (!need(out.layout === 'classic' || out.layout === 'list' || out.layout === 'wall')) out.layout = 'classic';
-  if (!need(typeof out.motion === 'number')) out.motion = 0;
-  if (!need(typeof out.animSpeed === 'number')) out.animSpeed = 1;
+  if (!need(out.motion === 0 || out.motion === 1)) out.motion = 0;
+  if (!need(out.animSpeed === 1 || out.animSpeed === 1.5 || out.animSpeed === 2)) out.animSpeed = snapAnimSpeed(out.animSpeed);
   if (!need(out.bootAnim === 'warp' || out.bootAnim === 'eva01' || out.bootAnim === 'eva02' || out.bootAnim === 'evaNerv' || out.bootAnim === 'eva00' || out.bootAnim === 'off')) out.bootAnim = 'warp';
+  if (!need(out.sort === 'lastPlayed' || out.sort === 'title' || out.sort === 'year')) out.sort = 'lastPlayed';
+  if (!need(SETTINGS_FPS.has(out.fpsMode))) out.fpsMode = 'auto';
+  if (!need(typeof out.fontScale === 'number' && Number.isFinite(out.fontScale) && out.fontScale >= 0.9 && out.fontScale <= 1.25)) out.fontScale = 1;
   if (!need(typeof out.verticalTitle === 'boolean')) out.verticalTitle = true;
   if (!need(typeof out.autostart === 'boolean')) out.autostart = false;
   if (!need(typeof out.fullscreen === 'boolean')) out.fullscreen = true;
@@ -201,7 +241,12 @@ export async function getLibrary(): Promise<Game[]> {
 /** 手动添加单部作品：选主程序 exe + 标题，绕过目录识别门槛直接入库 */
 export async function addGame(exe: string, title: string): Promise<Game> {
   if (!TAURI) throw new Error('浏览器预览不支持手动添加');
-  return inv<Game>('add_game', { exe, title });
+  const raw = await inv<unknown>('add_game', { exe, title });
+  // 入库成功的返回值会被直接推进 state.games：结构异常时宁可报错，
+  // 也不要让一条没有 id 的记录混进库里（后续收藏 / 详情全都命中不到）
+  const g = sanitizeGame(raw);
+  if (!g) throw new Error('add_game 返回了无法识别的作品数据');
+  return g;
 }
 
 export interface PadStatus {
@@ -419,8 +464,41 @@ const EMPTY_HEALTH: HealthReport = {
   issues: [],
 };
 
+/** 体检返回兜底：缺失数字补 0、issues 逐项收敛——
+ *  healthHTML 会直接对这几个字段做加法 / 取 issue.detail.length。 */
+function sanitizeHealth(raw: unknown): HealthReport {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<HealthReport>;
+  const issues: HealthIssue[] = Array.isArray(r.issues)
+    ? r.issues
+        .filter(
+          (x): x is HealthIssue =>
+            !!x &&
+            typeof x === 'object' &&
+            typeof (x as HealthIssue).title === 'string' &&
+            typeof (x as HealthIssue).detail === 'string',
+        )
+        .map((x) => ({
+          kind: typeof x.kind === 'string' ? x.kind : '',
+          title: x.title,
+          detail: x.detail,
+        }))
+    : [];
+  return {
+    total: numOr(r.total, 0),
+    missingDirs: numOr(r.missingDirs, 0),
+    missingExes: numOr(r.missingExes, 0),
+    duplicates: numOr(r.duplicates, 0),
+    unknownEngines: numOr(r.unknownEngines, 0),
+    missingCovers: numOr(r.missingCovers, 0),
+    orphanThumbs: numOr(r.orphanThumbs, 0),
+    orphanCovers: numOr(r.orphanCovers, 0),
+    tmpLeftovers: numOr(r.tmpLeftovers, 0),
+    issues,
+  };
+}
+
 export async function libraryHealth(): Promise<HealthReport> {
-  if (TAURI) return inv<HealthReport>('library_health');
+  if (TAURI) return inv<unknown>('library_health').then(sanitizeHealth);
   if (!import.meta.env.DEV) return EMPTY_HEALTH;
   const total = (await import('./mock')).MOCK_GAMES.length;
   return { ...EMPTY_HEALTH, total };
@@ -439,9 +517,11 @@ export interface CleanOut {
 
 /** 批量清理无用缓存（孤儿缩略图 / 封面 / .tmp） */
 export async function cleanStorage(): Promise<CleanOut> {
-  return TAURI
-    ? inv<CleanOut>('clean_storage')
-    : { freedBytes: 0, cacheRemoved: 0 };
+  if (!TAURI) return { freedBytes: 0, cacheRemoved: 0 };
+  const raw = await inv<unknown>('clean_storage');
+  // 两个字段都会被 fmtBytes / 文案直接使用：缺字段时按 0 展示，不显示 undefined
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<CleanOut>;
+  return { freedBytes: numOr(r.freedBytes, 0), cacheRemoved: numOr(r.cacheRemoved, 0) };
 }
 
 /** 保存对话框（JSON） */
@@ -564,10 +644,43 @@ export interface FsListing {
 
 /** 列目录；path 为空/不传 = 盘符列表 */
 export async function fsList(path?: string | null): Promise<FsListing> {
-  if (!TAURI) {
-    return { path: null, parent: null, entries: [], drives: [], truncated: false };
-  }
-  return inv<FsListing>('fs_list', { path: path ?? null });
+  const empty: FsListing = { path: null, parent: null, entries: [], drives: [], truncated: false };
+  if (!TAURI) return empty;
+  const raw = await inv<unknown>('fs_list', { path: path ?? null });
+  if (!raw || typeof raw !== 'object') return empty;
+  const r = raw as Partial<FsListing>;
+  // 文件浏览会直接对 entries 做 map / 取 name.length：脏项在这里丢掉，
+  // 免得一条坏记录把整页目录变成「读取失败」
+  const entries: FsEntry[] = Array.isArray(r.entries)
+    ? r.entries
+        .filter(
+          (x): x is FsEntry =>
+            !!x && typeof x === 'object' && typeof (x as FsEntry).name === 'string' && typeof (x as FsEntry).path === 'string',
+        )
+        .map((x) => ({
+          name: x.name,
+          path: x.path,
+          isDir: x.isDir === true,
+          size: numOr(x.size, 0),
+          modified: numOr(x.modified, 0),
+          hidden: x.hidden === true,
+        }))
+    : [];
+  const drives: FsDrive[] = Array.isArray(r.drives)
+    ? r.drives
+        .filter(
+          (x): x is FsDrive =>
+            !!x && typeof x === 'object' && typeof (x as FsDrive).name === 'string' && typeof (x as FsDrive).path === 'string',
+        )
+        .map((x) => ({ name: x.name, path: x.path }))
+    : [];
+  return {
+    path: typeof r.path === 'string' && r.path ? r.path : null,
+    parent: typeof r.parent === 'string' && r.parent ? r.parent : null,
+    entries,
+    drives,
+    truncated: r.truncated === true,
+  };
 }
 
 export interface LogIssue {
@@ -640,7 +753,10 @@ export async function onEvent<T>(name: string, cb: (payload: T) => void): Promis
 /** 当前运行中的游戏（启动后对账用；没有则 null） */
 export async function runningGame(): Promise<Game | null> {
   if (!TAURI) return null;
-  return inv<Game | null>('running_game');
+  // 只取 id 也要先过兜底：缺 id 的记录会让 state.running 变成 undefined，
+  // 之后「运行中」判定 / 结束按钮全部命中不到
+  const raw = await inv<unknown>('running_game');
+  return raw == null ? null : sanitizeGame(raw);
 }
 
 /** 整份清单回写（增删改都走这一条，避免索引漂移） */

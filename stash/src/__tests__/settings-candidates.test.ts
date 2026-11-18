@@ -72,17 +72,17 @@ describe('改绑条目（模态候选墙）', () => {
     await vi.waitFor(() => expect(cards().length).toBe(2));
 
     expect(cards().every((c) => c.tagName === 'BUTTON')).toBe(true);
-    expect(cards()[0].classList.contains('focus')).toBe(true);
+    expect(cards()[0]!.classList.contains('focus')).toBe(true);
     const arts = [...document.querySelectorAll<HTMLElement>('#candGrid .cand-art')];
-    expect(arts[0].style.backgroundImage).toContain('cand-1111.webp');
+    expect(arts[0]!.style.backgroundImage).toContain('cand-1111.webp');
     // 无封面：确定性占位渐变，不留空白格
-    expect(arts[1].style.background).toContain('radial-gradient');
+    expect(arts[1]!.style.background).toContain('radial-gradient');
     expect(document.querySelector('#candGrid .cand-src')?.textContent).toBe('Bangumi');
     expect(document.querySelector('#candGrid .cand-nm')?.textContent).toBe('装甲恶鬼村正（正确条目）');
     expect(document.querySelector('#candGrid .cand-mt')?.textContent).toBe('2009 · 92 分');
 
     expect(candKey(key('ArrowRight'))).toBe(true);
-    expect(cards()[1].classList.contains('focus')).toBe(true);
+    expect(cards()[1]!.classList.contains('focus')).toBe(true);
     expect(candKey(key('Enter'))).toBe(true);
     await vi.waitFor(() =>
       expect(applyCandidate).toHaveBeenCalledWith(ID, 'bangumi', '2222', [
@@ -200,7 +200,7 @@ describe('改绑条目（模态候选墙）', () => {
     // EGS 不显示相似度，显示自己的中央值与四舍五入后的时长
     expect(document.querySelector('#candGrid .cand-mt')?.textContent).toBe('中央值 78 · 25 小时');
 
-    cards()[0].click();
+    cards()[0]!.click();
     await vi.waitFor(() =>
       expect(applyCandidate).toHaveBeenCalledWith(ID, 'egs', '装甲悪鬼村正', ['score', 'length']),
     );
@@ -228,7 +228,7 @@ describe('改绑条目（模态候选墙）', () => {
     pending.get(A)!([candidate('1111', 'A 的条目', 2019, 88)]);
     expect(document.querySelector('#candGrid .cand-nm')?.textContent).toBe('B 的条目');
 
-    cards()[0].click();
+    cards()[0]!.click();
     await vi.waitFor(() =>
       expect(applyCandidate).toHaveBeenCalledWith(B, 'bangumi', '2222', [
         'title',
@@ -258,11 +258,11 @@ describe('改绑条目（模态候选墙）', () => {
     expect(candKey(key('KeyF'))).toBe(true);
     expect(document.querySelector('#candPrev .cprev-chip.cur')?.textContent).toBe('标题');
     expect(candKey(key('Enter'))).toBe(true); // 取消「标题」
-    expect(chips()[0].classList.contains('on')).toBe(false);
+    expect(chips()[0]!.classList.contains('on')).toBe(false);
     expect(candKey(key('KeyB'))).toBe(true); // 退回卡片，但不关面板
     expect(shown()).toBe(true);
 
-    cards()[0].click();
+    cards()[0]!.click();
     await vi.waitFor(() =>
       expect(applyCandidate).toHaveBeenCalledWith(ID, 'bangumi', '1111', [
         'original',
@@ -290,13 +290,13 @@ describe('改绑条目（模态候选墙）', () => {
     await vi.waitFor(() => expect(cards().length).toBe(1));
     expect(document.getElementById('candQueue')?.textContent).toBe('队列 1/2');
 
-    cards()[0].click();
+    cards()[0]!.click();
     await vi.waitFor(() => expect(metaCandidates).toHaveBeenCalledTimes(2));
     expect(cards().length).toBe(1); // 第二次结果已换上
     expect(document.getElementById('candQueue')?.textContent).toBe('队列 2/2');
     expect(shown()).toBe(true); // 队列没走完不关面板
 
-    cards()[0].click();
+    cards()[0]!.click();
     await p;
     expect(applyCandidate).toHaveBeenNthCalledWith(1, A, 'bangumi', '1111', [
       'title',

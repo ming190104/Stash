@@ -9,7 +9,7 @@ import { curScreen, dispatchNav, init, registerHandler } from '../nav';
 import { padKindOf } from '../padmap';
 import { setScreen, state } from '../state';
 import { emptyShown, filterShown, hideStates, openSearch, searchShown } from '../overlay';
-import { handleQuickKey, quickShown, toggleQuickMenu } from '../quick';
+import { handleQuickKey, pickRandomGame, quickShown, toggleQuickMenu } from '../quick';
 import { cycleFilter } from '../screens/grid';
 import { showDetailArtFor } from '../screens/library';
 
@@ -25,6 +25,7 @@ vi.mock('../quick', () => ({
   handleQuickKey: vi.fn(() => false),
   quickShown: vi.fn(() => false),
   toggleQuickMenu: vi.fn(async () => undefined),
+  pickRandomGame: vi.fn(async () => undefined),
 }));
 
 vi.mock('../screens/grid', () => ({ cycleFilter: vi.fn(), renderGrid: vi.fn(), setFilter: vi.fn() }));
@@ -62,6 +63,26 @@ describe('分发基础', () => {
       { intent: 'accept' },
       { intent: 'back' },
     ]);
+  });
+
+  it('改键捕获中手柄意图被丢弃，键盘仍可操作', () => {
+    const seen: NavIntent[] = [];
+    setScreen('settings');
+    registerHandler('settings', (n) => seen.push(n));
+    state.padCapture = true;
+    // 同一次物理按压会同时投递 pad://button（用于绑定）与 nav://intent
+    dispatchNav({ intent: 'accept' }, 'pad');
+    dispatchNav({ intent: 'move', dir: 'down' }, 'pad');
+    expect(seen).toEqual([]);
+    // 键盘路径不受影响：用户还能用 B / 方向键离开
+    dispatchNav({ intent: 'back' }, 'key');
+    expect(seen).toEqual([{ intent: 'back' }]);
+    // 绑定完成后的静默窗：同一次按压晚到的 nav 意图也不能驱动导航
+    state.padCapture = false;
+    state.padMuteUntil = performance.now() + 150;
+    dispatchNav({ intent: 'accept' }, 'pad');
+    expect(seen).toEqual([{ intent: 'back' }]);
+    state.padMuteUntil = 0;
   });
 
   it('状态层打开时方向键不落到底层屏幕', () => {
@@ -169,6 +190,26 @@ describe('分屏语义键', () => {
     dispatchNav({ intent: 'actionR' });
     window.removeEventListener('keydown', onKey);
     expect(codes).toEqual(['KeyR']);
+  });
+
+  it('随机一部：只在库 / 网格生效，其他屏与状态层打开时不触发', async () => {
+    setScreen('library');
+    dispatchNav({ intent: 'actionRandom' }, 'pad');
+    await vi.waitFor(() => expect(pickRandomGame).toHaveBeenCalledTimes(1));
+    setScreen('grid');
+    dispatchNav({ intent: 'actionRandom' }, 'pad');
+    await vi.waitFor(() => expect(pickRandomGame).toHaveBeenCalledTimes(2));
+    // 详情 / 设置屏没有「随机」语义，避免误按后画面跳走
+    setScreen('detail');
+    dispatchNav({ intent: 'actionRandom' }, 'pad');
+    setScreen('settings');
+    dispatchNav({ intent: 'actionRandom' }, 'pad');
+    // 搜索面板开着时也不该在背后换焦点
+    setScreen('library');
+    openSearch();
+    dispatchNav({ intent: 'actionRandom' }, 'pad');
+    hideStates();
+    expect(pickRandomGame).toHaveBeenCalledTimes(2);
   });
 
   it('switchView 只在库 ⇄ 网格之间切，其他屏原地不动', () => {

@@ -73,12 +73,12 @@ describe('四源并行候选 IPC', () => {
     ]);
     const out = await ipc.metaCandidates('0123456789abcdef');
     expect(out).toHaveLength(1);
-    expect(out[0].source).toBe('bangumi');
-    expect(out[0].egs).toBeNull();
+    expect(out[0]!.source).toBe('bangumi');
+    expect(out[0]!.egs).toBeNull();
 
     invoke.mockResolvedValue([egs]);
     const [hit] = await ipc.metaCandidates('0123456789abcdef');
-    expect(hit.egs).toEqual({ score: 78, votes: 120, minutes: 1500 });
+    expect(hit!.egs).toEqual({ score: 78, votes: 120, minutes: 1500 });
   });
 
   it('applyCandidate 把 source + key 原样交给后端（四源共用一条命令）', async () => {

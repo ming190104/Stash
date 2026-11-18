@@ -5,7 +5,7 @@
 import type { Game, NavIntent, Screen } from '../types';
 import { asset, launchGame, stopGame, onEvent, setFavorite, getSettings, getLibrary, runningGame } from '../ipc';
 import { placeholderArt } from '../art';
-import { state, sortedGames, setScreen, lastPlayedId, gameById, gridList, versionCounts } from '../state';
+import { state, sortedGames, setScreen, lastPlayedId, gameById, gridList, versionCounts, markLocalEdit, clearLocalEdit, localEditOf, mergeLocalEdits } from '../state';
 import { clearHTML, setRawHTML } from '../html';
 import { registerHandler, isPadNavEvent } from '../nav';
 import { markSel, toggleSel, setMulti, openBatch, setMultiRefresh } from '../multi';
@@ -20,6 +20,7 @@ import { initHero, scheduleHero } from './hero';
 import { layoutMode } from './layout-mode';
 import { applyListFocus, renderList } from './list';
 import { WALL_COLS, applyWallFocus, renderWall } from './wall';
+import { bindLibraryApi } from '../library-bridge';
 
 // 对外稳定出口：其它模块 / 测试仍可从 library 取这些符号
 export { artHTML, hydrateArts } from './art';
@@ -111,7 +112,8 @@ function syncRailWindow(list: Game[], lastId: string | null): void {
     const full = i >= start && i <= end;
     const isSlot = el.classList.contains('slot');
     if (full === !isSlot) return;
-    el.replaceWith(full ? buildCard(list[i], i, lastId, versions) : buildSlot(i));
+    const g = list[i];
+    el.replaceWith(full && g ? buildCard(g, i, lastId, versions) : buildSlot(i));
   });
   hydrateArts(track);
   railCenter = state.focus;
@@ -262,15 +264,26 @@ function refreshFavViews(id: string): void {
   });
 }
 
+/** 进行中的收藏写入：刷新拿到的是写盘前的旧快照时，赋值前用这里的最新意图覆盖 */
 export function toggleFav(id: string): void {
   const g = gameById(id);
   if (!g) return;
-  g.favorite = !g.favorite;
-  toast(g.favorite ? '已加入收藏 ★' : '已取消收藏');
+  // 快照本次意图：失败时按快照回滚，而不是「取反当前值」——
+  // 等待写盘期间用户又点了一次的话，取反会把第二次操作也一起抹掉
+  const before = g.favorite;
+  const next = !before;
+  g.favorite = next;
+  markLocalEdit(id, { favorite: next });
+  toast(next ? '已加入收藏 ★' : '已取消收藏');
   refreshFavViews(id);
   // 落盘：写失败则回滚内存标志并提示，避免「界面显示已收藏、重启后没了」
-  setFavorite(id, g.favorite).catch((e) => {
-    g.favorite = !g.favorite;
+  setFavorite(id, next).catch((e) => {
+    // 等待写盘期间用户又点了一次时，意图已被换成下一次的值：不能连它一起清掉，
+    // 否则下一次刷新拿到旧快照会把第二次操作冲回
+    if (localEditOf(id, 'favorite') === next) clearLocalEdit(id, ['favorite']);
+    // 用当前对象而非闭包里的 g：后台刷新可能已经把 state.games 换成了新数组
+    const cur = gameById(id);
+    if (cur && cur.favorite === next) cur.favorite = before;
     toast(`收藏保存失败：${esc(String((e as { message?: string })?.message ?? e))}`, true);
     refreshFavViews(id);
   });
@@ -367,6 +380,9 @@ export async function refreshLibrary(): Promise<void> {
     throw e;
   }
   if (token !== refreshSeq) return; // 旧快照：不写 state、不重绘
+  // 收藏 / 评分 / 结局等「内存先改、后台落盘」的字段：这次读取若是写盘前的快照，
+  // 会把刚改的值冲回去。按字段意图合并，磁盘值已经一致的部分自动出清。
+  mergeLocalEdits(games);
   // 后台缩略图回填只改封面路径：原地换图后直接返回，不重建卡片
   const patched = applyThumbPatch(games);
   if (patched) {
@@ -404,8 +420,18 @@ export function openDetail(id: string, fromSearch = false): void {
   if (state.screen !== 'detail') state.detailFrom = state.screen;
   state.detailFromSearch = fromSearch;
   const seq = ++openSeq;
+  // 来处快照：背景解码要等最多 400ms，期间用户可能已经切屏 / 开了别的面板
+  const from = state.screen;
   const enter = (): void => {
     if (seq !== openSeq) return;
+    // 等待期间屏幕被切走 / 打开了状态层：这次进入作废，并把 detailId 还原，
+    // 否则 B 会落到一个「没有背景也没有内容」的详情页上
+    if (state.screen !== from || anyState()) {
+      if (state.detailId === id) state.detailId = prev;
+      // 静默作废会被当成「点了没反应」：明确告诉用户这次进入被取消
+      toast('已取消进入详情');
+      return;
+    }
     const app = document.getElementById('app');
     if (prev !== id) {
       // 换作品：在切屏前就卸掉上一张背景，否则详情首帧还会带着上一部的不透明旧图
@@ -765,15 +791,10 @@ export function initLibrary(): void {
       e.preventDefault();
       return;
     }
-    // P4：R 随机一部（掌机上「今天玩什么」的最短路径）
+    // P4：R 随机一部（掌机上「今天玩什么」的最短路径）。
+    // 与网格 / 手柄 L3 / 快捷菜单共用 quick.pickRandomGame，避免两套实现分叉。
     if (e.code === 'KeyR') {
-      const list = sortedGames();
-      if (list.length > 1) {
-        let i = state.focus;
-        while (i === state.focus) i = Math.floor(Math.random() * list.length);
-        setFocus(i);
-        toast(`随机 · ${esc(list[i].title)}`);
-      }
+      void import('../quick').then((m) => m.pickRandomGame());
       e.preventDefault();
     }
   });
@@ -798,3 +819,13 @@ export function initLibrary(): void {
     void openBatch();
   });
 }
+
+// 向桥接层注册实现：detail / grid / 设置页不再直接 import 本文件（避免核心层反向依赖屏幕）
+bindLibraryApi({
+  refresh: refreshLibrary,
+  openDetail,
+  toggleFav,
+  updateEmpty,
+  updateCount,
+  renderRail,
+});

@@ -630,6 +630,15 @@ html[data-fs-scale="1.25"] .help-grid h4{margin-bottom:3px}
 [data-fps="60"] .rail-track{transition-duration:.38s}
 [data-fps="60"] .card{transition-duration:.28s}
 [data-fps="90"] .rail-track{transition-duration:.34s}
+/* 60 档不能只是「慢一点」：无限呼吸 / 扫光 / 整窗模糊才是 60Hz 掌机上的合成开销大头。
+   直接关掉动态部分，保留抬升、描边、星标这些静态状态（观感仍是同一套设计）。 */
+[data-fps="60"] .hero-art .art img,
+[data-fps="60"] .hero-art .art .glow,
+[data-fps="60"] .dcover .art img,
+[data-fps="60"] .dcover .art .glow,
+[data-fps="60"] .art .glow{animation:none}
+[data-fps="60"] .card .sheen{display:none}
+[data-fps="60"] .qmenu .qbox{backdrop-filter:none;background:rgba(16,18,24,.98)}
 
 /* ===== P4 快捷菜单（手柄 Start / 菜单键）：右侧滑入，只动 opacity + transform ===== */
 .qmenu{position:fixed;inset:0;display:flex;align-items:center;justify-content:flex-end;padding:0 72px;background:rgba(6,7,10,.42);opacity:0;pointer-events:none;visibility:hidden;transition:opacity .18s ease,visibility 0s linear .18s;z-index:76}

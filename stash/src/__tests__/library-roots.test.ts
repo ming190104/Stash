@@ -120,8 +120,8 @@ describe('库页签 · 游戏库目录', () => {
     host.innerHTML = libraryTabHTML('');
     const cbs = host.querySelectorAll<HTMLInputElement>('.lcand-cb');
     expect(cbs.length).toBe(2);
-    expect(cbs[0].checked).toBe(true);
-    expect(cbs[1].checked).toBe(false);
+    expect(cbs[0]!.checked).toBe(true);
+    expect(cbs[1]!.checked).toBe(false);
     expect(host.innerHTML).toContain('已在库中');
     expect(host.innerHTML).toContain('加入所选（1）');
   });
@@ -179,9 +179,9 @@ describe('库页签 · 目录与候选的交互', () => {
     await mount();
     const rows = body().querySelectorAll<HTMLElement>('.pitem');
     // 取消勾选 B，把 A 的标题改成中文名
-    rows[1].querySelector<HTMLInputElement>('.lcand-cb')!.checked = false;
-    rows[1].querySelector<HTMLInputElement>('.lcand-cb')!.dispatchEvent(new Event('change'));
-    const ti = rows[0].querySelector<HTMLInputElement>('.lcand-ti')!;
+    rows[1]!.querySelector<HTMLInputElement>('.lcand-cb')!.checked = false;
+    rows[1]!.querySelector<HTMLInputElement>('.lcand-cb')!.dispatchEvent(new Event('change'));
+    const ti = rows[0]!.querySelector<HTMLInputElement>('.lcand-ti')!;
     ti.value = '中文标题';
     ti.dispatchEvent(new Event('change'));
 

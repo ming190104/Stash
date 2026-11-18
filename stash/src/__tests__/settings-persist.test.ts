@@ -14,6 +14,7 @@ const H = vi.hoisted(() => ({
   applyFontScale: vi.fn(),
   applyAnimSpeed: vi.fn(),
   applyBootAnim: vi.fn(),
+  applyFullscreenUI: vi.fn(),
   applySoundSettings: vi.fn(),
   state: {
     settings: null as Settings | null,
@@ -31,14 +32,26 @@ vi.mock('../ui', () => ({
   applyFontScale: H.applyFontScale,
   applyAnimSpeed: H.applyAnimSpeed,
   applyBootAnim: H.applyBootAnim,
+  applyFullscreenUI: H.applyFullscreenUI,
 }));
 vi.mock('../sfx', () => ({ applySoundSettings: H.applySoundSettings }));
-vi.mock('../screens/library', () => ({ renderRail: H.renderRail }));
-vi.mock('../screens/grid', () => ({ renderGrid: H.renderGrid }));
-vi.mock('../screens/settings/ui', () => ({ rerender: H.rerender }));
-vi.mock('../state', () => ({ state: H.state }));
+vi.mock('../state', () => ({
+  state: H.state,
+  SORT_MODES: [
+    { v: 'lastPlayed', label: '最近游玩' },
+    { v: 'title', label: '标题' },
+    { v: 'year', label: '年份' },
+  ],
+}));
 
-import { persist } from '../screens/settings/persist';
+import { persist, setSettingsAppliedHook } from '../settings-persist';
+
+// 回滚后的重建由入口注册：测试里用桩函数接住，语义与 main.ts 一致
+setSettingsAppliedHook(() => {
+  H.renderRail();
+  H.renderGrid();
+  H.rerender();
+});
 
 function fixture(over: Partial<Settings> = {}): Settings {
   return {
@@ -81,19 +94,19 @@ describe('设置落盘', () => {
     local.theme = 'eva01';
     const first = persist();
     await vi.waitFor(() => expect(H.updateSettings).toHaveBeenCalledTimes(1));
-    expect(H.updateSettings.mock.calls[0][0]).toMatchObject({ theme: 'eva01', layout: 'classic' });
+    expect(H.updateSettings.mock.calls[0]![0]).toMatchObject({ theme: 'eva01', layout: 'classic' });
 
     local.layout = 'wall';
     const second = persist();
     // 第一次尚未返回：第二次必须排队，不能并发提交
     expect(H.updateSettings).toHaveBeenCalledTimes(1);
 
-    resolvers[0]();
+    resolvers[0]!();
     await vi.waitFor(() => expect(H.updateSettings).toHaveBeenCalledTimes(2));
     // 排队的那次读到最新整份设置：主题与布局都在，不会用旧快照把布局改回去
-    expect(H.updateSettings.mock.calls[1][0]).toMatchObject({ theme: 'eva01', layout: 'wall' });
+    expect(H.updateSettings.mock.calls[1]![0]).toMatchObject({ theme: 'eva01', layout: 'wall' });
 
-    resolvers[1]();
+    resolvers[1]!();
     await Promise.all([first, second]);
   });
 
@@ -127,6 +140,7 @@ describe('设置落盘', () => {
     expect(H.applyFontScale).toHaveBeenCalledWith(undefined);
     expect(H.applyAnimSpeed).toHaveBeenCalledWith(undefined);
     expect(H.applyBootAnim).toHaveBeenCalledWith(undefined);
+    expect(H.applyFullscreenUI).toHaveBeenCalledWith(true);
     expect(H.applySoundSettings).toHaveBeenCalledWith(disk);
     expect(H.renderRail).toHaveBeenCalled();
     expect(H.renderGrid).toHaveBeenCalled();
@@ -145,6 +159,6 @@ describe('设置落盘', () => {
     H.state.settings!.theme = 'nerv';
     await persist();
     expect(H.updateSettings).toHaveBeenCalledTimes(2);
-    expect(H.updateSettings.mock.calls[1][0]).toMatchObject({ theme: 'nerv' });
+    expect(H.updateSettings.mock.calls[1]![0]).toMatchObject({ theme: 'nerv' });
   });
 });

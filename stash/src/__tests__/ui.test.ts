@@ -3,6 +3,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { cssUrl, cachedLayout, cachedTheme, cnFirst, errMsg, esc, fmtDuration, normalizeFontScale, stageScale, toast } from '../ui';
+import { cachePatch } from '../ui-cache';
 
 const store = new Map<string, string>();
 
@@ -14,6 +15,9 @@ beforeEach(() => {
       getItem: (k: string): string | null => store.get(k) ?? null,
       setItem: (k: string, v: string): void => {
         store.set(k, v);
+      },
+      removeItem: (k: string): void => {
+        store.delete(k);
       },
     },
   });
@@ -120,14 +124,23 @@ describe('主题 / 布局缓存', () => {
   it('只接受白名单，非法缓存回落默认值', () => {
     expect(cachedTheme()).toBe('cinema');
     expect(cachedLayout()).toBe('classic');
-    store.set('vnTheme', 'sakura');
-    store.set('vnLayout', 'wall');
+    cachePatch({ theme: 'sakura', layout: 'wall' });
     expect(cachedTheme()).toBe('sakura');
     expect(cachedLayout()).toBe('wall');
-    store.set('vnTheme', 'neon');
-    store.set('vnLayout', 'magazine');
+    cachePatch({ theme: 'neon', layout: 'magazine' });
     expect(cachedTheme()).toBe('cinema');
     expect(cachedLayout()).toBe('classic');
+  });
+
+  it('旧版分散 key 首次读取时迁移到单一缓存并删除旧 key', () => {
+    store.set('vnTheme', 'iris');
+    store.set('vnLayout', 'list');
+    store.set('vnAnimSpeed', '2');
+    expect(cachedTheme()).toBe('iris');
+    expect(cachedLayout()).toBe('list');
+    expect(store.get('vnUiCache')).toContain('"theme":"iris"');
+    expect(store.has('vnTheme')).toBe(false);
+    expect(store.has('vnAnimSpeed')).toBe(false);
   });
 });
 

@@ -40,7 +40,7 @@ pub async fn update_settings(store: State<'_, Store>, settings: Settings) -> Res
             "l3", "r3",
         ];
         let m = &settings.pad_map;
-        for v in [&m.accept, &m.back, &m.menu, &m.x, &m.y, &m.r, &m.lb] {
+        for v in [&m.accept, &m.back, &m.menu, &m.x, &m.y, &m.r, &m.lb, &m.random] {
             if !valid.contains(&v.as_str()) {
                 return Err(AppError::new(
                     ErrCode::ConfigInvalid,
@@ -215,5 +215,9 @@ pub fn set_fullscreen(app: AppHandle, enabled: bool) -> Result<(), AppError> {
 /// 深度省电：锁 60Hz / 还原。返回切换后的实际刷新率。
 #[tauri::command]
 pub async fn set_power60(enabled: bool) -> Result<u32, AppError> {
-    power::apply(enabled)
+    // 切刷新率会黑屏 1–2 秒（Windows 重建显示模式）：同步跑在 async 命令里
+    // 会一直占着 tokio worker，同一时刻的首屏 / 库读取命令全被排在后面。
+    tauri::async_runtime::spawn_blocking(move || power::apply(enabled))
+        .await
+        .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
 }

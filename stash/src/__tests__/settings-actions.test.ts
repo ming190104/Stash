@@ -66,6 +66,22 @@ vi.mock('../ipc', async (importOriginal) => {
   };
 });
 
+vi.mock('../library-bridge', async () => {
+  const { state: st } = await import('../state');
+  return {
+    openDetail: (id: string) => {
+      st.detailId = id;
+    },
+    refreshLibrary: vi.fn(async () => {
+      st.games = (await H.getLibrary()) as typeof st.games;
+    }),
+    renderRail: vi.fn(),
+    updateCount: vi.fn(),
+    updateEmpty: vi.fn(),
+    toggleFav: vi.fn(),
+  };
+});
+
 vi.mock('../ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../ui')>();
   return {
@@ -242,7 +258,7 @@ describe('导入导出', () => {
     await vi.waitFor(() => expect(lastToast()).toContain('磁盘只读'));
   });
 
-  it('导入：未确认不动库；成功灌设置并刷新；键位下发失败只降级提示', async () => {
+  it('导入：未确认不动库；成功灌设置并刷新；设置落盘失败只降级提示', async () => {
     H.pickJsonFile.mockResolvedValueOnce('D:\\backup.json');
     H.prompt.mockResolvedValueOnce('取消');
     press('import');
@@ -257,7 +273,7 @@ describe('导入导出', () => {
     press('import');
     await vi.waitFor(() => expect(H.importData).toHaveBeenCalledWith('D:\\backup.json'));
     await vi.waitFor(() => expect(state.games.length).toBe(2));
-    expect(toastLog()).toContain('设置已导入，但手柄键位未能即时生效');
+    expect(toastLog()).toContain('设置已导入，但未能即时生效');
     expect(toastLog()).toContain('已导入 3 部作品');
   });
 

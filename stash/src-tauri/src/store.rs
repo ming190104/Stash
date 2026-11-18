@@ -177,6 +177,15 @@ impl Store {
         self.load_library_checked().0
     }
 
+    /// 仅当主文件**读取并解析成功**时返回库。
+    /// 自愈写盘（清理失效媒体路径）必须用它判断来源：主文件瞬时读失败时
+    /// `load_library` 会回落到 `.bak`，把那一代写回主文件等于丢一代数据。
+    pub fn load_library_from_main(&self) -> Option<Vec<Game>> {
+        let raw = fs::read_to_string(self.library_path()).ok()?;
+        let s = self.rebase_legacy_paths(raw);
+        serde_json::from_str::<Vec<Game>>(&s).ok()
+    }
+
     /// 读库，并告知「是否真的解析成功」。
     /// 空库与「主文件 + .bak 都解析失败」对外都是空 Vec，但清理缓存必须区分：
     /// 后者按 id 判孤儿会把用户自选封面全部删掉（不可再生）。
@@ -279,10 +288,25 @@ impl Store {
                 tracing::warn!("library.json 无法解析，跳过 .bak 滚动以保住可恢复副本");
             }
         }
-        // ③ 临时文件 → 主文件。失败时 .bak 仍在，load_library 的二级兜底能恢复。
+        // ③ 临时文件 → 主文件。
+        // 上一步已把现行库 rename 成 .bak，此时主文件是**不存在**的：这里失败
+        // （磁盘满 / 杀软锁文件 / 目标被占用）就会留下「只有 .bak、没有 library.json」，
+        // 下次启动虽然能靠二级兜底读回 .bak，但用户看到的是一次「库整个消失」。
+        // 因此失败时先把 .bak 复制回主文件（保留 .bak 本身），再清掉临时文件。
         match rename_with_retry(&tmp, &main) {
             Ok(()) => Ok(()),
             Err(e) => {
+                let bak = self.library_bak_path();
+                if !main.exists() && bak.exists() {
+                    if let Err(e2) = fs::copy(&bak, &main) {
+                        tracing::error!(
+                            "save_library: 主文件缺失且从未滚动备份恢复失败：{e2}（备份仍在 {}）",
+                            bak.display()
+                        );
+                    } else {
+                        tracing::warn!("save_library: 落位失败，已用 .bak 恢复主文件：{e}");
+                    }
+                }
                 let _ = fs::remove_file(&tmp);
                 Err(e)
             }

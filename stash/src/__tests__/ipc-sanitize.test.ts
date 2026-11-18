@@ -14,9 +14,9 @@ describe('sanitizeLibrary', () => {
       { id: 'b', title: 'B', dir: 'D:/b', tags: 'bad', shots: null },
     ]);
     expect(out.map((g) => g.id)).toEqual(['a', 'b']);
-    expect(out[1].tags).toEqual([]);
-    expect(out[1].shots).toEqual([]);
-    expect(out[1].userTags).toEqual([]);
+    expect(out[1]!.tags).toEqual([]);
+    expect(out[1]!.shots).toEqual([]);
+    expect(out[1]!.userTags).toEqual([]);
   });
 
   it('非数组按空库处理', () => {
@@ -36,16 +36,16 @@ describe('sanitizeLibrary', () => {
         sessions: [{ at: 1, seconds: 2 }, { at: 'x', seconds: 1 }, null],
       },
     ]);
-    expect(out[0].engine).toBe('unknown');
-    expect(out[0].tags).toEqual(['ok']);
-    expect(out[0].endings).toEqual([{ name: 'END A', done: false }]);
-    expect(out[0].playSeconds).toBe(0);
-    expect(out[0].year).toBeNull();
-    expect(out[0].sessions).toEqual([{ at: 1, seconds: 2 }]);
+    expect(out[0]!.engine).toBe('unknown');
+    expect(out[0]!.tags).toEqual(['ok']);
+    expect(out[0]!.endings).toEqual([{ name: 'END A', done: false }]);
+    expect(out[0]!.playSeconds).toBe(0);
+    expect(out[0]!.year).toBeNull();
+    expect(out[0]!.sessions).toEqual([{ at: 1, seconds: 2 }]);
   });
 
   it('合法引擎原样保留', () => {
-    expect(sanitizeLibrary([{ ...good, engine: 'renPy' }])[0].engine).toBe('renPy');
+    expect(sanitizeLibrary([{ ...good, engine: 'renPy' }])[0]!.engine).toBe('renPy');
   });
 });
 
@@ -63,9 +63,39 @@ describe('sanitizeSettings', () => {
     const s = sanitizeSettings({
       theme: 'sakura',
       layout: 'wall',
+      sort: 'year',
+      fpsMode: '60',
+      animSpeed: 2,
+      fontScale: 1.12,
     });
     expect(s.theme).toBe('sakura');
     expect(s.layout).toBe('wall');
+    expect(s.sort).toBe('year');
+    expect(s.fpsMode).toBe('60');
+    expect(s.animSpeed).toBe(2);
+    expect(s.fontScale).toBe(1.12);
+  });
+
+  it('非法枚举 / 越界数值逐项收敛到白名单', () => {
+    // 脏值不能只在界面上「看起来被回退」：它们会被下一次 persist 原样写回 settings.json
+    const s = sanitizeSettings({
+      theme: 'neon',
+      layout: 'magazine',
+      bootAnim: 'core',
+      motion: 3,
+      animSpeed: 1.7,
+      sort: 'random',
+      fpsMode: '30',
+      fontScale: 99,
+    });
+    expect(s.theme).toBe('cinema');
+    expect(s.layout).toBe('classic');
+    expect(s.bootAnim).toBe('warp');
+    expect(s.motion).toBe(0);
+    expect(s.animSpeed).toBe(1.5);
+    expect(s.sort).toBe('lastPlayed');
+    expect(s.fpsMode).toBe('auto');
+    expect(s.fontScale).toBe(1);
   });
 
   it('完全不是对象时也能返回可用设置', () => {

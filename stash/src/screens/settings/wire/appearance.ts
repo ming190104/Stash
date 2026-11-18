@@ -9,7 +9,7 @@ import { openMenu } from '../../../quick';
 import { renderRail } from '../../library';
 import { renderGrid } from '../../grid';
 import { THEME_LABEL, THEME_OPTS, BOOT_LABEL, BOOT_OPTS } from '../../settings-tabs/common';
-import { persist } from '../persist';
+import { persist } from '../../../settings-persist';
 import { rerender } from '../ui';
 
 /** 启动动画档位与主题共用同一套下拉菜单代码路径 */
@@ -58,25 +58,36 @@ export function wireAppearance(body: HTMLElement): void {
   });
   // 动效强度：切 #app.motion-soft（mockup 机制真实接线）+ 落盘；系统减少动态效果时同样整档关闭
   body.querySelectorAll('#segMotion b').forEach((b) => {
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       state.motion = Number((b as HTMLElement).dataset.v);
       applyMotion(state.motion === 1);
       body.querySelectorAll('#segMotion b').forEach((x) => x.classList.toggle('on', x === b));
       if (state.settings) {
         state.settings.motion = state.motion;
-        persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
+        // 先落盘再报成功：persist 失败时已按磁盘值回滚，此时不能再提示「已切换」
+        try {
+          await persist();
+        } catch (err) {
+          toast(esc(String((err as { message?: string })?.message ?? err)), true);
+          return;
+        }
       }
       toastNow(`动效强度 · ${state.motion === 1 ? '柔和' : '标准'}`);
     });
   });
   // 启动 / 全屏转场速度：只缩放这两段时长，同时写入缓存供下次冷启动在设置读盘前使用
   body.querySelectorAll('#segAnimSpeed b').forEach((b) => {
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       const v = applyAnimSpeed(Number((b as HTMLElement).dataset.v));
       body.querySelectorAll('#segAnimSpeed b').forEach((x) => x.classList.toggle('on', x === b));
       if (state.settings) {
         state.settings.animSpeed = v;
-        persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
+        try {
+          await persist();
+        } catch (err) {
+          toast(esc(String((err as { message?: string })?.message ?? err)), true);
+          return;
+        }
       }
       toastNow(`启动与转场速度 · ${v}×`);
     });
@@ -128,20 +139,25 @@ export function wireAppearance(body: HTMLElement): void {
   });
   // 界面字号：写 --fs 根变量（app.css 全部 font-size 乘它）+ 落盘，版式不动
   body.querySelectorAll('#segFont b').forEach((b) => {
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       const v = normalizeFontScale(Number((b as HTMLElement).dataset.v));
       applyFontScale(v);
       body.querySelectorAll('#segFont b').forEach((x) => x.classList.toggle('on', x === b));
       if (state.settings) {
         state.settings.fontScale = v;
-        persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
+        try {
+          await persist();
+        } catch (err) {
+          toast(esc(String((err as { message?: string })?.message ?? err)), true);
+          return;
+        }
       }
       toastNow(`界面字号 · ${v === 0.9 ? '小' : v === 1 ? '标准' : v === 1.12 ? '大' : '特大'}`);
     });
   });
   // 布局皮肤：立即重建库屏 / 网格（CSS 与 TS 两侧都要切）+ 落盘
   body.querySelectorAll('#segLayout b').forEach((b) => {
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       const v = (b as HTMLElement).dataset.v as LayoutName;
       if (!state.settings) return;
       state.settings.layout = v;
@@ -149,16 +165,19 @@ export function wireAppearance(body: HTMLElement): void {
       body.querySelectorAll('#segLayout b').forEach((x) => x.classList.toggle('on', x === b));
       renderRail();
       renderGrid();
-      persist().catch((err) => {
+      try {
+        await persist();
+      } catch (err) {
         toast(esc(String((err as { message?: string })?.message ?? err)), true);
         rerender();
-      });
+        return;
+      }
       toastNow(`布局 · ${v === 'list' ? '列表' : v === 'wall' ? '海报墙' : '经典'}`);
     });
   });
   // 排序：轨道 / 列表 / 海报墙 / 网格共用，落盘后重启仍生效
   body.querySelectorAll('#segSort b').forEach((b) => {
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       state.sortBy = (b as HTMLElement).dataset.v as typeof state.sortBy;
       state.focus = 0;
       body.querySelectorAll('#segSort b').forEach((x) => x.classList.toggle('on', x === b));
@@ -166,20 +185,30 @@ export function wireAppearance(body: HTMLElement): void {
       renderGrid();
       if (state.settings) {
         state.settings.sort = state.sortBy;
-        persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
+        try {
+          await persist();
+        } catch (err) {
+          toast(esc(String((err as { message?: string })?.message ?? err)), true);
+          return;
+        }
       }
       toastNow('已重新排序');
     });
   });
   // 竖排原名（落盘）
-  body.querySelector('#tgVt')?.addEventListener('click', (e) => {
+  body.querySelector('#tgVt')?.addEventListener('click', async (e) => {
     state.verticalTitle = !state.verticalTitle;
     (e.currentTarget as HTMLElement).classList.toggle('on', state.verticalTitle);
     renderRail();
     renderGrid();
     if (state.settings) {
       state.settings.verticalTitle = state.verticalTitle;
-      persist().catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
+      try {
+        await persist();
+      } catch (err) {
+        toast(esc(String((err as { message?: string })?.message ?? err)), true);
+        return;
+      }
     }
     toastNow(`竖排原文名 · ${state.verticalTitle ? '开' : '关'}`);
   });

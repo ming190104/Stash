@@ -4,10 +4,10 @@ import type { PadMap, PadTuning } from '../../../types';
 import { state } from '../../../state';
 import { toast, esc } from '../../../ui';
 import { refreshPadHints } from '../../../keybar';
-import { PAD_DEFAULT, PAD_TUNING_DEFAULT } from '../../../padmap';
+import { PAD_DEFAULT, PAD_TUNING_DEFAULT, dedupePadMap } from '../../../padmap';
 import { promptConfirm } from '../../../prompt';
-import { persist } from '../persist';
-import { sui, rerender } from '../ui';
+import { persist } from '../../../settings-persist';
+import { sui, rerender, setCapturePad } from '../ui';
 
 /** 手感字段 → 中文名，只用于 toast。 */
 const TUNE_LABEL: Record<string, string> = {
@@ -58,11 +58,13 @@ export function wireKeys(body: HTMLElement): void {
     if (!state.settings) return;
     const on = !state.settings.abSwap;
     state.settings.abSwap = on;
-    state.settings.padMap = {
+    // 与捕获同一套撞键规则：互换成对改写 accept / back 后统一去重，
+    // 避免 random 恰好占着其中一颗键时一键触发两个动作（如 back 与 random 同为 south）
+    state.settings.padMap = dedupePadMap({
       ...(state.settings.padMap ?? PAD_DEFAULT),
       accept: on ? 'east' : 'south',
       back: on ? 'south' : 'east',
-    };
+    });
     (e.currentTarget as HTMLElement).classList.toggle('on', on);
     persist()
       .then(() => {
@@ -78,9 +80,9 @@ export function wireKeys(body: HTMLElement): void {
   // P5 · 手柄键位：点一行进入改键态，下一次物理按键（pad://button）落到这一行
   body.querySelectorAll<HTMLElement>('#padMapRows .pmrow').forEach((el) => {
     el.addEventListener('click', () => {
-      sui.capturePad = el.dataset.pad as keyof PadMap;
       sui.captureAt = Date.now() + 400;
       const seq = ++sui.captureSeq;
+      setCapturePad(el.dataset.pad as keyof PadMap);
       rerender();
       toast('按下想绑定的手柄键…');
       // 10 秒没按键就自动退出，避免没接手柄时这一行一直挂着「按手柄按键…」
@@ -88,7 +90,7 @@ export function wireKeys(body: HTMLElement): void {
       window.setTimeout(() => {
         // 同一行连点两次会再开一个会话：旧定时器只认自己那一轮（seq），不能把新会话一起清掉
         if (sui.captureSeq === seq && sui.capturePad === mark) {
-          sui.capturePad = null;
+          setCapturePad(null);
           rerender();
         }
       }, 10000);
@@ -106,7 +108,7 @@ export function wireKeys(body: HTMLElement): void {
     const keepSwap = state.settings.abSwap;
     const base = { ...PAD_DEFAULT };
     state.settings.padMap = keepSwap ? { ...base, accept: 'east', back: 'south' } : base;
-    sui.capturePad = null;
+    setCapturePad(null);
     persist()
       .then(() => {
         refreshPadHints();

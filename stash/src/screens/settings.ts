@@ -20,8 +20,8 @@ import { networkHTML } from './settings-tabs/network';
 import { perfHTML } from './settings-tabs/perf';
 import { startupHTML } from './settings-tabs/startup';
 import { statsHTML } from './settings-tabs/stats';
-import { sui, setRerender, rerender, panelEls, applyRing, enterRead, scrollPanel } from './settings/ui';
-import { persist } from './settings/persist';
+import { sui, setRerender, rerender, panelEls, applyRing, enterRead, scrollPanel, setCapturePad } from './settings/ui';
+import { persist } from '../settings-persist';
 import { healthHTML, wireHealthFix } from './settings/health';
 import { wireActions } from './settings/actions';
 import { wirePerf } from './settings/wire/perf';
@@ -86,11 +86,13 @@ function spatialTarget(
   let diagScore = Number.POSITIVE_INFINITY;
   for (let i = 0; i < els.length; i++) {
     if (i === idx) continue;
-    const r = els[i].getBoundingClientRect();
+    const el = els[i];
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
     if (r.width <= 0 && r.height <= 0) continue;
     const x = (r.left + r.right) / 2;
     const y = (r.top + r.bottom) / 2;
-    const rc = cell(els[i]);
+    const rc = cell(el);
     const overlapX = Math.min(cc.right, rc.right) - Math.max(cc.left, rc.left);
     const overlapY = Math.min(cc.bottom, rc.bottom) - Math.max(cc.top, rc.top);
     // 同一个 cell 里上下堆叠的按钮（元数据「开始匹配 / 取消」）中心差一个按钮高，
@@ -133,7 +135,9 @@ function spatialTarget(
   // 左右必须按几何邻项走——左右只移焦点，若也吸附到 .on，焦点就永远停在当前档，
   // 未选中的档位再也到不了，等于分段值无法修改。
   if (dir === 'up' || dir === 'down') {
-    const seg = els[best].closest<HTMLElement>('.seg');
+    const bestEl = els[best];
+    if (!bestEl) return -1;
+    const seg = bestEl.closest<HTMLElement>('.seg');
     const on = seg?.querySelector<HTMLElement>('b.on');
     if (on) {
       const onIdx = els.indexOf(on);
@@ -147,7 +151,7 @@ export async function renderSettings(): Promise<void> {
   if (!state.settings) state.settings = await getSettings();
   const s = state.settings;
   // 离开键位页签时退出改键态：否则回来会看到一个仍在「按手柄按键…」的行
-  if (sui.capturePad && sui.tab !== 2) sui.capturePad = null;
+  if (sui.capturePad && sui.tab !== 2) setCapturePad(null);
   const body = document.getElementById('sbody');
   if (!body) return;
 
@@ -306,7 +310,32 @@ export function initSettings(): void {
   // 之前没人监听——在「手柄键位」进入捕获后直接按 B 回库屏，capturePad 会一直挂着，
   // 之后按下的物理键会被静默重绑到那一行
   window.addEventListener('screen-change', () => {
-    if (state.screen !== 'settings' && sui.capturePad) sui.capturePad = null;
+    if (state.screen !== 'settings' && sui.capturePad) setCapturePad(null);
+  });
+  // 鼠标 / Tab 焦点同步：点击或 DOM 焦点落到某个控件时，把手柄焦点环也移过去。
+  // 否则「鼠标点了这一行的开关，再按手柄 A」激活的仍是环停着的旧控件。
+  const sbody = document.getElementById('sbody');
+  sbody?.addEventListener('pointerdown', (e) => {
+    const t = e.target as HTMLElement | null;
+    if (!t) return;
+    const els = panelEls();
+    const hit = els.find((el) => el === t || el.contains(t));
+    if (!hit) return;
+    const i = els.indexOf(hit);
+    if (sui.zone === 'panel' && sui.panelIdx === i) return;
+    sui.zone = 'panel';
+    sui.panelIdx = i;
+    applyRing();
+  });
+  sbody?.addEventListener('focusin', (e) => {
+    const t = e.target as HTMLElement | null;
+    if (!t) return;
+    const els = panelEls();
+    const i = els.indexOf(t);
+    if (i < 0 || (sui.zone === 'panel' && sui.panelIdx === i)) return;
+    sui.zone = 'panel';
+    sui.panelIdx = i;
+    applyRing();
   });
   registerHandler('settings', (n: NavIntent) => {
     if (n.intent === 'back') {
@@ -415,6 +444,12 @@ export function initSettings(): void {
     if (!sui.capturePad || state.screen !== 'settings' || !state.settings) return;
     if (Date.now() < sui.captureAt) return; // 吞掉「按 A 激活这一行」的同一次按压
     if (!PAD_KEY_LABEL[ev.button]) return;
+    // Select 固定用于库 / 网格的多选（nav 的 pad://button 监听无条件处理它）：
+    // 允许改绑到这里会让一次按压同时触发该动作和多选切换
+    if (ev.button === 'select') {
+      toast('Select 固定用于多选，不能改绑');
+      return;
+    }
     const s = state.settings;
     const map: PadMap = { ...(s.padMap ?? PAD_DEFAULT) };
     const act = sui.capturePad;
@@ -429,7 +464,10 @@ export function initSettings(): void {
     s.padMap = map;
     // 开关状态跟随实际映射，避免「A/B 互换 = 关」但确认键其实在东侧
     s.abSwap = map.accept === 'east' && map.back === 'south';
-    sui.capturePad = null;
+    // 同一次按压已经用于绑定：紧接着到达的 nav://intent 必须丢弃，
+    // 否则绑 A 会重新进入捕获、绑 Start 会弹菜单、绑 B 会退页签
+    state.padMuteUntil = performance.now() + 150;
+    setCapturePad(null);
     persist()
       .then(() => {
         refreshPadHints();

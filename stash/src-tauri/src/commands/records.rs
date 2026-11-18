@@ -43,6 +43,15 @@ pub async fn set_launch_args(store: State<'_, Store>, id: String, args: Vec<Stri
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
+    // 参数会原样拼进启动命令行：没有上限时一次粘贴就能把长度撑爆，
+    // 之后每次启动都失败。与备份导入的清洗口径保持一致（32 项 / 1024 字符）。
+    let total: usize = cleaned.iter().map(|s| s.chars().count()).sum();
+    if cleaned.len() > 32 || total > 1024 {
+        return Err(AppError::new(
+            ErrCode::ConfigInvalid,
+            "启动参数最多 32 项、合计 1024 字符",
+        ));
+    }
     let st = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || set_launch_args_sync(&st, &id, cleaned))
         .await

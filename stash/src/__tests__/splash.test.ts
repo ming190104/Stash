@@ -5,6 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initSplash, previewBootAnim, warpBusy, warpToggle } from '../splash';
+import { cachePatch } from '../ui-cache';
 import type { BootAnim } from '../types';
 
 beforeEach(() => {
@@ -25,8 +26,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  localStorage.removeItem('vnBootAnim');
-  localStorage.removeItem('vnAnimSpeed');
+  localStorage.removeItem('vnUiCache');
 });
 
 describe('initSplash', () => {
@@ -70,13 +70,13 @@ describe('initSplash', () => {
   });
 
   it('关闭档直接返回，不挂动画层', async () => {
-    localStorage.setItem('vnBootAnim', 'off');
+    cachePatch({ bootAnim: 'off' });
     await initSplash();
     expect(document.querySelector('#warpSplash')).toBeNull();
   });
 
   it('2× 时整段缩到 2.5s，而不是一闪而过', async () => {
-    localStorage.setItem('vnAnimSpeed', '2');
+    cachePatch({ animSpeed: 2 });
     let done = false;
     const boot = initSplash().then(() => {
       done = true;
@@ -130,7 +130,7 @@ describe('warpToggle', () => {
       ['2', '2500ms'],
     ];
     for (const [speed, dur] of cases) {
-      localStorage.setItem('vnAnimSpeed', speed);
+      cachePatch({ animSpeed: Number(speed) });
       const turn = warpToggle(() => undefined, true);
       await vi.advanceTimersByTimeAsync(50);
       const el = document.getElementById('warpSplash')!;

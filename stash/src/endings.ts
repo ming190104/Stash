@@ -4,7 +4,7 @@ import type { EndMark } from './types';
 import { esc, toast, clickable } from './ui';
 import { setRawHTML } from './html';
 import { updateEndings } from './ipc';
-import { gameById } from './state';
+import { gameById, markLocalEdit, clearLocalEdit } from './state';
 import { hideStates, showState, NATIVE_DEFAULT } from './layers';
 
 let endGame = '';
@@ -84,6 +84,9 @@ function saveEndings(next: EndMark[]): void {
   const g = gameById(endGame);
   if (!g) return;
   g.endings = next;
+  // 登记意图：写盘期间后台刷新可能把 state.games 换成写盘前的快照，
+  // 链上下一环再读 gameById 就会拿到旧清单、把刚勾的「达成」写没
+  markLocalEdit(g.id, { endings: next });
   renderEndings();
   void import('./screens/library').then((m) => m.renderRail());
   void import('./screens/grid').then((m) => m.renderGrid());
@@ -91,11 +94,14 @@ function saveEndings(next: EndMark[]): void {
   const id = endGame;
   endWrite = endWrite
     .then(async () => {
-      const cur = gameById(id);
-      if (!cur) return;
-      await updateEndings(id, cur.endings);
+      // 写的是意图里的最新清单，不依赖可能已被替换的 state 对象
+      await updateEndings(id, next);
     })
-    .catch((e) => toast(esc(String((e as { message?: string })?.message ?? e)), true));
+    .catch((e) => {
+      // 失败就撤掉意图，让下一次刷新回到磁盘真值（而不是一直显示没存上的内容）
+      clearLocalEdit(id, ['endings']);
+      toast(esc(String((e as { message?: string })?.message ?? e)), true);
+    });
 }
 
 function toggleEnd(i: number): void {

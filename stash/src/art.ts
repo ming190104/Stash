@@ -23,7 +23,7 @@ const PALETTES: Palette[] = [
 export function paletteFor(id: string): Palette {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return PALETTES[h % PALETTES.length];
+  return PALETTES[h % PALETTES.length] ?? PALETTES[0]!;
 }
 
 /** 主题强调色（缓存按 data-theme 失效）：用实色混出占位渐变里的主题色温。
@@ -49,7 +49,7 @@ function mix(accent: string, base: string, t: number): string {
   if (!pa || !pb) return base;
   const n = (h: string) => parseInt(h, 16);
   const ch = (i: number) =>
-    Math.round(n(pa[1].slice(i, i + 2)) * t + n(pb[1].slice(i, i + 2)) * (1 - t))
+    Math.round(n(pa[1]!.slice(i, i + 2)) * t + n(pb[1]!.slice(i, i + 2)) * (1 - t))
       .toString(16)
       .padStart(2, '0');
   return `#${ch(0)}${ch(2)}${ch(4)}`;

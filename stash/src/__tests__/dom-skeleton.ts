@@ -103,6 +103,8 @@ export function resetState(): void {
   state.viewName = null;
   state.detailId = null;
   state.running = null;
+  state.padCapture = false;
+  state.padMuteUntil = 0;
   state.sortBy = 'lastPlayed';
   state.query = '';
   state.motion = 0;

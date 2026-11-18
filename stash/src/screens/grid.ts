@@ -6,7 +6,7 @@ import { state, sortedGames, gridList, setScreen, isFinished, type GridFilter } 
 import { registerHandler, isPadNavEvent } from '../nav';
 import { artHTML, hydrateArts } from './art';
 import { setRawHTML } from '../html';
-import { openDetail, updateEmpty } from './library';
+import { openDetail, updateEmpty } from '../library-bridge';
 import { esc, pressCard, toast } from '../ui';
 import { showEmpty, searchShown, filterShown, hideEmpty, syncFilterChip, anyState } from '../overlay';
 import { markSel, toggleSel, setMulti, openBatch } from '../multi';
@@ -14,6 +14,8 @@ import { markSel, toggleSel, setMulti, openBatch } from '../multi';
 const GRID_COLS = 6;
 /** 上一次渲染网格时所在的屏幕：只有「从别的屏进网格」才播放阶梯涟漪，避免多选/筛选重绘时反复动 */
 let lastGridScreen: string | null = null;
+/** 网格 DOM 是否落后于数据：不在网格屏时不重建，等真正切进来再建一次 */
+let gridDirty = true;
 
 function buildGrid(animate = false): void {
   const wrap = document.getElementById('gridCards');
@@ -119,7 +121,9 @@ export function cycleFilter(dir: 1 | -1): void {
   if (chips.length < 2) return;
   const cur = chips.findIndex((c) => c.dataset.filter === state.gridFilter);
   const next = ((cur < 0 ? 0 : cur) + dir + chips.length) % chips.length;
-  setFilter(chips[next].dataset.filter as GridFilter);
+  const el = chips[next];
+  if (!el) return;
+  setFilter(el.dataset.filter as GridFilter);
 }
 
 /** 焦点夹紧（mockup clampGrid 同款）：避免落到空行空列。
@@ -157,13 +161,30 @@ function applyGridFocus(): void {
 export function renderGrid(): void {
   const entering = state.screen === 'grid' && lastGridScreen !== 'grid';
   lastGridScreen = state.screen;
+  // 不在网格屏：只标脏。千部作品的网格约 8000 个节点，启动时白建一次要几十毫秒，
+  // 而用户可能整场都不打开网格；切进网格时由 screen-change 补建。
+  if (state.screen !== 'grid') {
+    gridDirty = true;
+    return;
+  }
+  gridDirty = false;
   buildGrid(entering);
 }
 
 export function initGrid(): void {
-  // 键鼠补位：Home/End 跳首尾，PageUp/PageDown 翻两行（网格 6 列）
+  // 数据在别的屏变过（收藏 / 筛选 / 缩略图回填）时，切进网格先补建一次
+  window.addEventListener('screen-change', () => {
+    if (state.screen === 'grid' && gridDirty) renderGrid();
+  });
+  // 键鼠补位：Home/End 跳首尾，PageUp/PageDown 翻两行，R 随机一部（网格 6 列）
   window.addEventListener('keydown', (e) => {
     if (state.screen !== 'grid' || anyState()) return;
+    if (e.code === 'KeyR') {
+      // 与库屏 / 手柄 L3 / 快捷菜单共用同一条实现
+      void import('../quick').then((m) => m.pickRandomGame());
+      e.preventDefault();
+      return;
+    }
     const total = gridList().length;
     if (!total) return;
     if (e.code === 'Home') state.gridFocus = 0;

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('../quick', () => ({ openMenu: mocks.openMenu }));
 vi.mock('../splash', () => ({ previewBootAnim: mocks.previewBootAnim }));
-vi.mock('../screens/settings/persist', () => ({ persist: mocks.persist }));
+vi.mock('../settings-persist', () => ({ persist: mocks.persist }));
 
 import { state } from '../state';
 import { mockSettings } from '../mock';

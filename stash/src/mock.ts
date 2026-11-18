@@ -42,7 +42,7 @@ export function mockSettings(): Settings {
     autostart: false,
     fullscreen: true,
     gamepadMouse: false,
-    padMap: { accept: 'south', back: 'east', menu: 'start', x: 'west', y: 'north', r: 'rb', lb: 'lb' },
+    padMap: { accept: 'south', back: 'east', menu: 'start', x: 'west', y: 'north', r: 'rb', lb: 'lb', random: 'l3' },
     power60: false,
     sound: { enabled: true, gain: 0.6 },
     locale: { warnOnly: true, toolPath: null, launch: false },

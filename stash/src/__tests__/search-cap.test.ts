@@ -26,7 +26,7 @@ describe('空查询截断', () => {
     expect(countText()).toContain('50');
     expect(countText()).toBe('全部 1000 部 · 显示前 50');
     // 现有行为：第一项默认 .on，Enter 仍能直接打开
-    expect(items()[0].classList.contains('on')).toBe(true);
+    expect(items()[0]!.classList.contains('on')).toBe(true);
     expect(ahintText()).toBe('打开');
   });
 

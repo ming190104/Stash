@@ -65,12 +65,12 @@ describe('renderWall', () => {
     expect(cells.length).toBe(3);
     expect(cells.map((c) => c.dataset.id)).toEqual(['a', 'b', 'c']);
     expect(cells.map((c) => c.dataset.i)).toEqual(['0', '1', '2']);
-    expect(cells[0].querySelector('.selmk')?.textContent).toBe('✓');
-    expect(cells[1].querySelector('.wt')?.textContent).toBe('b');
-    expect(cells[1].querySelector('.wt')?.getAttribute('title')).toBe('b');
+    expect(cells[0]!.querySelector('.selmk')?.textContent).toBe('✓');
+    expect(cells[1]!.querySelector('.wt')?.textContent).toBe('b');
+    expect(cells[1]!.querySelector('.wt')?.getAttribute('title')).toBe('b');
     // 最近标记只给 lastId 那一张
-    expect(cells[2].querySelector('.card .np')).not.toBeNull();
-    expect(cells[0].querySelector('.card .np')).toBeNull();
+    expect(cells[2]!.querySelector('.card .np')).not.toBeNull();
+    expect(cells[0]!.querySelector('.card .np')).toBeNull();
 
     expect(document.getElementById('railTrack')!.children.length).toBe(0);
     expect(document.getElementById('listRows')!.children.length).toBe(0);
@@ -104,13 +104,13 @@ describe('renderWall', () => {
     const grid = mountWall();
     renderWall([game('a'), game('b')], null, false);
 
-    grid.querySelectorAll<HTMLElement>('.wt')[1].click();
+    grid.querySelectorAll<HTMLElement>('.wt')[1]!.click();
     expect(onFocus).toHaveBeenCalledWith(1);
-    grid.querySelectorAll<HTMLElement>('.wall-cell .card')[0].click();
+    grid.querySelectorAll<HTMLElement>('.wall-cell .card')[0]!.click();
     expect(onFocus).toHaveBeenLastCalledWith(0);
 
     multi = true;
-    grid.querySelectorAll<HTMLElement>('.wall-cell .card')[1].click();
+    grid.querySelectorAll<HTMLElement>('.wall-cell .card')[1]!.click();
     expect(onToggleSel).toHaveBeenCalledWith('b');
   });
 });
@@ -124,7 +124,7 @@ describe('applyWallFocus', () => {
 
     const cells = [...grid.querySelectorAll<HTMLElement>('.wall-cell')];
     expect(cells.map((c) => c.classList.contains('on'))).toEqual([false, false, true]);
-    expect(cells[2].querySelector('.card')?.classList.contains('focus')).toBe(true);
+    expect(cells[2]!.querySelector('.card')?.classList.contains('focus')).toBe(true);
   });
 
   it('没有 #wallGrid 时安全返回', () => {

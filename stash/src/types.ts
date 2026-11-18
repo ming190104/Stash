@@ -226,7 +226,8 @@ export type NavIntent =
   | { intent: 'actionX' }
   | { intent: 'actionY' }
   | { intent: 'actionL' }
-  | { intent: 'actionR' };
+  | { intent: 'actionR' }
+  | { intent: 'actionRandom' };
 
 export type Screen = 'library' | 'grid' | 'detail' | 'settings' | 'files';
 
@@ -246,6 +247,8 @@ export interface PadMap {
   r: string;
   /** 分类左（默认 lb） */
   lb: string;
+  /** 随机一部（默认 l3；库 / 网格两屏生效） */
+  random: string;
 }
 
 /** 手柄手感：与 Rust 端 models::PadTuning 一一对应（范围也在后端再夹一次）。 */

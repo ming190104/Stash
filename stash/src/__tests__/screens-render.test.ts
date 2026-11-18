@@ -108,7 +108,7 @@ describe('列表布局渲染', () => {
     const rows = document.querySelectorAll<HTMLElement>('#listRows .lrow');
     expect(rows.length).toBe(2);
     expect(state.focus).toBe(1); // 夹到末行
-    expect(rows[1].classList.contains('on')).toBe(true);
+    expect(rows[1]!.classList.contains('on')).toBe(true);
   });
 
   it('标题 / 开发商里的尖括号按文本渲染，不注入 HTML', () => {

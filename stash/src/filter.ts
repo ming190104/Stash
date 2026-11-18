@@ -17,7 +17,7 @@ import {
 } from './state';
 import { esc, toast, clickable } from './ui';
 import { setRawHTML } from './html';
-import { persist } from './screens/settings/persist';
+import { persist } from './settings-persist';
 import { promptInput } from './prompt';
 import { hideStates, showState, NATIVE_DEFAULT } from './layers';
 
@@ -162,7 +162,7 @@ export function renderFilter(): void {
     COLS.map((col, ci) => {
     const opts = options(col);
     const sel = currentOf(col);
-    frow[ci] = Math.min(Math.max(0, frow[ci]), opts.length - 1);
+    frow[ci] = Math.min(Math.max(0, frow[ci] ?? 0), opts.length - 1);
     return `<div class="flt-col${ci === fcol ? ' on' : ''}">
       <div class="flt-lab">${COL_TITLE[col]}<b>${opts.length - 1}</b></div>
       ${col === 'set' ? '<div class="flt-note">短篇按参考时长（≤10h）统计，与「短篇」标签口径不同；0 项分类已置灰</div>' : ''}
@@ -208,19 +208,21 @@ export function openFilter(): void {
 function moveFilter(dir: 'up' | 'down' | 'left' | 'right'): void {
   if (dir === 'left' || dir === 'right') {
     fcol = (fcol + (dir === 'right' ? 1 : COLS.length - 1)) % COLS.length;
-    frow[fcol] = Math.min(frow[fcol], options(COLS[fcol]).length - 1);
+    const col = COLS[fcol]!;
+    frow[fcol] = Math.min(frow[fcol] ?? 0, options(col).length - 1);
   } else {
-    const n = options(COLS[fcol]).length;
+    const col = COLS[fcol]!;
+    const n = options(col).length;
     if (!n) return;
-    frow[fcol] = (frow[fcol] + (dir === 'down' ? 1 : n - 1)) % n;
+    frow[fcol] = ((frow[fcol] ?? 0) + (dir === 'down' ? 1 : n - 1)) % n;
   }
   renderFilter();
 }
 
 /** 应用光标所在项：立刻重建网格（面板保持打开，方便接着调下一列） */
 function pickFilter(): void {
-  const col = COLS[fcol];
-  const o = options(col)[frow[fcol]];
+  const col = COLS[fcol]!;
+  const o = options(col)[frow[fcol] ?? 0];
   if (!o) return;
   if (o.count === 0 && o.v !== null) {
     toast('该条件当前没有作品');

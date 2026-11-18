@@ -217,7 +217,7 @@ describe('右侧按钮', () => {
   it('收藏按钮走统一入口并落盘', async () => {
     await renderOne();
     document.getElementById('dFav')!.click();
-    expect(state.games[0].favorite).toBe(true);
+    expect(state.games[0]!.favorite).toBe(true);
     await vi.waitFor(() => expect(H.setFavorite).toHaveBeenCalledWith('a', true));
   });
 
@@ -242,7 +242,7 @@ describe('信息面板操作', () => {
     const info = document.getElementById('dInfo')!;
     info.querySelector<HTMLElement>('[data-star="4"]')!.click();
     await vi.waitFor(() => expect(H.setRating).toHaveBeenCalledWith('a', 4));
-    await vi.waitFor(() => expect(state.games[0].rating).toBe(4));
+    await vi.waitFor(() => expect(state.games[0]!.rating).toBe(4));
 
     H.setRating.mockRejectedValueOnce({ message: '写库失败' });
     (document.getElementById('dInfo')!.querySelector<HTMLElement>('[data-star="4"]'))!.click();
@@ -253,7 +253,7 @@ describe('信息面板操作', () => {
     await renderOne({ userTags: ['神作', '纯爱'] });
     document.querySelector<HTMLElement>('[data-tag="纯爱"]')!.click();
     await vi.waitFor(() => expect(H.setUserTags).toHaveBeenCalledWith('a', ['神作']));
-    await vi.waitFor(() => expect(state.games[0].userTags).toEqual(['神作']));
+    await vi.waitFor(() => expect(state.games[0]!.userTags).toEqual(['神作']));
 
     await renderOne({ userTags: [] });
     H.prompt.mockResolvedValueOnce('  剧情 拔作 ');
@@ -305,7 +305,7 @@ describe('更多操作菜单', () => {
     H.prompt.mockResolvedValueOnce('-window -nojoy');
     menuBtn('args')!.click();
     await vi.waitFor(() => expect(H.setLaunchArgs).toHaveBeenCalledWith('a', ['-window', '-nojoy']));
-    await vi.waitFor(() => expect(state.games[0].launchArgs).toEqual(['-window', '-nojoy']));
+    await vi.waitFor(() => expect(state.games[0]!.launchArgs).toEqual(['-window', '-nojoy']));
 
     await openDetailMenu('a');
     H.prompt.mockResolvedValueOnce('  ');
@@ -504,7 +504,7 @@ describe('导航与快捷键', () => {
     document
       .querySelector<HTMLElement>('#endList .snap-act.del[data-act="del"]')!
       .click();
-    expect(state.games[0].endings).toEqual([]);
+    expect(state.games[0]!.endings).toEqual([]);
     expect(document.getElementById('endTitle')!.textContent).toContain('尚未记录');
   });
 
@@ -513,7 +513,7 @@ describe('导航与快捷键', () => {
     window.dispatchEvent(key('KeyY'));
     await vi.waitFor(() => expect(document.getElementById('endPanel')!.classList.contains('show')).toBe(true));
     // 回归：打开面板的那一次 Y 不能被 overlay 再解释成「新增」，否则每次看结局都多一条假记录
-    expect(state.games[0].endings.map((e) => e.name)).toEqual(['END1']);
+    expect(state.games[0]!.endings.map((e) => e.name)).toEqual(['END1']);
     hideStates();
     window.dispatchEvent(key('KeyR'));
     await vi.waitFor(() => expect(H.setFavorite).toHaveBeenCalledWith('a', true));

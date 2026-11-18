@@ -6,9 +6,10 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'vite.config.ts'],
     languageOptions: {
       // 类型感知：no-floating-promises 需要类型信息才能判断「这条语句是不是漏了 await / catch」
+      // vite.config.ts 由 tsconfig.node.json 提供类型
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
     rules: {
@@ -23,6 +24,16 @@ export default tseslint.config(
       // 浏览器环境：全局由 TS 的 lib 声明负责，ESLint 不重复判
       'no-undef': 'off',
     },
+  },
+  {
+    // 构建配置与脚本：Node 环境，全局变量由 @types/node 声明（tsconfig.node.json 会做 checkJs）
+    files: ['scripts/**/*.{cjs,mjs}'],
+    rules: { 'no-undef': 'off' },
+  },
+  {
+    // 冒烟脚本是 CommonJS，require 是唯一可用的加载方式
+    files: ['scripts/**/*.cjs'],
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
   {
     // 测试文件里允许直接丢 Promise（断言失败由 vitest 报）

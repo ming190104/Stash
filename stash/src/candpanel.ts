@@ -233,7 +233,7 @@ function advance(kind: Exclude<CandResult, null>): void {
   }
   if (queue.length && qIdx < queue.length - 1) {
     qIdx++;
-    const nx = queue[qIdx];
+    const nx = queue[qIdx]!;
     gameId = nx.id;
     items = [];
     arts = [];

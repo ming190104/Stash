@@ -2,20 +2,23 @@
 
 import './app.css';
 import { state, setScreen, SORT_MODES } from './state';
-import { getLibrary, getSettings, onEvent, runningGame, TAURI, reportTiming, checkUpdate } from './ipc';
+import { getLibrary, getSettings, onEvent, runningGame, TAURI, reportTiming, checkUpdate, sanitizeSettings } from './ipc';
 import { initLibrary, renderRail, openDetail, updateEmpty, scheduleLibraryRefresh } from './screens/library';
 import { initGrid, renderGrid } from './screens/grid';
 import { initDetail } from './screens/detail';
 import { initSettings, renderSettings } from './screens/settings';
+import { rerender as rerenderSettings } from './screens/settings/ui';
+import { setSettingsAppliedHook } from './settings-persist';
 import { initFiles } from './screens/files';
 import { init as initNav } from './nav';
 import { init as initFps } from './fps';
-import { initOverlay, applyStateParam, hideStates } from './overlay';
+import { initOverlay, applyStateParam, hideStates, showState } from './overlay';
 import { toggleQuickMenu } from './quick';
 import { initDropImport } from './drop';
 import { toast, esc, errMsg, applyTheme, cachedTheme, applyLayout, cachedLayout, applyMotion, applyFontScale, applyAnimSpeed, applyBootAnim, applyFullscreenUI, stageScale } from './ui';
 import { applySoundSettings } from './sfx';
-import { initSplash, hideBootCover } from './splash';
+import { initSplash, hideBootCover, splashActive } from './splash';
+import { domEpochNo } from './html';
 import type { LayoutName } from './types';
 
 /* ============ 时钟 ============ */
@@ -111,11 +114,30 @@ async function boot(): Promise<void> {
   applyLayout(qLayout ?? cachedLayout(), !qLayout);
   // 冷启动跃迁：先起播（此时主题已就位，颜色一致），数据并行加载
   const splash = initSplash();
-  // 启动动画层已在 DOM 里（或明确不播）：撤掉 index.html 的首帧遮罩
-  hideBootCover();
-  // 数据
-  state.settings = await getSettings();
-  state.games = await getLibrary();
+  // 启动动画层此刻已经盖住界面 → 首帧遮罩可以立即撤；
+  // 关闭档 / 系统减少动态时不播动画，此时若也立即撤掉遮罩，
+  // 读盘那 0.2–0.6s 会露出一个空界面（首屏空窗），所以留到首屏渲染完成再撤。
+  const splashCovering = splashActive();
+  if (splashCovering) hideBootCover();
+  // 数据。读盘失败不能让初始化中断：用默认设置 + 空库把界面照常建好，
+  // 最后统一进失败态（重试成功后收起）。否则事件订阅 / 首屏渲染全部缺席，
+  // 用户看到的是一张空白页，重试按钮即使点了也没人接。
+  let settingsError: unknown = null;
+  let libraryError: unknown = null;
+  try {
+    state.settings = await getSettings();
+  } catch (e) {
+    settingsError = e;
+    console.error('[boot] 设置读取失败', e);
+    state.settings = sanitizeSettings(null);
+  }
+  try {
+    state.games = await getLibrary();
+  } catch (e) {
+    libraryError = e;
+    console.error('[boot] 库读取失败', e);
+    state.games = [];
+  }
   applyTheme(state.settings.theme);
   applyLayout(qLayout ?? state.settings.layout, !qLayout);
   applyFontScale(state.settings.fontScale);
@@ -144,15 +166,31 @@ async function boot(): Promise<void> {
   initNav();
   initFps();
   initOverlay();
+  // 落盘失败回滚后按磁盘值重建界面：核心层只发通知，具体重建由入口注册（避免 core → screens）
+  setSettingsAppliedHook(() => {
+    renderRail();
+    renderGrid();
+    rerenderSettings();
+  });
   // 拖拽入库：把主程序 exe 直接拖进窗口（浏览器预览下 initDropImport 自身静默跳过）
   void initDropImport().catch((e) => console.warn('[boot] 拖拽入库订阅失败', e));
 
   // 首屏渲染
   renderRail();
   renderGrid();
+  // 没有启动动画时，首屏到这里才算画好：此时才撤首帧遮罩（见上面 splashCovering）
+  if (!splashCovering) hideBootCover();
   // 设置页渲染失败（IPC 拒答 / 数据异常）只该丢掉设置面板，不能连累下面的窗口按钮与事件订阅
   await renderSettings().catch((e) => console.error('[boot] 设置页渲染失败', e));
   updateEmpty();
+  // 启动时读盘失败：界面与事件都已就绪，进统一失败态；重试成功会自动收起。
+  // 设置读失败也进失败态：此时 state.settings 是默认值，任何一次保存都会把默认值
+  // 写回磁盘，必须先让用户「重试」到真实设置。提示按实际来源写，别把设置错误说成库错误。
+  if (settingsError || libraryError) {
+    showState('errorState');
+    if (libraryError) toast(`读取库失败：${esc(errMsg(libraryError))}`, true);
+    else toast(`读取设置失败，已用默认设置：${esc(errMsg(settingsError))}`, true);
+  }
   tick();
   setInterval(tick, 20000);
   void initBattery();
@@ -248,10 +286,16 @@ async function boot(): Promise<void> {
     let wakeQueued = false;
     // 预热非当前屏：opacity:.001 才会真正触发一次栅格化（0 / visibility:hidden 都被跳过）。
     // 预热后第一次切过去只有图层合成（实测最大帧间隔 24ms → 6ms），不会再「卡一下」。
-    // 每次进入 idle 再补一次：屏被隐藏久了栅格缓存会被回收，需要重新烘一遍。
+    // 只在屏内容重建过之后补烘一次：每次 idle 都重烘全部离屏屏，会让静止的库界面
+    // 每隔几秒就整窗栅格化一次，GPU 占用反而升高。
     let warming = false;
+    /** 上一次预热对应的 DOM 版本（setHTML / setRawHTML 会递增），用于跳过无变化的重复预热 */
+    let warmedEpoch = -1;
     const prewarm = (): void => {
       if (warming) return;
+      const epoch = domEpochNo();
+      if (epoch === warmedEpoch) return;
+      warmedEpoch = epoch;
       warming = true;
       const list = [...document.querySelectorAll<HTMLElement>('.screen')].filter(
         (el) => !el.classList.contains('on')

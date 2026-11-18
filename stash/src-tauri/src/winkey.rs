@@ -93,7 +93,7 @@ mod imp {
     }
 
     /// 前台窗口是不是本进程：自己不在前台时不拦，用户还能用 Win 键
-    fn own_foreground() -> bool {
+    pub fn own_foreground() -> bool {
         unsafe {
             let hwnd = GetForegroundWindow();
             if hwnd.is_null() {
@@ -202,10 +202,16 @@ mod imp {
 }
 
 #[cfg(windows)]
-pub use imp::{set_enabled, set_window};
+pub use imp::{own_foreground, set_enabled, set_window};
 
 #[cfg(not(windows))]
 pub fn set_enabled(_on: bool) {}
 
 #[cfg(not(windows))]
 pub fn set_window(_hwnd: isize) {}
+
+/// 非 Windows：没有前台窗口概念，手柄输入一律按前台处理（保持原有行为）
+#[cfg(not(windows))]
+pub fn own_foreground() -> bool {
+    true
+}

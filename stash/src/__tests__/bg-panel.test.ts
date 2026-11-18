@@ -3,7 +3,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { key, mountSkeleton, resetState } from './dom-skeleton';
-import { asset, backgroundCandidates } from '../ipc';
+import { asset, backgroundCandidates, type BgCandidate } from '../ipc';
 import { BG_AUTO, BG_PICK, bgKey, openBgPanel } from '../bgpanel';
 
 vi.mock('../ipc', () => ({
@@ -11,7 +11,7 @@ vi.mock('../ipc', () => ({
   backgroundCandidates: vi.fn(async () => []),
 }));
 
-const CARDS = [
+const CARDS: BgCandidate[] = [
   { key: 'local-0', label: '目录截图 1', source: 'local', width: 1920, height: 1080, thumb: 'C:/t/a.webp', current: false },
   { key: 'sgdb-2', label: '商店横幅 2', source: 'sgdb', width: 0, height: 0, thumb: null, current: false },
   { key: 'sgdb', label: '商店横幅', source: 'sgdb', width: 3840, height: 1240, thumb: 'C:/t/b.webp', current: false },
@@ -141,8 +141,8 @@ describe('背景候选墙', () => {
   });
 
   it('在线候选重绘后，迟到的本地缩略图不会按旧索引贴到新卡片', async () => {
-    const local = { ...CARDS[0] };
-    const remote = { ...CARDS[1], thumb: 'C:/t/new.webp' };
+    const local = { ...CARDS[0]! };
+    const remote = { ...CARDS[1]!, thumb: 'C:/t/new.webp' };
     vi.mocked(backgroundCandidates)
       .mockResolvedValueOnce([local])
       .mockResolvedValueOnce([remote, local]);
@@ -168,8 +168,8 @@ describe('背景候选墙', () => {
   });
 
   it('在线候选与本地数量相同但 key 不同时，不得整批丢弃在线结果', async () => {
-    const local = [{ ...CARDS[0] }];
-    const remote = [{ ...CARDS[1] }];
+    const local: BgCandidate[] = [{ ...CARDS[0]! }];
+    const remote: BgCandidate[] = [{ ...CARDS[1]! }];
     vi.mocked(backgroundCandidates)
       .mockResolvedValueOnce(local)
       .mockResolvedValueOnce(remote); // 长度同为 1，最容易命中「按数量判断」的旧 bug

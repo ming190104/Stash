@@ -7,13 +7,14 @@ import { html, setHTML, setRawHTML } from './html';
 import { promptConfirm, promptShown } from './prompt';
 import { warpToggle, warpBusy } from './splash';
 import { modalState, openSearch } from './overlay';
-import { persist } from './screens/settings/persist';
+import { persist } from './settings-persist';
 import { stopGame, getSettings, setFullscreen, TAURI } from './ipc';
 
 export type MenuItem = {
   key: string;
   label: string;
-  hint?: string;
+  /** 显式允许 undefined：调用方常按条件传 hint（无提示时写 undefined） */
+  hint?: string | undefined;
   /** 左侧小图（已转成可显示的 URL）：候选条目用，没有就只显示文字 */
   thumb?: string;
   /** 执行后菜单保持打开（如「随机一部」） */
@@ -95,6 +96,33 @@ async function minimizeWindow(): Promise<void> {
   }
 }
 
+/** 随机挑一部并跳到它：库屏改轨道焦点，网格屏改网格焦点并重绘。
+ *  键盘 R、快捷菜单「随机一部」与手柄「随机一部」共用这一条实现。 */
+export async function pickRandomGame(): Promise<void> {
+  // 只有库 / 网格有「随机」语义：详情 / 设置 / 文件屏调用时不能悄悄改背后库的焦点
+  if (state.screen !== 'library' && state.screen !== 'grid') return;
+  // 网格屏的可见集合与索引都独立于轨道：只改 state.focus 的话，
+  // 网格画面不会动，等于「随机」在当前屏毫无反馈
+  const onGrid = state.screen === 'grid';
+  const list = onGrid ? gridList() : sortedGames();
+  // 只按可见作品抽：隐藏 / 筛选后可能只剩 0~1 部，给一句提示而不是静默失败
+  if (list.length < 2) {
+    toast('可随机的作品不足 2 部');
+    return;
+  }
+  const cur = onGrid ? state.gridFocus : state.focus;
+  let i = Math.floor(Math.random() * list.length);
+  if (i === cur) i = (i + 1) % list.length;
+  if (onGrid) {
+    state.gridFocus = i;
+    (await import('./screens/grid')).renderGrid();
+  } else {
+    state.focus = i;
+    (await import('./screens/library')).renderRail();
+  }
+  toast(`随机 · ${esc(list[i]!.title)}`);
+}
+
 function buildItems(): Item[] {
   const items: Item[] = [];
   if (state.running) {
@@ -133,34 +161,30 @@ function buildItems(): Item[] {
         throw err;
       }
       // 走统一落盘队列：直接整份写旧快照会覆盖期间在设置页改的其它字段
-      await persist();
+      try {
+        await persist();
+      } catch (err) {
+        // persist 已按磁盘值回滚 state.settings / data-fs / ui-cache，但窗口是
+        // 直接调的 setFullscreen：不手动退回去就会停在「设置显示关、窗口仍全屏」，
+        // 之后 minimizeWindow() 会按窗口模式最小化，任务栏又被自动隐藏。
+        const back = !!state.settings?.fullscreen;
+        await setFullscreen(back).catch(() => undefined);
+        applyFullscreenUI(back);
+        throw err;
+      }
       toast(`全屏 · ${on ? '开' : '关'}`);
     },
   });
-  if (sortedGames().length > 1) {
+  // 随机一部：只在库 / 网格加入。其它屏的焦点语义不同，
+  // 放一个点了只改背后库焦点、画面毫无反馈的条目没有意义。
+  const randomPool = state.screen === 'grid' ? gridList() : state.screen === 'library' ? sortedGames() : [];
+  if (randomPool.length > 1) {
     items.push({
       key: 'random',
       label: '随机一部',
       hint: 'R',
       keepOpen: true,
-      run: async () => {
-        // 网格屏的可见集合与索引都独立于轨道：只改 state.focus 的话，
-        // 网格画面不会动，等于「随机」在当前屏毫无反馈
-        const onGrid = state.screen === 'grid';
-        const list = onGrid ? gridList() : sortedGames();
-        if (list.length < 2) return; // 只按可见作品抽：隐藏后可能只剩 0~1 部
-        const cur = onGrid ? state.gridFocus : state.focus;
-        let i = Math.floor(Math.random() * list.length);
-        if (i === cur) i = (i + 1) % list.length;
-        if (onGrid) {
-          state.gridFocus = i;
-          (await import('./screens/grid')).renderGrid();
-        } else {
-          state.focus = i;
-          (await import('./screens/library')).renderRail();
-        }
-        toast(`随机 · ${esc(list[i].title)}`);
-      },
+      run: pickRandomGame,
     });
   }
   if (state.screen !== 'settings') {

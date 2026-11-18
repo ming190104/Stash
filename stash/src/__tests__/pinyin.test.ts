@@ -66,7 +66,7 @@ describe('搜索匹配', () => {
   });
 
   it('原地改标题后检索缓存失效（不会命中旧索引）', () => {
-    const g = state.games[0];
+    const g = state.games[0]!;
     state.query = 'chuxia';
     expect(ids()).toEqual(['g1']);
     g.title = '白学';

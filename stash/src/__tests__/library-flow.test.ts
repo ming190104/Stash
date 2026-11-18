@@ -141,9 +141,9 @@ describe('首屏与三套布局', () => {
     renderRail();
     const cards = document.querySelectorAll<HTMLElement>('#railTrack .card');
     expect(cards.length).toBe(3); // 隐藏作品不参与
-    expect(cards[0].classList.contains('focus')).toBe(true);
-    expect(cards[1].classList.contains('n1')).toBe(true);
-    expect(cards[2].classList.contains('n2')).toBe(true);
+    expect(cards[0]!.classList.contains('focus')).toBe(true);
+    expect(cards[1]!.classList.contains('n1')).toBe(true);
+    expect(cards[2]!.classList.contains('n2')).toBe(true);
     expect(document.getElementById('railTrack')!.style.transform).toMatch(/^translateX\(/);
     // 计数含隐藏作品（设置 · 库里还能看到）
     expect(document.getElementById('gameCount')!.textContent).toBe('4 部作品');
@@ -174,7 +174,7 @@ describe('首屏与三套布局', () => {
     const rows = document.querySelectorAll<HTMLElement>('#listRows .lrow');
     expect(rows.length).toBe(2);
     expect(state.focus).toBe(1);
-    expect(rows[1].classList.contains('on')).toBe(true);
+    expect(rows[1]!.classList.contains('on')).toBe(true);
     setFocus(0);
     expect(document.querySelectorAll('#listRows .lrow.on').length).toBe(1);
   });
@@ -227,9 +227,36 @@ describe('收藏 / 刷新 / 启动', () => {
     renderRail();
     H.setFavorite.mockRejectedValueOnce(new Error('写库失败'));
     toggleFav('a');
-    expect(state.games[0].favorite).toBe(true);
-    await vi.waitFor(() => expect(state.games[0].favorite).toBe(false));
+    expect(state.games[0]!.favorite).toBe(true);
+    await vi.waitFor(() => expect(state.games[0]!.favorite).toBe(false));
     expect(allToasts()).toContain('收藏保存失败');
+  });
+
+  it('刷新拿到写盘前的旧快照：不覆盖刚点的收藏', async () => {
+    state.games = [game('a', { favorite: false })];
+    renderRail();
+    // 写盘挂起：模拟慢 IO 期间后台刷新先回来
+    let release!: () => void;
+    H.setFavorite.mockImplementationOnce(
+      () =>
+        new Promise<undefined>((res) => {
+          release = () => res(undefined);
+        }),
+    );
+    toggleFav('a');
+    expect(state.games[0]!.favorite).toBe(true);
+
+    // 这次读取是写盘前的快照（磁盘上仍是 false）
+    H.getLibrary.mockResolvedValueOnce([game('a', { favorite: false })]);
+    await refreshLibrary();
+    expect(state.games[0]!.favorite).toBe(true);
+
+    release();
+    await vi.waitFor(() => expect(H.setFavorite).toHaveBeenCalled());
+    // 写盘完成后再刷新（磁盘已是新值）：意图记录清掉，值保持一致
+    H.getLibrary.mockResolvedValueOnce([game('a', { favorite: true })]);
+    await refreshLibrary();
+    expect(state.games[0]!.favorite).toBe(true);
   });
 
   it('refreshLibrary：剔除已消失的勾选，失败会提示并抛给调用方', async () => {
@@ -260,7 +287,7 @@ describe('收藏 / 刷新 / 启动', () => {
     await refreshLibrary();
     // 卡片节点原样保留（整屏重建会换掉它并重播入场）
     expect(document.querySelector('#railTrack .card[data-i="0"]')).toBe(first);
-    expect(state.games[0].thumb).toBe('C:/thumbs/a.webp');
+    expect(state.games[0]!.thumb).toBe('C:/thumbs/a.webp');
     await vi.waitFor(() =>
       expect(first.querySelector('.art img')?.getAttribute('src')).toBe('asset://C:/thumbs/a.webp'),
     );
@@ -434,7 +461,8 @@ describe('导航与快捷键', () => {
     vi.spyOn(Math, 'random').mockReturnValueOnce(0.99);
     state.focus = 0;
     window.dispatchEvent(key('KeyR'));
-    expect(state.focus).toBe(2);
+    // 随机走 quick.pickRandomGame（动态 import），等它完成再断言
+    await vi.waitFor(() => expect(state.focus).toBe(2));
     expect(allToasts()).toContain('随机');
 
     state.focus = 1;
@@ -625,25 +653,25 @@ describe('网格索引（B6）', () => {
     renderGrid();
     const cells = document.querySelectorAll<HTMLElement>('#gridCards .gcell');
     expect(cells.length).toBe(1000);
-    expect(cells[0].dataset.id).toBe('g0');
-    expect(cells[0].dataset.g).toBe('0');
-    expect(cells[999].dataset.id).toBe('g999');
-    expect(cells[999].dataset.g).toBe('999');
+    expect(cells[0]!.dataset.id).toBe('g0');
+    expect(cells[0]!.dataset.g).toBe('0');
+    expect(cells[999]!.dataset.id).toBe('g999');
+    expect(cells[999]!.dataset.g).toBe('999');
     // 点击末尾卡片：焦点落到 999，回查的仍是 all[999]
-    cells[999].click();
+    cells[999]!.click();
     expect(state.gridFocus).toBe(999);
   });
 
   it('筛选后的 data-g 仍是轨道位置（按 id 映射，不按筛选后下标）', () => {
     state.games = Array.from({ length: 1000 }, (_, i) => game(`g${i}`));
-    state.games[999].favorite = true;
+    state.games[999]!.favorite = true;
     state.gridFilter = 'fav';
     state.screen = 'grid';
     renderGrid();
     const cells = document.querySelectorAll<HTMLElement>('#gridCards .gcell');
     expect(cells.length).toBe(1);
-    expect(cells[0].dataset.id).toBe('g999');
-    expect(cells[0].dataset.i).toBe('0'); // 筛选后第 0 个
-    expect(cells[0].dataset.g).toBe('999'); // 但轨道里是第 999 个
+    expect(cells[0]!.dataset.id).toBe('g999');
+    expect(cells[0]!.dataset.i).toBe('0'); // 筛选后第 0 个
+    expect(cells[0]!.dataset.g).toBe('999'); // 但轨道里是第 999 个
   });
 });

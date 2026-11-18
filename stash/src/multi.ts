@@ -6,7 +6,7 @@
  * 避免 multi ↔ library 互相 import 形成循环依赖。
  */
 
-import { state } from './state';
+import { state, markLocalEdit, clearLocalEdit } from './state';
 import { toast } from './ui';
 import { openMenu, type MenuItem } from './quick';
 import { promptConfirm, promptInput } from './prompt';
@@ -91,7 +91,16 @@ export async function openBatch(): Promise<void> {
       key: 'fav',
       label: addFav ? `收藏 ${ids.length} 部` : `取消收藏 ${ids.length} 部`,
       run: async () => {
-        const failed = await eachGame(ids, (id) => setFavorite(id, addFav));
+        const failed = await eachGame(ids, async (id) => {
+          // 先记意图：批量写盘期间后台刷新若拿到旧快照，不能把这一部冲回反值
+          markLocalEdit(id, { favorite: addFav });
+          try {
+            await setFavorite(id, addFav);
+          } catch (e) {
+            clearLocalEdit(id, ['favorite']);
+            throw e;
+          }
+        });
         await finishBatch(addFav ? '已收藏' : '已取消收藏', ids.length, failed);
       },
     },
@@ -99,7 +108,15 @@ export async function openBatch(): Promise<void> {
       key: 'hide',
       label: show ? `隐藏 ${ids.length} 部` : `取消隐藏 ${ids.length} 部`,
       run: async () => {
-        const failed = await eachGame(ids, (id) => setHidden(id, show));
+        const failed = await eachGame(ids, async (id) => {
+          markLocalEdit(id, { hidden: show });
+          try {
+            await setHidden(id, show);
+          } catch (e) {
+            clearLocalEdit(id, ['hidden']);
+            throw e;
+          }
+        });
         await finishBatch(show ? '已隐藏' : '已取消隐藏', ids.length, failed);
       },
     },
@@ -117,9 +134,18 @@ export async function openBatch(): Promise<void> {
         if (!tag) return;
         const failed = await eachGame(ids, async (id) => {
           // 用当前内存里的条目：菜单打开后库可能被后台刷新替换过，闭包里那份已过期
-          const tags = state.games.find((g) => g.id === id)?.userTags ?? [];
+          const g = state.games.find((x) => x.id === id);
+          const tags = g?.userTags ?? [];
           if (tags.includes(tag)) return;
-          await setUserTags(id, [...tags, tag]);
+          const next = [...tags, tag];
+          markLocalEdit(id, { userTags: next });
+          try {
+            await setUserTags(id, next);
+          } catch (e) {
+            clearLocalEdit(id, ['userTags']);
+            throw e;
+          }
+          if (g) g.userTags = next;
         });
         await finishBatch('已添加标签', ids.length, failed);
       },

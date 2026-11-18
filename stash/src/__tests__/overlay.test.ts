@@ -223,7 +223,7 @@ describe('搜索 · 排序', () => {
     el('spList').innerHTML = '<div class="sp-item"></div><div class="sp-item"></div>';
     const items = [...document.querySelectorAll<HTMLElement>('#spList .sp-item')];
     const click = vi.fn();
-    items[0].addEventListener('click', click);
+    items[0]!.addEventListener('click', click);
     const down = key('ArrowDown');
     expect(handleOverlayKey(down)).toBe(true);
     expect(document.querySelectorAll('#spList .sp-item.on').length).toBe(1);
@@ -244,8 +244,8 @@ describe('筛选面板', () => {
     expect(filterShown()).toBe(true);
     expect(document.querySelectorAll('#fltCols .flt-opt').length).toBeGreaterThan(0);
     expect(handleOverlayKey(key('ArrowDown'))).toBe(true);
-    const opts = [...document.querySelectorAll<HTMLElement>('#fltCols .flt-opts')[0].querySelectorAll('.flt-opt')];
-    expect(opts[1].classList.contains('focus')).toBe(true);
+    const opts = [...document.querySelectorAll<HTMLElement>('#fltCols .flt-opts')[0]!.querySelectorAll('.flt-opt')];
+    expect(opts[1]!.classList.contains('focus')).toBe(true);
     expect(handleOverlayKey(key('Enter'))).toBe(true);
     expect(state.collection).toBe('unplayed');
     await vi.waitFor(() => expect(renderGrid).toHaveBeenCalled());
@@ -262,8 +262,8 @@ describe('筛选面板', () => {
       game('h', { developer: 'Leaf', hidden: true }),
     ];
     openFilter();
-    const rows = [...document.querySelectorAll<HTMLElement>('#fltCols .flt-opts')[0].querySelectorAll('.flt-opt')];
-    const cnt = (i: number): string | null | undefined => rows[i].querySelector('.flt-ct')?.textContent;
+    const rows = [...document.querySelectorAll<HTMLElement>('#fltCols .flt-opts')[0]!.querySelectorAll('.flt-opt')];
+    const cnt = (i: number): string | null | undefined => rows[i]?.querySelector('.flt-ct')?.textContent;
     expect(cnt(0)).toBe('3'); // 全部 = 可见 3 部（隐藏的 h 不算）
     expect(cnt(3)).toBe('2'); // 同会社系列 = 只有 Key 的两部
   });
@@ -311,13 +311,13 @@ describe('结局', () => {
     state.games = [game('g', { endings: [] })];
     await openEndings('g');
     expect(handleOverlayKey(key('KeyY'))).toBe(true);
-    expect(state.games[0].endings.map((e) => e.name)).toEqual(['END 1']);
+    expect(state.games[0]!.endings.map((e) => e.name)).toEqual(['END 1']);
     expect(document.querySelectorAll('#endList .end-row').length).toBe(1);
     expect(handleOverlayKey(key('Enter'))).toBe(true);
-    expect(state.games[0].endings[0].done).toBe(true);
+    expect(state.games[0]!.endings[0]!.done).toBe(true);
     await vi.waitFor(() => expect(updateEndings).toHaveBeenCalledWith('g', [{ name: 'END 1', done: true }]));
     expect(handleOverlayKey(key('KeyX'))).toBe(true);
-    expect(state.games[0].endings).toEqual([]);
+    expect(state.games[0]!.endings).toEqual([]);
   });
 });
 

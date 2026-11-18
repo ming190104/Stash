@@ -184,7 +184,7 @@ export function renderSearch(): void {
 }
 
 function renderSortSeg(): void {
-  document.querySelectorAll('#spSort b').forEach((b, i) => b.classList.toggle('on', SORT_MODES[i].v === state.sortBy));
+  document.querySelectorAll('#spSort b').forEach((b, i) => b.classList.toggle('on', SORT_MODES[i]?.v === state.sortBy));
 }
 
 /** 切换排序档：搜索面板点击与手柄 ←/→ 共用同一条路径。 */
@@ -196,6 +196,19 @@ export function applySort(i: number): void {
   renderSearch();
   void import('./screens/library').then((m) => m.renderRail());
   void import('./screens/grid').then((m) => m.renderGrid());
+  // 与设置页「外观 → 排序方式」同一份真相：这里改的排序也要落盘，
+  // 否则重启后只剩设置页那次写入的值，搜索面板的选择白改
+  if (state.settings) {
+    state.settings.sort = mode.v;
+    void import('./settings-persist')
+      .then((m) => m.persist())
+      .catch((e) => {
+        // persist 已按磁盘值回滚 state.sortBy（库屏 / 网格由 appliedHook 重建），
+        // 但本面板不受那个钩子管：不重画的话高亮与候选顺序会停在没存上的档位
+        renderSearch();
+        toast(`排序保存失败：${esc(String((e as { message?: string })?.message ?? e))}`, true);
+      });
+  }
   toast(`排序 · ${mode.label}`);
 }
 
@@ -246,7 +259,7 @@ function selectResult(step: number): void {
     // .focus 是手柄焦点环：只靠 .on 的背景在 TV 距离上几乎看不出来
     x.classList.toggle('focus', i === k);
   });
-  items[k].scrollIntoView({ block: 'nearest' });
+  items[k]?.scrollIntoView({ block: 'nearest' });
 }
 
 function activateResult(): void {

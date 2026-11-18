@@ -32,7 +32,7 @@ export function curScreen(): Screen {
 function navCode(n: NavIntent): string | null {
   if (n.intent === 'accept') return 'Enter';
   if (n.intent === 'back') return 'Escape';
-  if (n.intent === 'move') return `Arrow${n.dir[0].toUpperCase()}${n.dir.slice(1)}`;
+  if (n.intent === 'move') return `Arrow${n.dir.charAt(0).toUpperCase()}${n.dir.slice(1)}`;
   return null;
 }
 
@@ -48,6 +48,15 @@ type PadKeyEvent = KeyboardEvent & { padNav?: boolean };
 
 export function isPadNavEvent(e: KeyboardEvent): boolean {
   return (e as PadKeyEvent).padNav === true;
+}
+
+/** 手柄语义键的合成事件：统一走这里，保证都带 padNav 标记。
+ *  屏幕层据此区分「手柄还是键盘」，避免某些动作（如库屏 X 提示改按 Select）
+ *  只在部分路径上生效。 */
+function synthPadKey(code: string, key = code): PadKeyEvent {
+  const e = new KeyboardEvent('keydown', { code, key, bubbles: true }) as PadKeyEvent;
+  e.padNav = true;
+  return e;
 }
 
 /** 视图切换（仅键盘 Q / E）：只在「库 ⇄ 网格」两套浏览视图之间切。
@@ -92,6 +101,11 @@ export function dispatchNav(n: NavIntent, from: NavSource = 'key'): void {
     console.debug('[nav] 丢弃重复意图（同一按键的双通道投递）', n.intent, from);
     return;
   }
+  // 设置页正在等手柄按键改键：物理键只用于绑定，不能再驱动导航。
+  // （同一次按压会同时投递 pad://button 与 nav://intent；键盘路径不受影响，
+  //  用户仍可用方向键 / B 离开，screen-change 时捕获会自动取消。）
+  // padMuteUntil：改键绑定那次按压的 nav 意图晚于 pad://button 到达，靠时间窗补挡。
+  if (from === 'pad' && (state.padCapture || performance.now() < state.padMuteUntil)) return;
   // 交互音效：导航类动作统一在这里出声，各屏不必重复接
   if (n.intent === 'move') sfx.move();
   else if (n.intent === 'accept') sfx.confirm();
@@ -117,7 +131,7 @@ export function dispatchNav(n: NavIntent, from: NavSource = 'key'): void {
       return;
     }
     if (n.intent === 'actionR' && cur === 'detail') {
-      const e = new KeyboardEvent('keydown', { code: 'KeyR', key: 'r', bubbles: true });
+      const e = synthPadKey('KeyR', 'r');
       if (handleQuickKey(e)) return;
       if (handleOverlayKey(e)) return;
       window.dispatchEvent(e);
@@ -125,8 +139,16 @@ export function dispatchNav(n: NavIntent, from: NavSource = 'key'): void {
     // 文件屏：LB 隐藏文件、RB 刷新，复用键盘的 KeyH / KeyR 路径
     if (cur === 'files') {
       const code = n.intent === 'actionL' ? 'KeyH' : 'KeyR';
-      window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code.slice(3).toLowerCase(), bubbles: true }));
+      window.dispatchEvent(synthPadKey(code, code.slice(3).toLowerCase()));
     }
+    return;
+  }
+  // 随机一部：库 / 网格两屏的专用动作（键盘 R 与快捷菜单同一条实现）。
+  // 详情等其他屏不响应，避免误按后画面莫名其妙地跳走。
+  if (n.intent === 'actionRandom') {
+    if (menuOpen || anyState()) return;
+    const cur = curScreen();
+    if (cur === 'library' || cur === 'grid') void import('./quick').then((m) => m.pickRandomGame());
     return;
   }
   // Y 在网格屏 = 筛选（手柄没有 F 键，筛选面板得能打开）；库屏 Y 仍是「详情」
@@ -137,8 +159,7 @@ export function dispatchNav(n: NavIntent, from: NavSource = 'key'): void {
   // X / Y / Select：投递等价键盘事件，走同一套守卫（快捷菜单 / 状态层 / 输入框都不会穿透）
   const semantic = SEMANTIC_CODE[n.intent];
   if (semantic) {
-    const e = new KeyboardEvent('keydown', { code: semantic, key: semantic, bubbles: true }) as PadKeyEvent;
-    e.padNav = true;
+    const e = synthPadKey(semantic);
     if (handleQuickKey(e)) return;
     if (handleOverlayKey(e)) return;
     if (menuOpen) return; // 菜单不认 X / Y：别把状态层开在菜单背后
@@ -209,6 +230,7 @@ export function init(): void {
     if (/^Digit[1-4]$/.test(e.code)) {
       const order: Screen[] = ['library', 'grid', 'detail', 'settings'];
       const target = order[Number(e.code.slice(5)) - 1];
+      if (!target) return;
       // 详情必须有「仍可见」的作品：已移除 / 已隐藏的残留 detailId 一律不放行
       const dg = gameById(state.detailId);
       if (target === 'detail' && (!dg || dg.hidden)) return;

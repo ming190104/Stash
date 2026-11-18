@@ -45,6 +45,7 @@ const PAD_ACTIONS: { k: keyof PadMap; label: string }[] = [
   { k: 'menu', label: '快捷菜单' },
   { k: 'x', label: '多选 / 批量' },
   { k: 'y', label: '详情 / 结局 / 筛选' },
+  { k: 'random', label: '随机一部（库 / 网格）' },
   { k: 'r', label: '收藏 / 分类右' },
   { k: 'lb', label: '分类左' },
 ];

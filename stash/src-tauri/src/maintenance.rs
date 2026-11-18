@@ -8,6 +8,10 @@ use crate::store::{self, Store};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+/// 导入串行锁：备份 + 设置 + 库三次落盘不是事务，两轮并发会互相覆盖，
+/// 还会让「导入前备份」重名。连点 / 两个入口同时触发时排队执行。
+static IMPORT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// explorer.exe 的绝对路径：裸名 "explorer" 会走 PATH 解析，同目录被塞一个
 /// explorer.exe 就能被劫持——固定用系统目录下的绝对路径
 #[cfg(windows)]
@@ -707,6 +711,8 @@ pub async fn import_data(store: State<'_, Store>, path: String) -> Result<usize,
 const MAX_BACKUP_BYTES: u64 = 64 * 1024 * 1024;
 
 pub fn import_data_sync(store: &Store, path: &str) -> Result<usize, AppError> {
+    // 全程串行：两次导入交错会把对方的备份 / 设置 / 库互相覆盖
+    let _import = IMPORT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     // metadata 失败按读写失败的常规路径透传（文件不存在 / 无权限等）
     let len = std::fs::metadata(path)?.len();
     if len > MAX_BACKUP_BYTES {
@@ -737,18 +743,23 @@ pub fn import_data_sync(store: &Store, path: &str) -> Result<usize, AppError> {
     let library = rebind_import_ids(b.library, &existing)
         .into_iter()
         .map(|mut g| {
-            // 备份里的 cover / thumb 可能是别的机器的绝对路径，甚至是 `..\` 这类
-            // 越界路径；一律收编成本机缓存目录下的文件名，后续删除才敢直接删。
+            // 备份里的 cover / thumb / 自选封面可能是别的机器的绝对路径，甚至是
+            // `..\` 这类越界路径；一律收编成本机缓存目录下的文件名，后续删除才敢直接删。
             g.cover = adopt_cache_name(store.covers_dir().as_path(), g.cover);
             g.thumb = adopt_cache_name(store.thumbs_dir().as_path(), g.thumb);
-            // exe 会被 launcher 原样 `Command::new`：外来备份可指向任意程序，
-            // 因此只接受「在 dir 之下」的主程序（含 `..` / 空值一律不可信）。
+            // 自选封面与 cover 是一对：不同步收编的话，media_stale 清掉 cover 后
+            // cover_override 仍指向不存在的路径，自动匹配会被永久挡住（卡片空白）。
+            g.cover_override = adopt_cache_name(store.covers_dir().as_path(), g.cover_override);
+            // exe 会被 launcher 原样 `Command::new`：外来备份可指向任意程序。
+            // 与手动入库 / 启动走同一道闸（guard_game_exe）：必须在 dir 之下，
+            // 且不是 cmd / powershell / python 这类脚本宿主，也不接受 UNC 路径。
             // 不整批拒绝：只把这一条标记待修复，其它合法条目照常导入。
             let exe_ok = !g.exe.trim().is_empty()
-                && crate::commands::library::path_under(
-                    std::path::Path::new(&g.dir),
+                && crate::guard_game_exe(
                     std::path::Path::new(&g.exe),
-                );
+                    std::path::Path::new(&g.dir),
+                )
+                .is_ok();
             if !exe_ok {
                 tracing::warn!(
                     "import: 丢弃不可信主程序 exe={:?} dir={:?} title={:?}",
@@ -762,9 +773,10 @@ pub fn import_data_sync(store: &Store, path: &str) -> Result<usize, AppError> {
             // launch_args 也会原样追加到命令行：超长的主要是恶意 / 手改产物，
             // 直接清空（游戏仍可正常启动），避免把命令行走廊塞满。
             let args_len: usize = g.launch_args.iter().map(|a| a.chars().count()).sum();
-            if args_len > 1024 {
+            if args_len > 1024 || g.launch_args.len() > 32 {
                 tracing::warn!(
-                    "import: 启动参数过长（{args_len} 字符），已清空 dir={:?}",
+                    "import: 启动参数过长（{args_len} 字符 / {} 项），已清空 dir={:?}",
+                    g.launch_args.len(),
                     g.dir
                 );
                 g.launch_args.clear();
@@ -772,7 +784,21 @@ pub fn import_data_sync(store: &Store, path: &str) -> Result<usize, AppError> {
             g
         })
         .collect::<Vec<_>>();
-    let settings = normalize_settings(b.settings);
+    let mut settings = normalize_settings(b.settings);
+    // 转区工具路径来自外来备份，但启动时会原样 `Command::new(tool)`：
+    // 只接受真正的 Locale Emulator 本体（LEProc.exe）且文件存在，
+    // 否则「导入备份 + 启动需要转区的作品」就成了一次任意命令执行。
+    if let Some(tp) = settings.locale.tool_path.clone() {
+        let p = tp.trim();
+        let is_le = std::path::Path::new(p)
+            .file_name()
+            .map(|n| n.to_string_lossy().eq_ignore_ascii_case("LEProc.exe"))
+            .unwrap_or(false);
+        if p.is_empty() || p.starts_with(r"\\") || !is_le || !std::path::Path::new(p).is_file() {
+            tracing::warn!("import: 丢弃不可信的转区工具路径 {:?}", tp);
+            settings.locale.tool_path = None;
+        }
+    }
     let stamp = store::now_secs();
     // 备份失败必须中止导入：否则「覆盖后可追溯」这句承诺是假的，
     // 磁盘满 / 目录只读时用户会在没有任何退路的情况下丢掉原库
@@ -780,19 +806,38 @@ pub fn import_data_sync(store: &Store, path: &str) -> Result<usize, AppError> {
         if !src.exists() {
             continue;
         }
-        let dst = store.dir.join(format!("{tag}.pre-import-{stamp}.json"));
+        // 秒级时间戳同一秒内会重名：追加序号，避免第二份备份覆盖第一份
+        let mut dst = store.dir.join(format!("{tag}.pre-import-{stamp}.json"));
+        let mut n = 1;
+        while dst.exists() {
+            dst = store.dir.join(format!("{tag}.pre-import-{stamp}-{n}.json"));
+            n += 1;
+        }
         std::fs::copy(&src, &dst).map_err(|e| {
             AppError::new(ErrCode::IoError, format!("导入前备份 {} 失败：{e}", src.display()))
         })?;
     }
-    {
+    // 两次落盘之间没有事务：先记下原设置，库写失败时把设置原样写回。
+    // 否则「库还是旧的、设置已经换成备份里的」——主题 / 键位 / 库根全变了，
+    // 用户却看不到任何导入成功的条目。
+    // 快照必须在锁内读取：导入期间用户可能刚保存了别的设置，锁外读会连它们一起回退。
+    let prev_settings = {
         let _lock = store::lock_settings();
+        let prev = store.load_settings();
         store.save_settings(&settings)?;
-    }
+        prev
+    };
     // 与手动入库共用同一把库锁：导入不能被另一处读到一半的旧数据覆盖
-    {
+    let library_saved = {
         let _lock = store::lock_library();
-        store.save_library(&library)?;
+        store.save_library(&library)
+    };
+    if let Err(e) = library_saved {
+        let _lock = store::lock_settings();
+        if let Err(e2) = store.save_settings(&prev_settings) {
+            tracing::error!("import: 库写入失败后回滚设置也失败：{e2}");
+        }
+        return Err(e.into());
     }
     tracing::info!("import: {path} ({} games)", library.len());
     Ok(library.len())
@@ -923,6 +968,31 @@ mod tests {
         let games = store.load_library();
         assert_eq!(games[0].exe, r"D:\Games\AIR\game.exe");
         assert!(!games[0].pending);
+        let _ = std::fs::remove_dir_all(&store.dir);
+    }
+
+    /// 转区工具路径会被 `Command::new` 直接执行：外来备份里指向 cmd.exe 这类
+    /// 非 LEProc 的程序必须在导入时丢弃，否则「导入备份 + 启动」就是任意命令执行。
+    #[test]
+    fn import_drops_untrusted_locale_tool() {
+        let store = temp_store("locale-tool");
+        let mut settings = Settings::default();
+        settings.locale.tool_path = Some(r"C:\Windows\System32\cmd.exe".into());
+        let backup = store.dir.join("backup.json");
+        std::fs::write(
+            &backup,
+            serde_json::to_string(&serde_json::json!({
+                "version": 1,
+                "settings": settings,
+                "library": [],
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+
+        import_data_sync(&store, &backup.to_string_lossy()).unwrap();
+        let saved = store.load_settings();
+        assert_eq!(saved.locale.tool_path, None, "非 LEProc.exe 的转区工具必须被丢弃");
         let _ = std::fs::remove_dir_all(&store.dir);
     }
 

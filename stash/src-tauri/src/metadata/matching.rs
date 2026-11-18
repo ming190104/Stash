@@ -132,7 +132,7 @@ pub async fn match_all(app: AppHandle, store: State<'_, Store>, force: Option<bo
         let mut done = 0usize;
         // 命中结果先攒着，每 FLUSH_BATCH 条才落盘一次：避免 1000 部作品产生
         // 1000 次整库 JSON 写。锁内重新 load，所以并发期间对别的作品的修改不会被覆盖。
-        let mut pending: Vec<(String, Option<MatchHit>, bool)> = Vec::new();
+        let mut pending: Vec<PendingHit> = Vec::new();
 
         for chunk in ids.chunks(FLUSH_BATCH) {
             if MATCH_CANCEL.load(Ordering::Relaxed) {
@@ -181,7 +181,14 @@ pub async fn match_all(app: AppHandle, store: State<'_, Store>, force: Option<bo
                             None => "none",
                         };
                         // ③ 攒起来，锁内批量写盘（flush_hits），不覆盖这期间的其它改动
-                        pending.push((id.clone(), hit, force));
+                        pending.push(PendingHit {
+                            id: id.clone(),
+                            hit,
+                            force,
+                            // 本轮结果是基于这份绑定得出的：写盘前据此判断是否已被人工改过
+                            bangumi_id: snap.bangumi_id,
+                            match_score: snap.match_score,
+                        });
                         if pending.len() >= FLUSH_BATCH {
                             flush_hits(&store, &mut pending);
                         }
@@ -212,19 +219,36 @@ pub async fn match_all(app: AppHandle, store: State<'_, Store>, force: Option<bo
 /// 全量匹配每批攒多少条命中再统一写盘。写盘是整库 JSON，条数太少会退化成逐部落盘。
 const FLUSH_BATCH: usize = 20;
 
+/// 待写盘的一条匹配结果，外加**结果产出时**的绑定快照。
+///
+/// 搜索 / 下封面可能在锁外跑上几分钟：这段时间用户完全可能在详情页手动绑定
+/// 另一个条目、或确认了别的结果。锁内重载后先比对快照，不一致就丢掉本轮结论，
+/// 否则「人刚点完确认，几秒后被后台匹配写回旧结果」。
+struct PendingHit {
+    id: String,
+    hit: Option<MatchHit>,
+    force: bool,
+    bangumi_id: Option<u32>,
+    match_score: Option<u32>,
+}
+
 /// 锁内批量回写：重新 load → 逐条 apply_hit → 一次 save。
 /// 必须重新 load 而不是沿用批次快照，否则这段时间里其它命令对「别的作品」的修改会被覆盖。
-fn flush_hits(store: &Store, pending: &mut Vec<(String, Option<MatchHit>, bool)>) {
+fn flush_hits(store: &Store, pending: &mut Vec<PendingHit>) {
     if pending.is_empty() {
         return;
     }
     let count = pending.len();
     let _lock = store::lock_library();
     let mut games = store.load_library();
-    for (id, hit, force) in pending.iter() {
+    for p in pending.iter() {
         // 匹配期间被移出库（目录被删）的条目：放弃这次结果
-        if let Some(g) = games.iter_mut().find(|g| g.id == *id) {
-            apply_hit(g, hit.as_ref(), *force);
+        if let Some(g) = games.iter_mut().find(|g| g.id == p.id) {
+            if g.bangumi_id != p.bangumi_id || g.match_score != p.match_score {
+                tracing::info!("match {}: 匹配期间绑定已被人工修改，丢弃本轮结果", p.id);
+                continue;
+            }
+            apply_hit(g, p.hit.as_ref(), p.force);
         }
     }
     // 写盘失败不能静默：否则界面收到 tier=auto、重启后匹配结果全没了
@@ -296,8 +320,12 @@ fn apply_hit(g: &mut Game, hit: Option<&MatchHit>, force: bool) -> &'static str 
                 }
             }
             if let Some(p) = &h.cover {
-                g.cover = Some(p.clone());
-                g.thumb = h.thumb.clone();
+                // 用户自选过封面（cover_override）时不覆盖：cover / thumb 是一对，
+                // 盖掉 cover 却留下自选封面生成的 thumb，卡片会显示另一部作品的图
+                if g.cover_override.is_none() {
+                    g.cover = Some(p.clone());
+                    g.thumb = h.thumb.clone();
+                }
             }
             if h.pending {
                 "pending"
@@ -652,7 +680,13 @@ mod tests {
             summary: None,
             egs: None,
         };
-        let mut pending = vec![("A".to_string(), Some(hit), false)];
+        let mut pending = vec![PendingHit {
+            id: "A".to_string(),
+            hit: Some(hit),
+            force: false,
+            bangumi_id: lib[a_idx].bangumi_id,
+            match_score: lib[a_idx].match_score,
+        }];
         flush_hits(&store, &mut pending);
 
         assert!(pending.is_empty(), "flush 后应清空已写条目");
@@ -664,6 +698,54 @@ mod tests {
         let b = after.iter().find(|g| g.id == "B").unwrap();
         assert!(b.favorite, "并发改的收藏不能被覆盖");
         assert_eq!(b.title, "B 并发改题", "并发改的标题不能被覆盖");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 匹配跑在锁外几分钟，期间用户可能手动绑定了条目：
+    /// 锁内发现绑定快照已变，本轮结论必须放弃，不能把人刚确认的结果冲掉
+    #[test]
+    fn flush_hits_discards_when_binding_changed() {
+        let dir = std::env::temp_dir().join(format!("stash-match-rebind-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = Store { dir: dir.clone() };
+
+        store
+            .save_library(&[Game { id: "A".into(), title: "A 原题".into(), ..Default::default() }])
+            .unwrap();
+        let snap = store.load_library().remove(0);
+
+        // 结果产出后、写盘前：用户手动绑定到 7 号条目
+        let mut latest = store.load_library();
+        latest[0].bangumi_id = Some(7);
+        latest[0].match_score = Some(100);
+        latest[0].title = "人工绑定后的标题".into();
+        store.save_library(&latest).unwrap();
+
+        let hit = MatchHit {
+            subject: Some(bangumi_subject()),
+            moegirl: None,
+            score: 100,
+            pending: false,
+            cover: None,
+            thumb: None,
+            summary: None,
+            egs: None,
+        };
+        let mut pending = vec![PendingHit {
+            id: "A".to_string(),
+            hit: Some(hit),
+            force: false,
+            bangumi_id: snap.bangumi_id,
+            match_score: snap.match_score,
+        }];
+        flush_hits(&store, &mut pending);
+
+        assert!(pending.is_empty());
+        let after = store.load_library();
+        assert_eq!(after[0].bangumi_id, Some(7), "人工绑定不能被匹配结果覆盖");
+        assert_eq!(after[0].title, "人工绑定后的标题");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -686,5 +768,29 @@ mod tests {
         hit.pending = false;
         assert_eq!(apply_hit(&mut g, Some(&hit), false), "auto");
         assert_eq!(apply_hit(&mut g, None, false), "none");
+    }
+
+    /// 用户自选过封面（cover_override）时，匹配结果不能把 cover / thumb 覆盖成另一对
+    #[test]
+    fn apply_hit_keeps_manual_cover() {
+        let mut g = Game {
+            cover: Some("covers/manual.webp".into()),
+            thumb: Some("thumbs/manual.webp".into()),
+            cover_override: Some("covers/manual.webp".into()),
+            ..Default::default()
+        };
+        let hit = MatchHit {
+            subject: Some(bangumi_subject()),
+            moegirl: None,
+            score: 100,
+            pending: false,
+            cover: Some("covers/auto.webp".into()),
+            thumb: Some("thumbs/auto.webp".into()),
+            summary: None,
+            egs: None,
+        };
+        apply_hit(&mut g, Some(&hit), false);
+        assert_eq!(g.cover.as_deref(), Some("covers/manual.webp"));
+        assert_eq!(g.thumb.as_deref(), Some("thumbs/manual.webp"));
     }
 }

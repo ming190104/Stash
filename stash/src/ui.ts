@@ -4,6 +4,7 @@
 
 import { esc, setRawHTML, domEpochNo } from './html';
 import { sfx } from './sfx';
+import { cacheGet, cachePatch } from './ui-cache';
 import type { BootAnim, LayoutName, ThemeName } from './types';
 
 export { esc };
@@ -27,11 +28,7 @@ export function applyTheme(name: string | undefined): void {
   appliedTheme = t;
   document.documentElement.dataset.theme = t;
   if (changed) playThemeSwap(t);
-  try {
-    localStorage.setItem('vnTheme', t);
-  } catch {
-    /* 隐私模式写不进去就忽略 */
-  }
+  cachePatch({ theme: t });
 }
 
 /** 已落地的主题：首帧用缓存主题不算「切换」，不播过场 */
@@ -70,12 +67,8 @@ function playThemeSwap(t: ThemeName): void {
 }
 
 export function cachedTheme(): ThemeName {
-  try {
-    const t = localStorage.getItem('vnTheme') ?? 'cinema';
-    return (THEMES as string[]).includes(t) ? (t as ThemeName) : 'cinema';
-  } catch {
-    return 'cinema';
-  }
+  const t = cacheGet('theme') ?? 'cinema';
+  return (THEMES as string[]).includes(t) ? (t as ThemeName) : 'cinema';
 }
 
 /** 应用布局皮肤：写 html[data-layout]，缓存一份供下次启动首帧（与主题各走各的，可自由组合）。
@@ -86,11 +79,7 @@ export function applyLayout(name: string | undefined, cache = true): void {
     document.documentElement.dataset.layout = l;
   }
   if (!cache) return;
-  try {
-    localStorage.setItem('vnLayout', l);
-  } catch {
-    /* 隐私模式写不进去就忽略 */
-  }
+  cachePatch({ layout: l });
 }
 
 /** 启动 / 全屏转场速度：只缩放这两处的时长，不碰库内动效。 */
@@ -109,20 +98,12 @@ export function normalizeBootAnim(v: unknown): BootAnim {
 /** 记住档位，供下次冷启动在设置读盘前就能选对动画。 */
 export function applyBootAnim(v: unknown): BootAnim {
   const m = normalizeBootAnim(v);
-  try {
-    localStorage.setItem('vnBootAnim', m);
-  } catch {
-    /* 隐私模式写不进去就忽略 */
-  }
+  cachePatch({ bootAnim: m });
   return m;
 }
 
 export function cachedBootAnim(): BootAnim {
-  try {
-    return normalizeBootAnim(localStorage.getItem('vnBootAnim') ?? 'warp');
-  } catch {
-    return 'warp';
-  }
+  return normalizeBootAnim(cacheGet('bootAnim') ?? 'warp');
 }
 
 /** EVA 主题与 EVA 起动序列一一绑定：界面换成哪台机体，开机动画就是同一台。
@@ -147,30 +128,18 @@ export function themeForBoot(anim: BootAnim): ThemeName | null {
 /** 记住速度，供下次冷启动在设置读盘前就能按同一速度播放。 */
 export function applyAnimSpeed(speed: number | undefined): number {
   const v = normalizeAnimSpeed(speed);
-  try {
-    localStorage.setItem('vnAnimSpeed', String(v));
-  } catch {
-    /* 隐私模式写不进去就忽略 */
-  }
+  cachePatch({ animSpeed: v });
   return v;
 }
 
 export function cachedAnimSpeed(): number {
-  try {
-    const raw = localStorage.getItem('vnAnimSpeed');
-    return raw ? normalizeAnimSpeed(Number(raw)) : 1;
-  } catch {
-    return 1;
-  }
+  const v = cacheGet('animSpeed');
+  return typeof v === 'number' ? normalizeAnimSpeed(v) : 1;
 }
 
 export function cachedLayout(): LayoutName {
-  try {
-    const l = localStorage.getItem('vnLayout') ?? 'classic';
-    return (LAYOUTS as string[]).includes(l) ? (l as LayoutName) : 'classic';
-  } catch {
-    return 'classic';
-  }
+  const l = cacheGet('layout') ?? 'classic';
+  return (LAYOUTS as string[]).includes(l) ? (l as LayoutName) : 'classic';
 }
 
 /**
@@ -227,19 +196,15 @@ export function applyFullscreenUI(on: boolean): void {
     active.blur();
   }
   try {
-    localStorage.setItem('vnFullscreen', on ? '1' : '0');
+    cachePatch({ fullscreen: on });
   } catch {
-    /* 隐私模式写不进去就忽略，下次启动按默认全屏 */
+    /* cachePatch 自身已兜底；保留此层以防未来替换实现时改变契约 */
   }
 }
 
 /** 上次退出时是否全屏。冷启动的跃迁只在全屏下播，此时设置还没读盘。 */
 export function cachedFullscreen(): boolean {
-  try {
-    return localStorage.getItem('vnFullscreen') !== '0';
-  } catch {
-    return true;
-  }
+  return cacheGet('fullscreen') !== false;
 }
 
 /** toast 里唯一允许的标记是键帽 `<span class="kk …">`。
@@ -333,7 +298,8 @@ export function toastNow(msg: string, hot = false): void {
   const el = document.getElementById('toast');
   if (!el) return;
   for (let i = toastQueue.length - 1; i >= 0; i--) {
-    if (!toastQueue[i].hot) toastQueue.splice(i, 1);
+    const q = toastQueue[i];
+    if (q && !q.hot) toastQueue.splice(i, 1);
   }
   if (hot) sfx.error();
   playToast(el, { msg: safeToast(msg), hot });
@@ -395,6 +361,7 @@ export function ringFocus(els: HTMLElement[], i: number): number {
   const k = Math.max(0, Math.min(els.length - 1, i));
   els.forEach((el, j) => el.classList.toggle('focus', j === k));
   const el = els[k];
+  if (!el) return 0;
   // span / div 伪按钮默认不可聚焦：补 tabindex=-1 再 focus。
   // 否则 DOM 焦点会留在页签列，底下的按钮一直显示 :focus-visible 白框，
   // 看起来像「手柄焦点没进面板」。

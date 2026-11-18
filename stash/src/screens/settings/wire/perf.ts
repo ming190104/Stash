@@ -6,7 +6,7 @@ import { state } from '../../../state';
 import { toast, toastNow, esc, applyFullscreenUI } from '../../../ui';
 import { setFullscreen, setPower60 } from '../../../ipc';
 import { togglePanel } from '../../../fps';
-import { persist } from '../persist';
+import { persist } from '../../../settings-persist';
 import { warpToggle, warpBusy } from '../../../splash';
 
 export function wirePerf(body: HTMLElement): void {

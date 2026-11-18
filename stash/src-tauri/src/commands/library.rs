@@ -21,29 +21,91 @@ pub async fn get_library(app: AppHandle, store: State<'_, Store>) -> Result<Vec<
     // 全库 thumb 存在性检查 + 目录 stat 都在磁盘上：库大 / 目录在慢盘时
     // 同步命令会让主线程卡住，这里挪到阻塞线程池
     let st = store.inner().clone();
+    let app2 = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        // 读也取库锁：保存的瞬间主文件会被 rename 到 .bak、新文件尚未落位，
-        // 无锁读有几率拿到上一代库（收藏/时长显示短暂回退）。
-        let mut games = {
+        // ① 锁内只做快照读取。自愈写盘必须确认来源是主文件：
+        //    主文件瞬时读失败（杀软 / 云同步 / 文件被占用）时 load_library 会回落到
+        //    .bak，把旧一代写回主文件等于丢一代数据。降级副本只展示、不回写。
+        let (mut games, from_main) = {
             let _lock = store::lock_library();
-            st.load_library()
+            match st.load_library_from_main() {
+                Some(g) => (g, true),
+                None => (st.load_library(), false),
+            }
         };
-        // 缩略图是可再生的缓存文件。清过缓存目录 / 杀软清理 / 迁移过用户目录后，
-        // 库里记着的路径可能已经不存在——继续交给前端只会让卡片停在深色底，
-        // 这里直接丢掉该字段，前端退回原封面（下次更换封面时会重新生成）。
+        // ② 缓存文件存在性检查放在锁外：封面可能在移动盘 / SMB 上，
+        //    stat 超时不能把 set_favorite / END / 退出写盘一起卡住。
+        let cache = [st.covers_dir(), st.thumbs_dir()];
+        let mut stale_thumb: Vec<(String, String)> = Vec::new();
+        let mut stale_cover: Vec<(String, String)> = Vec::new();
+        let mut stale_override: Vec<(String, String)> = Vec::new();
         for g in games.iter_mut() {
-            if let Some(p) = g.thumb.as_deref() {
-                if !std::path::Path::new(p).exists() {
+            // 缩略图与封面都是可再生 / 可重新匹配的缓存。清过缓存目录、杀软清理、
+            // 换机器恢复备份之后，库里记着的路径可能已经不存在——只把返回值置空的话，
+            // 下次读取还是老样子（卡片停在深色空图上，`spawn_thumbs` 也永远看不到缺失）。
+            if let Some(p) = g.thumb.clone() {
+                if media_stale(&p, &cache) {
                     g.thumb = None;
+                    stale_thumb.push((g.id.clone(), p));
+                }
+            }
+            if let Some(p) = g.cover.clone() {
+                if media_stale(&p, &cache) {
+                    g.cover = None;
+                    stale_cover.push((g.id.clone(), p));
+                }
+            }
+            // 自选封面与 cover 是一对：只清 cover 会留下 cover_override，
+            // 之后自动匹配永远不会再写封面（卡片永久空白），必须同步清掉。
+            if let Some(p) = g.cover_override.clone() {
+                if media_stale(&p, &cache) {
+                    g.cover_override = None;
+                    stale_override.push((g.id.clone(), p));
                 }
             }
         }
+        // ③ 来源可信才写回：短锁重新 load，按 id + 原路径精确清理，
+        //    不覆盖等待期间别处对其它作品的修改。
+        let has_stale =
+            !(stale_thumb.is_empty() && stale_cover.is_empty() && stale_override.is_empty());
+        if from_main && has_stale {
+            let _lock = store::lock_library();
+            if let Some(mut latest) = st.load_library_from_main() {
+                let mut changed = false;
+                for g in latest.iter_mut() {
+                    changed |= clear_stale_media(&g.id, &mut g.thumb, &stale_thumb);
+                    changed |= clear_stale_media(&g.id, &mut g.cover, &stale_cover);
+                    changed |= clear_stale_media(&g.id, &mut g.cover_override, &stale_override);
+                }
+                if changed {
+                    if let Err(e) = st.save_library(&latest) {
+                        // 落盘失败不影响本次展示：返回副本里已经清掉了失效路径
+                        tracing::warn!("get_library: 清理失效封面 / 缩略图路径失败：{e}");
+                    }
+                }
+                // 返回与磁盘一致的最新快照（其它字段可能在这期间被别处改过）
+                games = latest;
+            }
+        }
         // asset 协议白名单是空的（不再 `**`），每次把当前要显示的封面 / 本地实机图登记进去
-        crate::allow_library_assets(&app, &games);
+        crate::allow_library_assets(&app2, &games);
+        // 缓存目录被清空后靠这里补回来：只挑有封面、缺缩略图的条目交给后台生成
+        spawn_thumbs(&app2, &st, &games);
         games
     })
     .await
     .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))
+}
+
+/// 按 id + 原路径精确清理失效媒体（锁内重新 load 后调用，避免误伤别处的新值）
+fn clear_stale_media(id: &str, field: &mut Option<String>, stale: &[(String, String)]) -> bool {
+    let Some(cur) = field.as_deref() else { return false };
+    if stale.iter().any(|(sid, p)| sid == id && p == cur) {
+        *field = None;
+        true
+    } else {
+        false
+    }
 }
 
 /// 手动添加单部作品：选主程序 exe + 填标题，绕过目录识别门槛直接入库。
@@ -124,12 +186,42 @@ pub async fn add_game(
     Ok(game)
 }
 
+/// 缩略图生成失败缓存：key = id + 封面路径 + 封面 mtime。
+/// 坏图 / 超大图会永远失败；不记负缓存的话每次 get_library 都会重新解码全库。
+/// 源文件替换后 mtime 变化，key 自动失效并重试。
+static THUMB_FAILED: std::sync::OnceLock<Mutex<std::collections::HashSet<String>>> =
+    std::sync::OnceLock::new();
+
+fn thumb_failed() -> &'static Mutex<std::collections::HashSet<String>> {
+    THUMB_FAILED.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+
+fn thumb_fail_key(id: &str, cover: &str) -> String {
+    use std::time::UNIX_EPOCH;
+    let mtime = std::fs::metadata(cover)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    format!("{id}|{cover}|{mtime}")
+}
+
 /// 为缺缩略图且有封面的条目后台补生成，完成发 `thumbs://done`。
 fn spawn_thumbs(app: &AppHandle, store: &Store, games: &[Game]) {
-    let pending: Vec<(String, String)> = games
+    let failed: std::collections::HashSet<String> = thumb_failed()
+        .lock()
+        .map(|f| f.clone())
+        .unwrap_or_default();
+    let pending: Vec<(String, String, String)> = games
         .iter()
         .filter(|g| g.thumb.is_none())
         .filter_map(|g| g.cover.clone().map(|c| (g.id.clone(), c)))
+        .map(|(id, cover)| {
+            let key = thumb_fail_key(&id, &cover);
+            (id, cover, key)
+        })
+        .filter(|(_, _, key)| !failed.contains(key))
         .collect();
     if pending.is_empty() {
         return;
@@ -138,13 +230,25 @@ fn spawn_thumbs(app: &AppHandle, store: &Store, games: &[Game]) {
     let store = store.clone();
     tauri::async_runtime::spawn_blocking(move || {
         // 先把缩略图全部生成好：解码 + 缩放是重活，绝不能持库锁做
+        let mut failed_now: Vec<String> = Vec::new();
         let done: Vec<(String, String)> = pending
             .into_iter()
-            .filter_map(|(id, cover)| {
-                thumb::ensure(&store, &cover, &id, false)
-                    .map(|p| (id, p.to_string_lossy().to_string()))
+            .filter_map(|(id, cover, key)| match thumb::ensure(&store, &cover, &id, false) {
+                Some(p) => Some((id, p.to_string_lossy().to_string())),
+                None => {
+                    failed_now.push(key);
+                    None
+                }
             })
             .collect();
+        if !failed_now.is_empty() {
+            let mut f = thumb_failed().lock().unwrap_or_else(|e| e.into_inner());
+            // 防御性上限：长期运行 + 大量坏图时不让集合无限增长
+            if f.len() > 4096 {
+                f.clear();
+            }
+            f.extend(failed_now);
+        }
         if done.is_empty() {
             return;
         }
@@ -438,9 +542,32 @@ fn normalized_under(root: &Path, p: &Path) -> bool {
     d.starts_with(&prefix)
 }
 
+/// 媒体路径是否已失效（文件确实不在了）。
+///
+/// - 应用缓存目录（covers / thumbs）里的文件丢了就是丢了：它是可再生缓存，
+///   备份里本来也不带图，留着路径只会让卡片停在深色空图上；
+/// - 其它路径（游戏目录里的封面 / 截图）要**父目录还在**才算失效——外置盘拔掉时
+///   父目录也会一起消失，这时清掉路径会让重新插盘后永远回不来。
+fn media_stale(p: &str, cache_roots: &[PathBuf]) -> bool {
+    let pb = Path::new(p);
+    if pb.is_file() {
+        return false;
+    }
+    let norm = store::normalize_dir(p);
+    let in_cache = cache_roots.iter().any(|root| {
+        let r = store::normalize_dir(&root.to_string_lossy());
+        let prefix = if r.ends_with('\\') { r.clone() } else { format!("{r}\\") };
+        norm == r || norm.starts_with(&prefix)
+    });
+    if in_cache {
+        return true;
+    }
+    pb.parent().map(|d| d.is_dir()).unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::path_under;
+    use super::{media_stale, path_under};
     use std::path::Path;
 
     #[test]
@@ -497,6 +624,44 @@ mod tests {
         }
         assert!(!path_under(&root, &link.join("game.exe")));
         assert!(path_under(&root, &root.join("game.exe")));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// 封面 / 缩略图自愈：缓存目录里的缺失直接清空路径（可再生），
+    /// 游戏目录下的本地图缺失也清空；但父目录整个不在（外接盘离线）必须保留，
+    /// 否则盘一断开就把库里记的路径永久抹掉了。
+    #[test]
+    fn media_stale_distinguishes_offline_drive_from_deleted_cache() {
+        let base = std::env::temp_dir().join(format!(
+            "stash-media-stale-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let cache = base.join("covers");
+        let game_dir = base.join("game");
+        std::fs::create_dir_all(&cache).unwrap();
+        std::fs::create_dir_all(&game_dir).unwrap();
+        let roots = vec![cache.clone(), base.join("thumbs")];
+
+        let cache_missing = cache.join("abc.jpg").to_string_lossy().to_string();
+        assert!(media_stale(&cache_missing, &roots), "缓存目录里缺失的图必须清掉");
+
+        let local_missing = game_dir.join("cover.png").to_string_lossy().to_string();
+        assert!(media_stale(&local_missing, &roots), "父目录在、文件缺失 → 清掉");
+
+        let offline = base
+            .join("offline-drive")
+            .join("cover.jpg")
+            .to_string_lossy()
+            .to_string();
+        assert!(
+            !media_stale(&offline, &roots),
+            "父目录也不存在（外接盘离线）→ 保留路径"
+        );
+
+        let present = game_dir.join("cover.png");
+        std::fs::write(&present, b"x").unwrap();
+        assert!(!media_stale(&present.to_string_lossy(), &roots));
         let _ = std::fs::remove_dir_all(&base);
     }
 }

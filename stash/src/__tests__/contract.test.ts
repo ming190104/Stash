@@ -77,7 +77,7 @@ const SETTINGS: Required<Settings> = {
   fullscreen: true,
   gamepadMouse: false,
   abSwap: false,
-  padMap: { accept: 'south', back: 'east', menu: 'start', x: 'west', y: 'north', r: 'rb', lb: 'lb' },
+  padMap: { accept: 'south', back: 'east', menu: 'start', x: 'west', y: 'north', r: 'rb', lb: 'lb', random: 'l3' },
   padTuning: { deadzone: 0.28, repeatMs: 60, mouseSpeed: 11 },
   power60: false,
   sound: { enabled: true, gain: 0.6 },

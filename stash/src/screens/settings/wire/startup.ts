@@ -4,7 +4,7 @@ import { state } from '../../../state';
 import { toast, esc } from '../../../ui';
 import { setAutostart, pickLocaleTool } from '../../../ipc';
 import { basename } from '../../settings-tabs/common';
-import { persist } from '../persist';
+import { persist } from '../../../settings-persist';
 
 export function wireStartup(body: HTMLElement): void {
   // P3 · 开机自启：写注册表，成功才落盘

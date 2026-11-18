@@ -2,7 +2,7 @@
 
 import { state } from '../../../state';
 import { toast, toastNow, esc } from '../../../ui';
-import { persist } from '../persist';
+import { persist } from '../../../settings-persist';
 
 export function wireNetwork(body: HTMLElement): void {
   // 在线元数据开关（落盘到 settings.network.metadataEnabled）

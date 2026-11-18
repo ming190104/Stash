@@ -50,7 +50,7 @@ export function wireMetadataTab(body: HTMLElement): void {
           : state.games.filter((g) => !g.matched && !g.hidden);
       if (!list.length) return;
       void showCandidates(
-        list[0].id,
+        list[0]!.id,
         list.map((g) => ({ id: g.id, title: g.title })),
       );
     });

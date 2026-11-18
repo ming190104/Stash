@@ -52,6 +52,13 @@ export const state = {
   running: null as string | null,
   /** 手柄布局：决定键帽显示 A/B/X/Y 还是 ✕/○/□/△ 或 B/A/Y/X */
   padKind: 'xbox' as PadKind,
+  /** 设置页正在等待手柄按键改键：nav 层据此丢弃手柄意图，
+   *  否则同一次按压既绑定到这一行、又驱动了一次导航 */
+  padCapture: false,
+  /** 改键完成后的短暂静默期（performance.now 时间戳）：同一次物理按压还会投递
+   *  一条 nav://intent，在 padCapture 清掉之后才到达。不按时间窗丢弃的话，
+   *  绑 A 会重新进入捕获、绑 Start 会弹出菜单、绑 B 会把焦点弹回页签列。 */
+  padMuteUntil: 0,
   /** 键位页「手柄信息」：名称 / 布局 / 电量 / 力反馈 */
   padInfo: { name: '', kind: 'xbox' as PadKind, power: 'unknown', ff: false },
   sortBy: 'lastPlayed' as SortMode,
@@ -79,7 +86,14 @@ export function visibleGames(): Game[] {
   return state.games.filter((x) => !x.hidden);
 }
 
+/** 排序结果缓存：键是「库数组引用 + 排序档」。
+ *  库整体刷新会换掉 state.games 数组，排序档一改键就变——两种变化都会自动失效。
+ *  返回副本，保持旧契约：调用方可以随意 sort / splice 而不会污染缓存。 */
+let sortCache: { src: Game[]; mode: SortMode; out: Game[] } | null = null;
+
 export function sortedGames(): Game[] {
+  const fresh = sortCache && sortCache.src === state.games && sortCache.mode === state.sortBy;
+  if (fresh) return sortCache!.out.slice();
   // 隐藏作品只在「设置 · 库」里出现，默认四屏一律不显示
   const g = visibleGames();
   switch (state.sortBy) {
@@ -92,7 +106,99 @@ export function sortedGames(): Game[] {
     default:
       g.sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || b.addedAt - a.addedAt);
   }
-  return g;
+  sortCache = { src: state.games, mode: state.sortBy, out: g };
+  return g.slice();
+}
+
+/** 本端刚提交、可能还没落到磁盘的字段。
+ *  后台缩略图回填 / 游戏退出后的整库刷新可能拿到**写盘前**的快照，
+ *  直接赋值会把用户刚点的收藏、刚改的评分 / 结局冲回旧值。
+ *  这里按「字段级意图」兜住：磁盘值与意图一致就自动移除，一直不一致就保留。 */
+const pendingEdits = new Map<string, Partial<Game>>();
+
+/** 记录一次本地写入意图（值为期望最终落盘的值） */
+export function markLocalEdit(id: string, patch: Partial<Game>): void {
+  pendingEdits.set(id, { ...(pendingEdits.get(id) ?? {}), ...patch });
+}
+
+/** 写入失败 / 已确认落盘时清掉意图；不传 keys 清空整条 */
+export function clearLocalEdit(id: string, keys?: (keyof Game)[]): void {
+  if (!keys) {
+    pendingEdits.delete(id);
+    return;
+  }
+  const cur = pendingEdits.get(id);
+  if (!cur) return;
+  for (const k of keys) delete cur[k];
+  if (!Object.keys(cur).length) pendingEdits.delete(id);
+}
+
+/** 读取某条记录当前登记的意图值（没有登记则为 undefined）。
+ *  写盘失败回滚时用它确认「要清的那次意图还是不是自己的」：
+ *  失败等待期间用户又点了一次时，清掉会把新的那次一起抹掉。 */
+export function localEditOf<K extends keyof Game>(id: string, key: K): Game[K] | undefined {
+  return pendingEdits.get(id)?.[key];
+}
+
+/** 后端写盘会做的归一化：备注 trim + 4000 字、标签 trim / 去超长 / 去重 / 上限 30、
+ *  END 名 trim 后空名补 END N。意图必须和归一化后的磁盘值比较——
+ *  否则写盘成功后两者永远不相等，意图会被每次刷新重新写回内存（直到重启）。 */
+function normNotes(v: unknown): string | null {
+  return typeof v === 'string' ? [...v.trim()].slice(0, 4000).join('') : null;
+}
+
+function normTags(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: string[] = [];
+  for (const t of v) {
+    if (typeof t !== 'string') continue;
+    const s = t.trim();
+    if (!s || [...s].length > 20 || out.includes(s)) continue;
+    out.push(s);
+    if (out.length >= 30) break;
+  }
+  return out;
+}
+
+function normEndings(v: unknown): { name: string; done: boolean }[] | null {
+  if (!Array.isArray(v)) return null;
+  return v.map((e, i) => {
+    const x = e as { name?: unknown; done?: unknown } | null;
+    const name = typeof x?.name === 'string' ? x.name.trim() : '';
+    return { name: name || `END ${i + 1}`, done: x?.done === true };
+  });
+}
+
+function sameField(k: keyof Game, disk: unknown, want: unknown): boolean {
+  if (JSON.stringify(disk) === JSON.stringify(want)) return true;
+  if (k === 'notes') return normNotes(disk) === normNotes(want);
+  if (k === 'userTags') return JSON.stringify(normTags(disk)) === JSON.stringify(normTags(want));
+  if (k === 'endings') return JSON.stringify(normEndings(disk)) === JSON.stringify(normEndings(want));
+  return false;
+}
+
+/** 把未落盘的意图合并进刚读到的快照（就地改 games） */
+export function mergeLocalEdits(games: Game[]): void {
+  if (!pendingEdits.size) return;
+  const byId = new Map(games.map((g) => [g.id, g]));
+  for (const [id, patch] of [...pendingEdits]) {
+    const g = byId.get(id);
+    if (!g) {
+      // 条目已被移除：意图没有意义了
+      pendingEdits.delete(id);
+      continue;
+    }
+    for (const k of Object.keys(patch) as (keyof Game)[]) {
+      const want = patch[k];
+      // 与后端归一化后的磁盘值一致：采用磁盘真值并出清意图（不再把原始值写回去）
+      if (sameField(k, g[k], want)) {
+        delete patch[k];
+        continue;
+      }
+      (g as unknown as Record<string, unknown>)[k as string] = want;
+    }
+    if (!Object.keys(patch).length) pendingEdits.delete(id);
+  }
 }
 
 /** 智能集合的预聚合数据：一次遍历算好，供同批次的所有判定复用。

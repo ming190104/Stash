@@ -14,6 +14,17 @@ use tauri::{AppHandle, Emitter, Manager};
 /// 打开时不再向库界面发 NavIntent——手柄属于游戏，不属于后台的库。
 static MOUSE_MODE: AtomicBool = AtomicBool::new(false);
 
+/// 主窗口是否在前台：由 lib.rs 的 `WindowEvent::Focused` 事件写入。
+/// gilrs 是设备级监听，不随窗口焦点暂停；前台不是本程序时手柄归那个窗口。
+/// 用事件驱动而不是定时轮询：手柄线程每帧只读一个原子（纳秒级），
+/// 不会因为 20 次/秒的 GetForegroundWindow 空转。
+static FOCUSED: AtomicBool = AtomicBool::new(true);
+
+/// 窗口焦点变化时由主线程调用（tauri 的 `WindowEvent::Focused`）。
+pub fn set_focused(on: bool) {
+    FOCUSED.store(on, Ordering::Relaxed);
+}
+
 /// 手柄键位映射（设置页可改）：动作 → 物理键名，默认 Xbox 布局。
 /// 手柄线程每帧读一次，改键即时生效，不需要重启线程。
 static PAD_MAP: std::sync::Mutex<Option<crate::models::PadMap>> = std::sync::Mutex::new(None);
@@ -189,6 +200,8 @@ pub enum NavIntent {
     ActionL,
     /// RB / 右肩：详情屏 = 收藏（KeyR）；网格屏 = 分类 chips 右移；其余屏不响应
     ActionR,
+    /// 随机一部：库 / 网格两屏生效（默认 L3）；其余屏不响应
+    ActionRandom,
 }
 
 /// 首按立即；260ms 起速；之后按设置里的重复率重复（默认 60ms，推满 ×3/4）。
@@ -574,7 +587,7 @@ pub fn spawn(app: AppHandle) {
         tracing::info!("gilrs ready");
         let mut repeat = MoveRepeater::new();
         let mut stick = StickGate::new();
-        let mut btn_prev = [false; 7]; // accept / back / menu / X / Y / RB / LB
+        let mut btn_prev = [false; 8]; // accept / back / menu / X / Y / RB / LB / 随机
                                        // 物理键上一帧状态：设置页「改键捕获」靠 pad://button 原始事件，
                                        // 不依赖当前映射，否则改键时按下的键会先触发语义动作。
                                        // 顺序与 raw_names 一致：south/east/west/north/start/select/mode/lb/rb/lt/rt/l3/r3
@@ -588,6 +601,8 @@ pub fn spawn(app: AppHandle) {
         let mut chord_fired = false;
         // 电量变化很慢，30 秒采一次就够，避免每帧读驱动
         let mut power_at = Instant::now();
+        // 前台状态的兜底校正计时：正常由窗口焦点事件驱动，这里只防事件漏掉
+        let mut focus_at = Instant::now();
 
         loop {
             if STOP.load(Ordering::Relaxed) {
@@ -650,6 +665,14 @@ pub fn spawn(app: AppHandle) {
 
             if let Some(id) = pad_id {
                 let pad = gilrs.gamepad(id);
+                // 事件驱动：窗口焦点变化时 lib.rs 已把状态写进 FOCUSED，这里只读原子
+                let focused = FOCUSED.load(Ordering::Relaxed);
+                // 兜底：焦点被系统层直接切换（不经过 tao 事件）时，每 2 秒校正一次，
+                // 避免永久静默或永久放行；正常路径上这一支几乎不做系统调用
+                if focus_at.elapsed() >= Duration::from_secs(2) {
+                    focus_at = Instant::now();
+                    FOCUSED.store(crate::winkey::own_foreground(), Ordering::Relaxed);
+                }
                 // Start+Select 长按：必须在鼠标模式分支之前判定，游戏抢走手柄时也能退出
                 let chord = pad
                     .button_data(Button::Start)
@@ -704,7 +727,7 @@ pub fn spawn(app: AppHandle) {
                     if mouse::take_rejected() {
                         let _ = app.emit("pad://mouse-blocked", ());
                     }
-                    btn_prev = [false; 7];
+                    btn_prev = [false; 8];
                     raw_prev = [false; 13];
                     std::thread::sleep(Duration::from_millis(8));
                     continue;
@@ -742,8 +765,12 @@ pub fn spawn(app: AppHandle) {
 
                 let pressed = dpad.or(stick_dir);
                 let repeat_iv = Duration::from_millis(tuning.repeat_ms as u64);
+                // repeat 照常推进（切回前台时不该把「仍按住的方向」当成一次新按下），
+                // 只有前台是本程序时才真的投递意图
                 if let Some(d) = repeat.update(pressed, stick_mag, repeat_iv) {
-                    let _ = app.emit("nav://intent", NavIntent::Move { dir: d });
+                    if focused {
+                        let _ = app.emit("nav://intent", NavIntent::Move { dir: d });
+                    }
                 }
 
                 // ---- 按钮：边沿触发 ----
@@ -758,7 +785,8 @@ pub fn spawn(app: AppHandle) {
                 ];
                 for (i, name) in raw_names.iter().enumerate() {
                     let down = pressed_named(&pad, name);
-                    if down && !raw_prev[i] {
+                    // 未聚焦时只同步边沿：改键捕获 / 按键测试不该被别的窗口的手柄触发
+                    if focused && down && !raw_prev[i] {
                         let _ = app.emit("pad://button", serde_json::json!({ "button": name }));
                     }
                     raw_prev[i] = down;
@@ -771,6 +799,7 @@ pub fn spawn(app: AppHandle) {
                     pressed_named(&pad, &map.y),
                     pressed_named(&pad, &map.r),
                     pressed_named(&pad, &map.lb),
+                    pressed_named(&pad, &map.random),
                 ];
                 let intents = [
                     NavIntent::Accept,
@@ -780,19 +809,23 @@ pub fn spawn(app: AppHandle) {
                     NavIntent::ActionY,
                     NavIntent::ActionR,
                     NavIntent::ActionL,
+                    NavIntent::ActionRandom,
                 ];
-                if prime_buttons {
+                if prime_buttons || !focused {
                     // 退出游戏瞬间仍按住的键不能算「新按下」：否则 A 会在库屏直接 Accept，
-                    // 把刚退出的那部（或焦点作品）又启动一遍
+                    // 把刚退出的那部（或焦点作品）又启动一遍。
+                    // 未聚焦时同理：切回前台时还按着的键不该补发一次操作。
                     btn_prev = now;
                 }
-                for i in 0..intents.len() {
-                    if now[i] && !btn_prev[i] {
-                        // debug 级别：排查「一次按键触发两次」时打开日志即可看到每次投递
-                        tracing::debug!("手柄意图：{:?}", intents[i]);
-                        let _ = app.emit("nav://intent", intents[i].clone());
+                if focused {
+                    for i in 0..intents.len() {
+                        if now[i] && !btn_prev[i] {
+                            // debug 级别：排查「一次按键触发两次」时打开日志即可看到每次投递
+                            tracing::debug!("手柄意图：{:?}", intents[i]);
+                            let _ = app.emit("nav://intent", intents[i].clone());
+                        }
+                        btn_prev[i] = now[i];
                     }
-                    btn_prev[i] = now[i];
                 }
                 std::thread::sleep(Duration::from_millis(2));
             } else {
@@ -801,7 +834,7 @@ pub fn spawn(app: AppHandle) {
                 // 会立刻注入一次「凭空左键」，在游戏里误点/误推进。
                 mouse::release(&mut mouse_state);
                 mouse_mode_prev = false;
-                btn_prev = [false; 7];
+                btn_prev = [false; 8];
                 raw_prev = [false; 13];
                 std::thread::sleep(Duration::from_millis(200));
             }

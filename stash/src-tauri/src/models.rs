@@ -299,6 +299,8 @@ pub struct PadMap {
     pub r: String,
     /// 分类左（默认 lb）
     pub lb: String,
+    /// 随机一部：库 / 网格两屏生效（默认 l3 = 左摇杆按下）
+    pub random: String,
 }
 
 impl Default for PadMap {
@@ -311,6 +313,7 @@ impl Default for PadMap {
             y: "north".into(),
             r: "rb".into(),
             lb: "lb".into(),
+            random: "l3".into(),
         }
     }
 }
@@ -507,6 +510,53 @@ impl Default for LocaleSettings {
     }
 }
 
+/// 单个手柄键位收敛：非法键名回落默认值；默认值被占用时取第一颗空闲键。
+/// 与前端 `padmap.dedupePadMap` 使用同一组键名与同一顺序。
+fn fix_pad_key(v: &mut String, def: &str, used: &mut Vec<String>) {
+    const KEYS: &[&str] = &[
+        "south", "east", "west", "north", "start", "select", "mode", "lb", "rb", "lt", "rt",
+        "l3", "r3",
+    ];
+    const SPARE: &[&str] = &[
+        "l3", "r3", "select", "mode", "lt", "rt", "lb", "rb", "start", "south", "east", "west",
+        "north",
+    ];
+    let mut key = if KEYS.contains(&v.as_str()) {
+        v.clone()
+    } else {
+        def.to_string()
+    };
+    if used.iter().any(|u| u == &key) {
+        // 撞键先回默认键；默认键也被占用时再挪到第一颗空闲备用键
+        key = if used.iter().any(|u| u == def) {
+            SPARE
+                .iter()
+                .find(|k| !used.iter().any(|u| u == **k))
+                .map(|k| (*k).to_string())
+                .unwrap_or(key)
+        } else {
+            def.to_string()
+        };
+    }
+    used.push(key.clone());
+    *v = key;
+}
+
+/// 手柄键位归一化：非法键名会让对应动作永久失联（named_button 返回 None），
+/// 重复键会让一次按压同时触发两个动作。读盘、导入、保存三条路径共用这一份规则。
+fn normalize_pad_map(m: &mut PadMap) {
+    let d = PadMap::default();
+    let mut used: Vec<String> = Vec::new();
+    fix_pad_key(&mut m.accept, &d.accept, &mut used);
+    fix_pad_key(&mut m.back, &d.back, &mut used);
+    fix_pad_key(&mut m.menu, &d.menu, &mut used);
+    fix_pad_key(&mut m.x, &d.x, &mut used);
+    fix_pad_key(&mut m.y, &d.y, &mut used);
+    fix_pad_key(&mut m.r, &d.r, &mut used);
+    fix_pad_key(&mut m.lb, &d.lb, &mut used);
+    fix_pad_key(&mut m.random, &d.random, &mut used);
+}
+
 impl Settings {
     /// 把设置收敛到受支持的取值：手改 / 旧版本 / 备份导入都可能越界
     /// （例如 `fontScale: 99` 会让整套版式崩掉）。读盘与导入共用同一套规则。
@@ -516,6 +566,8 @@ impl Settings {
             "eva02", "nerv", "rei",
         ];
         const LAYOUTS: &[&str] = &["classic", "list", "wall"];
+        // 键位与界面无关，但同样可能被手改 / 旧版本写坏：读盘即收敛
+        normalize_pad_map(&mut self.pad_map);
         // v2：掌机优先，升级后默认全屏；用户之后仍可在设置里关掉（version 已是 2，不会反复改）
         if self.version < 2 {
             self.version = 2;
@@ -857,6 +909,54 @@ mod tests {
         }"#;
         let m: PadMap = serde_json::from_str(json).unwrap();
         assert_eq!(m.accept, "east", "已有映射保持不变");
+    }
+
+    /// 旧设置里没有 random（本次新增）：缺字段要补默认 L3，而不是让整个 padMap 解析失败
+    #[test]
+    fn pad_map_missing_random_falls_back_to_l3() {
+        let json = r#"{
+            "accept": "south", "back": "east", "menu": "start",
+            "x": "west", "y": "north", "r": "rb", "lb": "lb"
+        }"#;
+        let m: PadMap = serde_json::from_str(json).unwrap();
+        assert_eq!(m.random, "l3");
+        assert_eq!(PadMap::default().random, "l3");
+    }
+
+    /// 读盘即收敛：未知键名会让动作永久失联，重复键会让一次按压触发两个动作
+    #[test]
+    fn pad_map_normalizes_invalid_and_duplicate_keys() {
+        let s = Settings {
+            pad_map: PadMap {
+                accept: "south".into(),
+                back: "south".into(), // 与 accept 重复
+                menu: "guide".into(), // 非法键名
+                x: "west".into(),
+                y: "north".into(),
+                r: "rb".into(),
+                lb: "lb".into(),
+                random: "l3".into(),
+            },
+            ..Settings::default()
+        };
+        let m = s.normalized().pad_map;
+        assert_eq!(m.accept, "south", "先出现的动作保留");
+        assert_eq!(m.back, "east", "重复键回落默认");
+        assert_eq!(m.menu, "start", "非法键名回落默认");
+        let all = [
+            &m.accept, &m.back, &m.menu, &m.x, &m.y, &m.r, &m.lb, &m.random,
+        ];
+        let unique: std::collections::HashSet<_> = all.iter().collect();
+        assert_eq!(unique.len(), 8, "归一化后不允许撞键");
+    }
+
+    /// 旧版本允许把动作绑到 L3：升级后 random 默认也是 L3，必须自动让位
+    #[test]
+    fn pad_map_random_moves_off_taken_l3() {
+        let s: Settings = serde_json::from_str(r#"{"version":2,"padMap":{"y":"l3"}}"#).unwrap();
+        let m = s.normalized().pad_map;
+        assert_eq!(m.y, "l3", "用户原来的绑定保留");
+        assert_eq!(m.random, "r3", "random 让位到第一颗空闲备用键");
     }
 
     /// 手改 / 外来设置越界时必须收敛，否则 fontScale=99 会把整套版式撑坏
