@@ -213,6 +213,37 @@ pub async fn set_game_title(store: State<'_, Store>, id: String, title: String) 
     .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
 }
 
+/// 更换启动程序：只接受游戏目录内的 exe，沿用入库时的安全校验
+/// （网络路径 / 系统脚本宿主 / 目录外一律拒绝），避免把「换主程序」变成任意命令执行入口。
+#[tauri::command]
+pub async fn set_game_exe(
+    store: State<'_, Store>,
+    id: String,
+    exe: String,
+) -> Result<(), AppError> {
+    let path = std::path::PathBuf::from(exe.trim());
+    let is_exe = path
+        .extension()
+        .map(|e| e.to_string_lossy().eq_ignore_ascii_case("exe"))
+        .unwrap_or(false);
+    if !is_exe || !path.is_file() {
+        return Err(AppError::new(
+            ErrCode::NotFound,
+            "找不到该 exe，或不是 .exe 文件",
+        ));
+    }
+    let st = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::mutate_game(&st, &id, |g| {
+            crate::guard_game_exe(&path, std::path::Path::new(&g.dir))?;
+            g.exe = path.to_string_lossy().to_string();
+            Ok(())
+        })
+    })
+    .await
+    .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
+}
+
 /// 隐藏 / 恢复（默认视图不显示，库管理里可找回）
 #[tauri::command]
 pub async fn set_hidden(store: State<'_, Store>, id: String, hidden: bool) -> Result<(), AppError> {

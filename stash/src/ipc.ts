@@ -366,6 +366,11 @@ export async function setGameTitle(id: string, title: string): Promise<void> {
   if (TAURI) await inv('set_game_title', { id, title });
 }
 
+/** 更换启动程序：后端只接受游戏目录内的 exe（沿用入库时的安全校验） */
+export async function setGameExe(id: string, exe: string): Promise<void> {
+  if (TAURI) await inv('set_game_exe', { id, exe });
+}
+
 export async function setGameCover(id: string, path: string | null): Promise<void> {
   if (TAURI) await inv('set_game_cover', { id, path });
 }
@@ -880,11 +885,15 @@ export async function pickLocaleTool(): Promise<string | null> {
   return typeof f === 'string' ? f : null;
 }
 
-/** 选择游戏主程序 exe（手动添加单部作品） */
-export async function pickExeFile(): Promise<string | null> {
+/** 选择游戏主程序 exe（手动添加单部作品 / 更换启动程序）；defaultPath 传目录可免去逐层翻 */
+export async function pickExeFile(defaultPath?: string): Promise<string | null> {
   if (!TAURI) return null;
   const { open } = await import('@tauri-apps/plugin-dialog');
-  const f = await open({ multiple: false, filters: [{ name: '游戏主程序', extensions: ['exe'] }] });
+  const f = await open({
+    multiple: false,
+    ...(defaultPath ? { defaultPath } : {}),
+    filters: [{ name: '游戏主程序', extensions: ['exe'] }],
+  });
   return typeof f === 'string' ? f : null;
 }
 

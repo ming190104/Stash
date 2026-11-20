@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { game, key, mountSkeleton, resetState } from './dom-skeleton';
 import { handleOverlayKey } from '../overlay';
 import { openDetailMenu } from '../screens/detail';
-import { applyCandidate, metaCandidates, unmatchGame } from '../ipc';
+import { applyCandidate, metaCandidates, unmatchGame, pickExeFile, setGameExe } from '../ipc';
 import { toast } from '../ui';
 import { state } from '../state';
 
@@ -18,6 +18,8 @@ vi.mock('../ipc', async (orig) => {
     metaCandidates: vi.fn(),
     applyCandidate: vi.fn(),
     unmatchGame: vi.fn(),
+    pickExeFile: vi.fn(),
+    setGameExe: vi.fn(),
   };
 });
 
@@ -75,6 +77,37 @@ beforeEach(() => {
   vi.clearAllMocks();
   mountSkeleton();
   resetState();
+});
+
+describe('游戏管理 · 启动程序', () => {
+  it('菜单显示当前 exe，选新文件后从游戏目录起始并写回记录', async () => {
+    state.games = [
+      game(ID, {
+        title: 'AIR',
+        dir: 'D:\\Games\\AIR',
+        exe: 'D:\\Games\\AIR\\game.exe',
+      }),
+    ];
+    vi.mocked(pickExeFile).mockResolvedValueOnce('D:\\Games\\AIR\\game_chs.exe');
+    vi.mocked(setGameExe).mockResolvedValueOnce(undefined);
+
+    await openDetailMenu(ID);
+    expect(items().some((t) => t.includes('启动程序…game.exe'))).toBe(true);
+
+    await clickItem('启动程序');
+    await vi.waitFor(() => expect(setGameExe).toHaveBeenCalledWith(ID, 'D:\\Games\\AIR\\game_chs.exe'));
+    expect(pickExeFile).toHaveBeenCalledWith('D:\\Games\\AIR');
+  });
+
+  it('取消选择时不写记录', async () => {
+    state.games = [game(ID, { title: 'AIR', dir: 'D:\\Games\\AIR', exe: 'D:\\Games\\AIR\\game.exe' })];
+    vi.mocked(pickExeFile).mockResolvedValueOnce(null);
+
+    await openDetailMenu(ID);
+    await clickItem('启动程序');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(setGameExe).not.toHaveBeenCalled();
+  });
 });
 
 describe('游戏管理 · 元数据匹配入口', () => {

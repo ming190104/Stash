@@ -37,7 +37,8 @@ const AUX_EXE: &[&str] = &[
 ///
 /// - 跳过 `_` / `.` 开头的目录（如演示库的 `_assets`）；
 /// - 每个子目录先看本层 exe，没有再看下一层子目录（`作品名/game/xxx.exe`）；
-/// - 一个目录多个 exe 时取体积最大的；辅助程序（卸载 / 安装 / 配置 / 崩溃上报）排除。
+/// - 同名目录里同时有汉化版与日文版时优先汉化版（`*_ch.exe` / `*_chs.exe`），
+///   否则取体积最大的；辅助程序（卸载 / 安装 / 配置 / 崩溃上报）排除。
 pub fn find_games(root: &Path) -> Vec<FoundGame> {
     let mut out = Vec::new();
     // 读不动目录（权限 / IO / 盘掉线）不能伪装成「0 个候选」：用户会以为库是空的
@@ -79,7 +80,22 @@ fn is_aux_exe(lower_name: &str) -> bool {
     AUX_EXE.iter().any(|k| lower_name.contains(k))
 }
 
-/// 目录本层的 exe，排除辅助程序后取体积最大者
+/// 汉化版主程序：stem 以 `ch` / `chs` 结尾，且前面是分隔符或没有前缀。
+///
+/// 只做后缀判断会把 `patch.exe` / `launch.exe` / `speech.exe` 也当成汉化版，
+/// 因此要求 `ch`/`chs` 前面不是字母数字（`game_chs` / `game-CHS` / `game chs` / `chs`）。
+fn is_chs_stem(stem_lower: &str) -> bool {
+    let head = if let Some(h) = stem_lower.strip_suffix("chs") {
+        h
+    } else if let Some(h) = stem_lower.strip_suffix("ch") {
+        h
+    } else {
+        return false;
+    };
+    head.is_empty() || !head.chars().next_back().map(|c| c.is_ascii_alphanumeric()).unwrap_or(false)
+}
+
+/// 目录本层的 exe：排除辅助程序后，汉化版优先，其次取体积最大者
 pub(crate) fn pick_main_exe(dir: &Path) -> Option<PathBuf> {
     let rd = match std::fs::read_dir(dir) {
         Ok(rd) => rd,
@@ -89,22 +105,32 @@ pub(crate) fn pick_main_exe(dir: &Path) -> Option<PathBuf> {
         }
     };
     let mut best: Option<(u64, PathBuf)> = None;
+    let mut best_chs: Option<(u64, PathBuf)> = None;
     for e in rd.flatten() {
         if !e.file_type().map(|t| t.is_file()).unwrap_or(false) {
             continue;
         }
         let p = e.path();
-        let Some(name) = p.file_name() else { continue };
-        let lower = name.to_string_lossy().to_lowercase();
+        let Some(stem) = p.file_stem() else { continue };
+        let lower = p
+            .file_name()
+            .map(|n| n.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
         if !lower.ends_with(".exe") || is_aux_exe(&lower) {
             continue;
         }
         let size = e.metadata().map(|m| m.len()).unwrap_or(0);
         if best.as_ref().map(|(s, _)| size > *s).unwrap_or(true) {
-            best = Some((size, p));
+            best = Some((size, p.clone()));
+        }
+        // 汉化版单独记一条：体积更小的汉化 exe 也要压过体积更大的日文原版
+        if is_chs_stem(&stem.to_string_lossy().to_lowercase())
+            && best_chs.as_ref().map(|(s, _)| size > *s).unwrap_or(true)
+        {
+            best_chs = Some((size, p));
         }
     }
-    best.map(|(_, p)| p)
+    best_chs.or(best).map(|(_, p)| p)
 }
 
 /// 二级兜底：作品目录本身没有 exe 时，下探一层子目录找主程序
@@ -124,14 +150,22 @@ pub(crate) fn second_level_exe(dir: &Path) -> Option<PathBuf> {
         .collect();
     subs.sort();
     let mut best: Option<(u64, PathBuf)> = None;
+    let mut best_chs: Option<(u64, PathBuf)> = None;
     for sub in subs {
         let Some(exe) = pick_main_exe(&sub) else { continue };
         let size = std::fs::metadata(&exe).map(|m| m.len()).unwrap_or(0);
         if best.as_ref().map(|(s, _)| size > *s).unwrap_or(true) {
-            best = Some((size, exe));
+            best = Some((size, exe.clone()));
+        }
+        let stem = exe
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+        if is_chs_stem(&stem) && best_chs.as_ref().map(|(s, _)| size > *s).unwrap_or(true) {
+            best_chs = Some((size, exe));
         }
     }
-    best.map(|(_, p)| p)
+    best_chs.or(best).map(|(_, p)| p)
 }
 
 /// 作品目录的主程序：先看本层，再下探一层（Steam 常见的 `bin/` 布局）
@@ -393,6 +427,66 @@ mod tests {
             .unwrap()
             .exe
             .ends_with("big.exe"));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// 汉化版优先：`*_ch(s).exe` 即使比日文原版小，也作为主程序入库；
+    /// 以 ch 结尾的普通单词（speech.exe / patch.exe）不能误判
+    #[test]
+    fn chs_exe_wins_over_larger_original() {
+        let root = std::env::temp_dir().join(format!("stash-chs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+
+        let a = root.join("a");
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::write(a.join("game.exe"), vec![0u8; 8192]).unwrap();
+        std::fs::write(a.join("game_chs.exe"), vec![0u8; 1024]).unwrap();
+
+        // 另一种常见写法：分隔符不同 / 大写
+        let b = root.join("b");
+        std::fs::create_dir_all(&b).unwrap();
+        std::fs::write(b.join("main.exe"), vec![0u8; 8192]).unwrap();
+        std::fs::write(b.join("main-CH.EXE"), vec![0u8; 1024]).unwrap();
+
+        // speech.exe 只是以 ch 结尾的英文词，不能当成汉化版
+        let c = root.join("c");
+        std::fs::create_dir_all(&c).unwrap();
+        std::fs::write(c.join("speech.exe"), vec![0u8; 1024]).unwrap();
+        std::fs::write(c.join("game.exe"), vec![0u8; 8192]).unwrap();
+
+        let got = find_games(&root);
+        let exe_of = |name: &str| {
+            got.iter()
+                .find(|f| f.dir.ends_with(name))
+                .unwrap()
+                .exe
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        };
+        assert_eq!(exe_of("a"), "game_chs.exe");
+        assert_eq!(exe_of("b"), "main-CH.EXE");
+        assert_eq!(exe_of("c"), "game.exe", "speech.exe 不是汉化版");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// 二级兜底同样按汉化版优先：两个子目录各有一版时选 chs 那版
+    #[test]
+    fn chs_exe_wins_in_second_level() {
+        let root = std::env::temp_dir().join(format!("stash-chs2-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root.join("work");
+        std::fs::create_dir_all(dir.join("jp")).unwrap();
+        std::fs::create_dir_all(dir.join("cn")).unwrap();
+        std::fs::write(dir.join("jp/game.exe"), vec![0u8; 8192]).unwrap();
+        std::fs::write(dir.join("cn/game_chs.exe"), vec![0u8; 1024]).unwrap();
+
+        let got = find_games(&root);
+        assert_eq!(got.len(), 1);
+        assert!(got[0].exe.ends_with("game_chs.exe"), "{:?}", got[0].exe);
 
         let _ = std::fs::remove_dir_all(&root);
     }

@@ -247,6 +247,7 @@ pub fn run() {
             records::set_favorite,
             records::set_launch_args,
             records::set_game_title,
+            records::set_game_exe,
             records::set_hidden,
             records::set_user_tags,
             records::set_notes,

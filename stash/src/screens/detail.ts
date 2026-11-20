@@ -10,6 +10,8 @@ import {
   pickIso,
   pickImageFile,
   setGameTitle,
+  setGameExe,
+  pickExeFile,
   setGameCover,
   smartCover,
   steamgridCover,
@@ -429,6 +431,24 @@ export async function openDetailMenu(id: string): Promise<void> {
   if (!g) return;
   const iso = mountedIso.get(id);
   const list: MenuItem[] = [
+    {
+      key: 'exe',
+      label: '启动程序…',
+      hint: g.exe.split(/[\\/]/).pop() ?? '',
+      run: async () => {
+        // 从游戏目录开始选：汉化版 / 日文版通常同目录并列，不用再逐层翻
+        const picked = await pickExeFile(g.dir || undefined);
+        if (!picked || picked === g.exe) return;
+        try {
+          await setGameExe(id, picked);
+        } catch (e) {
+          toast(esc(String((e as { message?: string })?.message ?? e)), true);
+          return;
+        }
+        await afterChange();
+        toast('启动程序已更新');
+      },
+    },
     {
       key: 'args',
       label: '启动参数…',
