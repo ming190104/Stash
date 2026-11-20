@@ -28,6 +28,7 @@ const H = vi.hoisted(() => ({
   touchAsset: vi.fn(),
   setHidden: vi.fn(async (_id: string, _h: boolean) => undefined),
   removeGame: vi.fn(async (_id: string) => undefined),
+  deleteGameDir: vi.fn(async (_id: string) => undefined),
   metaCandidates: vi.fn(async (_id: string, _n?: number) => [] as unknown[]),
   applyCandidate: vi.fn(async (_id: string, _s: string, _k: string) => undefined),
   unmatchGame: vi.fn(async (_id: string) => undefined),
@@ -57,6 +58,7 @@ vi.mock('../ipc', async (importOriginal) => {
     touchAsset: H.touchAsset,
     setHidden: H.setHidden,
     removeGame: H.removeGame,
+    deleteGameDir: H.deleteGameDir,
     metaCandidates: H.metaCandidates,
     applyCandidate: H.applyCandidate,
     unmatchGame: H.unmatchGame,
@@ -406,6 +408,49 @@ describe('更多操作菜单', () => {
     await clickSoon('remove');
     await vi.waitFor(() => expect(H.removeGame).toHaveBeenCalledWith('a'));
     await vi.waitFor(() => expect(state.detailId).toBeNull());
+  });
+
+  it('删除游戏目录：确认后调后端并回库屏，取消失败都不动文件', async () => {
+    state.games = [game('a', { dir: 'D:\\Games\\AIR' })];
+    state.detailId = 'a';
+    state.screen = 'detail';
+    await renderDetail();
+    await openDetailMenu('a');
+    menuBtn('remove')!.click();
+
+    H.confirm.mockResolvedValueOnce(false);
+    await clickSoon('delete');
+    await vi.waitFor(() => expect(H.confirm).toHaveBeenCalled());
+    expect(H.deleteGameDir).not.toHaveBeenCalled();
+
+    state.detailId = 'a';
+    state.screen = 'detail';
+    await renderDetail();
+    await openDetailMenu('a');
+    menuBtn('remove')!.click();
+
+    H.confirm.mockResolvedValueOnce(true);
+    await clickSoon('delete');
+    await vi.waitFor(() => expect(H.deleteGameDir).toHaveBeenCalledWith('a'));
+    await vi.waitFor(() => expect(state.detailId).toBeNull());
+    expect(state.screen).toBe('library');
+    expect(toastLog()).toContain('已移入回收站');
+  });
+
+  it('删除游戏目录：后端拒绝时只报错，仍停在详情页', async () => {
+    state.games = [game('a', { dir: 'D:\\Games\\AIR' })];
+    state.detailId = 'a';
+    state.screen = 'detail';
+    await renderDetail();
+    await openDetailMenu('a');
+    menuBtn('remove')!.click();
+
+    H.deleteGameDir.mockRejectedValueOnce({ message: '该目录还包含其它已入库作品' });
+    H.confirm.mockResolvedValueOnce(true);
+    await clickSoon('delete');
+    await vi.waitFor(() => expect(lastToast()).toContain('还包含其它已入库作品'));
+    expect(state.detailId).toBe('a');
+    expect(state.screen).toBe('detail');
   });
 });
 

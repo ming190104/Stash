@@ -19,6 +19,7 @@
     "lastPlayed",
     "launchArgs",
     "lengthMinutes",
+    "localeOverride",
     "manual",
     "matchScore",
     "matched",

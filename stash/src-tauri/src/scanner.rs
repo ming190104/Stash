@@ -84,7 +84,7 @@ fn is_aux_exe(lower_name: &str) -> bool {
 ///
 /// 只做后缀判断会把 `patch.exe` / `launch.exe` / `speech.exe` 也当成汉化版，
 /// 因此要求 `ch`/`chs` 前面不是字母数字（`game_chs` / `game-CHS` / `game chs` / `chs`）。
-fn is_chs_stem(stem_lower: &str) -> bool {
+pub(crate) fn is_chs_stem(stem_lower: &str) -> bool {
     let head = if let Some(h) = stem_lower.strip_suffix("chs") {
         h
     } else if let Some(h) = stem_lower.strip_suffix("ch") {
@@ -347,6 +347,67 @@ fn find_shots(dir: &Path) -> Vec<String> {
     Vec::new()
 }
 
+/// 目录 CG 的筛选规则（拆出来便于单测）：横向构图、至少 720p、不是 UI 素材。
+fn cg_shot_ok(name: &str, w: u32, h: u32, bytes: u64) -> bool {
+    const SKIP: &[&str] = &["icon", "thumb", "logo", "button", "cursor", "mask"];
+    let ratio = w as f32 / h.max(1) as f32;
+    bytes >= 200_000
+        && w >= 1280
+        && h >= 720
+        && (1.5..=2.4).contains(&ratio)
+        && !SKIP.iter().any(|k| name.contains(k))
+}
+
+/// 目录里可当详情背景的 CG 大图：`shots/` 没有图时的兜底。
+///
+/// 只扫少量常见素材目录（根目录 + bg / cg / event 等），并要求横向、至少 720p、
+/// 体积不过小——否则包里的图标、UI 素材、竖版封面都会被当成背景。
+/// 只读图片头取尺寸，不整张解码；每个目录最多看 400 个条目。
+pub(crate) fn find_cg_image(dir: &Path) -> Option<(PathBuf, u64, u32, u32)> {
+    const CG_DIRS: &[&str] = &[
+        "", "bg", "cg", "event", "ev", "graphic", "graphics", "image", "images", "pic", "picture",
+    ];
+    const IMG_EXT: &[&str] = &["jpg", "jpeg", "png", "webp", "bmp"];
+    const MAX_PER_DIR: usize = 400;
+
+    let mut best: Option<(PathBuf, u64, u32, u32)> = None;
+    for sub in CG_DIRS {
+        let target = if sub.is_empty() {
+            dir.to_path_buf()
+        } else {
+            dir.join(sub)
+        };
+        let Ok(rd) = std::fs::read_dir(&target) else {
+            continue;
+        };
+        for entry in rd.flatten().take(MAX_PER_DIR) {
+            if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_lowercase();
+            let Some(ext) = name.rsplit('.').next() else {
+                continue;
+            };
+            if !IMG_EXT.contains(&ext) {
+                continue;
+            }
+            let bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            let p = entry.path();
+            let Ok((w, h)) = image::image_dimensions(&p) else {
+                continue;
+            };
+            if !cg_shot_ok(&name, w, h, bytes) {
+                continue;
+            }
+            let area = crate::media::eff_area(w, h);
+            if best.as_ref().map(|(_, a, _, _)| area > *a).unwrap_or(true) {
+                best = Some((p, area, w, h));
+            }
+        }
+    }
+    best
+}
+
 /// 限制文件数量的目录体积统计，避免超大目录拖死读取。
 fn dir_size_limited(dir: &Path, max_files: usize) -> u64 {
     let mut total: u64 = 0;
@@ -552,5 +613,17 @@ mod tests {
         }
         assert_eq!(find_shots(&dir).len(), 2, "不足三张不应被裁剪");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 目录 CG 兜底只收横向大图：竖版封面、UI 小图、低分辨率素材都不能当背景
+    #[test]
+    fn cg_shot_filter_skips_ui_and_portraits() {
+        assert!(cg_shot_ok("ev_01.png", 1920, 1080, 900_000), "16:9 大图可用");
+        assert!(cg_shot_ok("bg_02.jpg", 1600, 1000, 500_000), "16:10 也算横向");
+        assert!(!cg_shot_ok("ev_01.png", 1024, 768, 900_000), "不足 720p");
+        assert!(!cg_shot_ok("cover.png", 800, 1200, 900_000), "竖版封面");
+        assert!(!cg_shot_ok("ev_icon.png", 1920, 1080, 900_000), "UI 素材");
+        assert!(!cg_shot_ok("ev_01.png", 3000, 800, 900_000), "超宽横幅不参与");
+        assert!(!cg_shot_ok("ev_01.png", 1920, 1080, 120_000), "小文件不参与");
     }
 }

@@ -3,7 +3,7 @@
 use crate::models::{AppError, ErrCode, Settings};
 use crate::store::Store;
 
-use super::client::{check_remote_url, download_client, wait_turn};
+use super::client::{check_remote_url, download_client, wait_turn, Gate};
 
 /// 取一张网图：返回 (字节, 扩展名)。`what` 只用于错误文案。
 /// 走 1 req/s 串行闸门（封面 / 背景这类单张下载）。
@@ -36,7 +36,7 @@ fn fetch_image_inner(
     // （SSRF 面），也能用 file:// 之类读本地文件。放在最前面，避免任何请求发出。
     check_remote_url(url, "图片")?;
     let c = download_client(settings)?;
-    let _turn = if throttled { Some(wait_turn()) } else { None };
+    let _turn = if throttled { Some(wait_turn(Gate::Image)) } else { None };
     let resp = c
         .get(url)
         .send()
@@ -120,14 +120,16 @@ fn save_image(
     Ok(path.to_string_lossy().to_string())
 }
 
-/// 下载封面原图到 covers/<id>_src.<ext>，返回本地路径（两档 WebP 由 thumb::ensure 生成）
+/// 下载封面原图到 covers/<id>_src.<ext>，返回本地路径（两档 WebP 由 thumb::ensure 生成）。
+/// 封面在图片 CDN 上、与 API 不是同一套限流：走 `fetch_image_direct`，
+/// 否则批量匹配时每张封面（实测 3–9s）都会把 Bangumi / 萌娘百科的请求堵在闸门外。
 pub fn download_cover(
     settings: &Settings,
     store: &Store,
     game_id: &str,
     url: &str,
 ) -> Result<String, AppError> {
-    let (bytes, ext) = fetch_image(settings, url, "封面")?;
+    let (bytes, ext) = fetch_image_direct(settings, url, "封面")?;
     save_image(store, game_id, "_src", &bytes, &ext)
 }
 

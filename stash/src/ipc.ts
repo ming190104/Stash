@@ -132,6 +132,8 @@ function sanitizeGame(x: unknown): Game | null {
     hidden: boolOr(g.hidden, false),
     pending: boolOr(g.pending, false),
     needsLocale: boolOr(g.needsLocale, false),
+    // 三态覆盖：只有明确的 true / false 才算人工结论，其余回落到自动判定
+    localeOverride: g.localeOverride === true ? true : g.localeOverride === false ? false : null,
     matched: boolOr(g.matched, false),
     manual: boolOr(g.manual, false),
     metaManual: boolOr(g.metaManual, false),
@@ -338,6 +340,11 @@ export async function removeGame(id: string): Promise<void> {
   if (TAURI) await inv('remove_game', { id });
 }
 
+/** 删除单个游戏目录（移入系统回收站）：后端有严格护栏，失败时不会删任何文件 */
+export async function deleteGameDir(id: string): Promise<void> {
+  if (TAURI) await inv('delete_game_dir', { id });
+}
+
 /** 忽略列表：被「移除出库」记住的作品（重扫不再列出） */
 export async function listIgnored(): Promise<IgnoredGame[]> {
   if (!TAURI) return [];
@@ -369,6 +376,11 @@ export async function setGameTitle(id: string, title: string): Promise<void> {
 /** 更换启动程序：后端只接受游戏目录内的 exe（沿用入库时的安全校验） */
 export async function setGameExe(id: string, exe: string): Promise<void> {
   if (TAURI) await inv('set_game_exe', { id, exe });
+}
+
+/** 转区覆盖：null = 恢复自动判断；true = 强制转区；false = 不转区 */
+export async function setLocaleOverride(id: string, value: boolean | null): Promise<void> {
+  if (TAURI) await inv('set_locale_override', { id, value });
 }
 
 export async function setGameCover(id: string, path: string | null): Promise<void> {
@@ -875,6 +887,12 @@ export async function applyCandidate(
 
 export async function unmatchGame(id: string): Promise<void> {
   if (TAURI) await inv('unmatch_game', { id });
+}
+
+/** 按需补 Bangumi 标签（批量匹配不再为每部补详情）；返回补齐后的标签，失败返回空 */
+export async function ensureTags(id: string): Promise<string[]> {
+  if (!TAURI) return [];
+  return inv<string[]>('ensure_tags', { id });
 }
 
 /** 选择转区工具（LEProc.exe / Ntleas.exe），仅取路径，不在此处落盘 */

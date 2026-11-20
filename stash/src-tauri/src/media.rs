@@ -314,6 +314,9 @@ pub fn fetch_background(store: &Store, id: &str) -> Result<Option<String>, AppEr
     }
     if let Some((p, area)) = local_shot_cand(&g, false) {
         cands.push((area, 0, BgSource::File(p)));
+    } else if let Some((p, area, _, _)) = crate::scanner::find_cg_image(std::path::Path::new(&g.dir)) {
+        // shots/ 没图：在常见素材目录里找一张横向 CG 大图兜底
+        cands.push((area, 0, BgSource::File(p)));
     }
     let pick = cands
         .into_iter()
@@ -346,7 +349,8 @@ pub fn fetch_background(store: &Store, id: &str) -> Result<Option<String>, AppEr
     }
 }
 
-/// SteamGridDB hero 横幅（商店宣传图，3840×1240 起）；无 key / 无结果返回 None
+/// SteamGridDB 宽图：优先 hero 横幅（3840×1240 起），没有再试横版网格（920×430）。
+/// 无 key / 无结果返回 None。
 pub fn sgdb_hero_cand(settings: &crate::models::Settings, g: &Game) -> Option<(String, [u32; 2])> {
     if !settings.network.metadata_enabled {
         return None;
@@ -354,12 +358,25 @@ pub fn sgdb_hero_cand(settings: &crate::models::Settings, g: &Game) -> Option<(S
     // 每个候选要花 2 次请求（autocomplete + heroes），共用 1 req/s 的串行阀门：
     // keywords() 能给出 6–8 个变体，全试一遍最坏 16 秒才出背景。只试前 4 个——
     // 原名 / 标题 / PE 产品名 / 去装饰变体已覆盖绝大多数命中。
-    for kw in keywords(g).into_iter().take(4) {
-        match meta2::sgdb_hero(settings, &kw) {
+    let kws = keywords(g);
+    for kw in kws.iter().take(4) {
+        match meta2::sgdb_hero(settings, kw) {
             Ok(Some(v)) => return Some(v),
             Ok(None) => {}
             Err(e) => {
                 tracing::debug!("背景图跳过 SteamGridDB《{}》：{}", g.title, e.message);
+                return None;
+            }
+        }
+    }
+    // 没有 hero 时再试横版网格：不少作品只上传了 920×430 的网格图。
+    // 只试前 2 个关键词，避免在肯定没有的作品上再多花几秒。
+    for kw in kws.iter().take(2) {
+        match meta2::sgdb_wide_grid(settings, kw) {
+            Ok(Some(v)) => return Some(v),
+            Ok(None) => {}
+            Err(e) => {
+                tracing::debug!("背景图跳过 SteamGridDB 网格《{}》：{}", g.title, e.message);
                 return None;
             }
         }
@@ -544,6 +561,27 @@ pub fn background_candidates_sync(
                 BgSource::Url(url),
             ));
         }
+    }
+
+    // ④ 目录 CG 兜底：shots/ 没图时自动找一张横向大图，和自动背景同一套判定
+    let cg = if g.shots.is_empty() {
+        crate::scanner::find_cg_image(std::path::Path::new(&g.dir))
+    } else {
+        None
+    };
+    if let Some((p, _, w, h)) = cg {
+        items.push((
+            BgCandidate {
+                key: "cg".into(),
+                label: "目录 CG".into(),
+                source: "local".into(),
+                width: w,
+                height: h,
+                thumb: None,
+                current: false,
+            },
+            BgSource::File(p),
+        ));
     }
 
     // 缩略图：本地图直接解码；网图走 CDN（绕开 API 的 1 req/s 闸门）最多 4 张并发。

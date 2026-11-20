@@ -36,6 +36,7 @@ const GAME: Required<Game> = {
   favorite: false,
   addedAt: 0,
   needsLocale: false,
+  localeOverride: null,
   matched: true,
   launchArgs: [],
   bangumiId: null,

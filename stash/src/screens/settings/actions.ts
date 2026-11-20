@@ -251,8 +251,8 @@ async function runMatch(): Promise<void> {
       finishMatch(!!p.cancelled, p.done, p.total);
     });
     await matchAll();
-    // match_all 返回时预检已完成（预检本身可能阻塞 10–30s），整轮仍在 Rust 后台线程串行跑，
-    // 30–80 部要 1–3 分钟；所以不能按时间兜底——1.5s 后就把仍在进行的匹配当成结束，
+    // match_all 返回时预检已完成（预检四源并行），整轮仍在 Rust 后台线程按 3 路流水线跑；
+    // 所以不能按时间兜底——1.5s 后就把仍在进行的匹配当成结束，
     // 会拆掉进度监听并误报「完成」。
     // done 事件丢失（订阅失败）时按钮才会永久卡住：改为查后端状态，确认结束才收尾（幂等）。
     guard = window.setInterval(() => {

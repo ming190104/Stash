@@ -14,6 +14,9 @@ body{background:var(--bg1);font-family:var(--sans);color:var(--ink1);-webkit-fon
    左侧文字区横向压暗，右侧保留原图清晰度。 */
 .detailart{position:absolute;inset:0;background-position:center;background-repeat:no-repeat;background-size:cover;opacity:0;transition:opacity .45s ease;pointer-events:none}
 #app[data-screen="detail"] .detailart.show{opacity:1}
+/* 没有宽幅图时，竖版封面只做氛围底：模糊 + 压暗 + 轻微放大，
+   避免 2:3 封面被硬裁成 16:9 后放大发虚、构图也被裁掉；左侧封面卡仍保持清晰 */
+#app[data-screen="detail"] .detailart.soft{filter:blur(36px) saturate(1.15) brightness(.42);transform:scale(1.1)}
 /* 切屏首帧禁过渡：背景图与封面必须在第一帧就到位，否则会先看到一次暗场（黑闪） */
 #app.no-fade .detailart,
 #app.no-fade #kvArt{transition:none !important}

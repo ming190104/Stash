@@ -4,7 +4,7 @@ use crate::models::{AppError, ErrCode, Game};
 use crate::store::{self, Store};
 use crate::{egs, moegirl, net};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tauri::{AppHandle, Emitter, State};
 
 use super::apply::{apply_moegirl, apply_subject, clear_match};
@@ -86,7 +86,50 @@ pub fn match_running() -> bool {
     MATCH_RUNNING.load(Ordering::Relaxed)
 }
 
-/// 全量匹配：后台串行跑（1req/s，30–80 部约 1–3 分钟），进度与结果走事件。
+/// 详情页按需补 Bangumi 标签：批量匹配不再为每部补一次详情（每部省 1 次请求）。
+/// 只有「已绑定 Bangumi 条目且标签为空」时才发请求；失败静默返回空，不打断详情渲染。
+#[tauri::command]
+pub async fn ensure_tags(store: State<'_, Store>, id: String) -> Result<Vec<String>, AppError> {
+    let st = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || ensure_tags_sync(&st, &id))
+        .await
+        .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
+}
+
+pub fn ensure_tags_sync(store: &Store, id: &str) -> Result<Vec<String>, AppError> {
+    crate::check_id(id)?;
+    let s = store.load_settings();
+    let Some(g) = store.load_library().into_iter().find(|g| g.id == id) else {
+        return Err(AppError::new(ErrCode::NotFound, "游戏不在库中"));
+    };
+    if !g.tags.is_empty() {
+        return Ok(g.tags);
+    }
+    let Some(sid) = g.bangumi_id else {
+        return Ok(Vec::new());
+    };
+    let tags = match net::subject(&s, sid) {
+        Ok(sub) => sub.tags,
+        Err(e) => {
+            tracing::debug!("补标签跳过 {id}: {}", e.message);
+            return Ok(Vec::new());
+        }
+    };
+    if tags.is_empty() {
+        return Ok(tags);
+    }
+    // 只在仍为空时写回：等待期间用户可能已经手动改过标签
+    let saved = tags.clone();
+    let _ = crate::mutate_game(store, id, move |g| {
+        if g.tags.is_empty() {
+            g.tags = saved;
+        }
+        Ok(())
+    });
+    Ok(tags)
+}
+
+/// 全量匹配：后台 3 路流水线跑（每站点仍 1 req/s，但不同站点与封面下载可以重叠），进度与结果走事件。
 ///
 /// 并发约定：**每部先在锁外做网络与封面，再在锁内 load → 改 → save**。
 /// 旧实现是「开头 load 一次、结尾 save 一次」，跑了几分钟会把这段时间里用户
@@ -127,94 +170,100 @@ pub async fn match_all(app: AppHandle, store: State<'_, Store>, force: Option<bo
     }
     tauri::async_runtime::spawn_blocking(move || {
         let _run = MatchRunGuard;
-        let ids: Vec<String> = store.load_library().iter().map(|g| g.id.clone()).collect();
-        let total = ids.len();
-        let mut done = 0usize;
-        // 命中结果先攒着，每 FLUSH_BATCH 条才落盘一次：避免 1000 部作品产生
-        // 1000 次整库 JSON 写。锁内重新 load，所以并发期间对别的作品的修改不会被覆盖。
-        let mut pending: Vec<PendingHit> = Vec::new();
+        let lib = store.load_library();
+        let total = lib.len();
+        let ids: Vec<String> = lib.iter().map(|g| g.id.clone()).collect();
+        // 整轮共用一份快照：写盘阶段（flush_hits）仍会重新 load 并比对绑定快照，
+        // 所以匹配期间用户对别的作品的修改不会被覆盖。
+        let snapshots: HashMap<String, Game> =
+            lib.into_iter().map(|g| (g.id.clone(), g)).collect();
+        let next = AtomicUsize::new(0);
+        let done = AtomicUsize::new(0);
+        let workers = MATCH_WORKERS.min(ids.len());
 
-        for chunk in ids.chunks(FLUSH_BATCH) {
-            if MATCH_CANCEL.load(Ordering::Relaxed) {
-                flush_hits(&store, &mut pending);
-                let _ = app.emit(
-                    "match://done",
-                    serde_json::json!({ "total": total, "done": done, "cancelled": true }),
-                );
-                tracing::info!("match cancelled at {done}/{total}");
-                return;
-            }
-            // ① 批次开头读一次库：本轮 20 部共用同一份快照，省掉每部一次整库解析
-            let lib = store.load_library();
-            let index: HashMap<String, usize> =
-                lib.iter().enumerate().map(|(i, g)| (g.id.clone(), i)).collect();
+        std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| {
+                    // 本线程的命中先攒着，每 FLUSH_BATCH 条才落盘一次
+                    let mut pending: Vec<PendingHit> = Vec::new();
+                    loop {
+                        if MATCH_CANCEL.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        let i = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(id) = ids.get(i) else { break };
+                        // 取快照判断要不要跑（不持锁）；匹配期间被移出库的跳过
+                        let Some(snap) = snapshots.get(id) else { continue };
+                        // 已确认的绑定不重复匹配：Bangumi 有正式条目 id；萌娘百科命中只写
+                        // match_score（不写条目 id），漏掉它会让每次「开始匹配」都重搜一遍、
+                        // 重下一遍封面；待确认（pending）的仍要重试
+                        if !needs_match(snap, force) {
+                            done.fetch_add(1, Ordering::Relaxed);
+                            continue;
+                        }
 
-            for id in chunk {
-                if MATCH_CANCEL.load(Ordering::Relaxed) {
+                        // 锁外：搜索 / 打分 / 下封面（可能耗时数秒）
+                        match resolve_hit(&store, snap) {
+                            Ok(hit) => {
+                                // tier 与 apply_hit 的返回值一致：这里只用于进度事件
+                                let tier = match hit.as_ref() {
+                                    Some(h) if h.pending => "pending",
+                                    Some(_) => "auto",
+                                    None => "none",
+                                };
+                                // 攒起来，锁内批量写盘（flush_hits），不覆盖这期间的其它改动
+                                pending.push(PendingHit {
+                                    id: id.clone(),
+                                    hit,
+                                    force,
+                                    // 本轮结果是基于这份绑定得出的：写盘前据此判断是否被人工改过
+                                    bangumi_id: snap.bangumi_id,
+                                    match_score: snap.match_score,
+                                });
+                                if pending.len() >= FLUSH_BATCH {
+                                    flush_hits(&store, &mut pending);
+                                }
+                                let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+                                let _ = app.emit(
+                                    "match://progress",
+                                    serde_json::json!({ "done": n, "total": total, "id": id, "tier": tier }),
+                                );
+                            }
+                            Err(e) => {
+                                tracing::warn!("match failed {id}: {}", e.message);
+                                // 网络类错误不中断整批：单部失败继续下一部；限流也要让用户看见
+                                if matches!(e.code, ErrCode::NetworkOffline | ErrCode::RateLimited) {
+                                    let _ = app.emit("match://error", &e);
+                                }
+                                done.fetch_add(1, Ordering::Relaxed);
+                            }
+                        }
+                    }
                     flush_hits(&store, &mut pending);
-                    let _ = app.emit(
-                        "match://done",
-                        serde_json::json!({ "total": total, "done": done, "cancelled": true }),
-                    );
-                    tracing::info!("match cancelled at {done}/{total}");
-                    return;
-                }
-                // 取快照判断要不要跑（不持锁）；匹配期间被移出库的跳过
-                let Some(snap) = index.get(id).map(|&i| lib[i].clone()) else {
-                    continue;
-                };
-                // 已确认的绑定不重复匹配：Bangumi 有正式条目 id；萌娘百科命中只写 match_score
-                // （不写条目 id），漏掉它会让每次「开始匹配」都把这批作品重搜一遍、
-                // 重下一遍封面——1req/s 下整轮白等；待确认（pending）的仍要重试
-                if !needs_match(&snap, force) {
-                    done += 1;
-                    continue;
-                }
-
-                // ② 锁外：搜索 / 打分 / 补标签 / 下封面（可能耗时数秒）
-                match resolve_hit(&store, &snap) {
-                    Ok(hit) => {
-                        // tier 与 apply_hit 的返回值一致：这里只用于进度事件
-                        let tier = match hit.as_ref() {
-                            Some(h) if h.pending => "pending",
-                            Some(_) => "auto",
-                            None => "none",
-                        };
-                        // ③ 攒起来，锁内批量写盘（flush_hits），不覆盖这期间的其它改动
-                        pending.push(PendingHit {
-                            id: id.clone(),
-                            hit,
-                            force,
-                            // 本轮结果是基于这份绑定得出的：写盘前据此判断是否已被人工改过
-                            bangumi_id: snap.bangumi_id,
-                            match_score: snap.match_score,
-                        });
-                        if pending.len() >= FLUSH_BATCH {
-                            flush_hits(&store, &mut pending);
-                        }
-                        let _ = app.emit(
-                            "match://progress",
-                            serde_json::json!({ "done": done + 1, "total": total, "id": id, "tier": tier }),
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!("match failed {id}: {}", e.message);
-                        // 网络类错误不中断整批：单部失败继续下一部；限流也要让用户看见
-                        if matches!(e.code, ErrCode::NetworkOffline | ErrCode::RateLimited) {
-                            let _ = app.emit("match://error", &e);
-                        }
-                    }
-                }
-                done += 1;
+                });
             }
-            // 批次结束：把不足一批的结果也落盘
-            flush_hits(&store, &mut pending);
+        });
+
+        let finished = done.load(Ordering::Relaxed);
+        if MATCH_CANCEL.load(Ordering::Relaxed) {
+            let _ = app.emit(
+                "match://done",
+                serde_json::json!({ "total": total, "done": finished, "cancelled": true }),
+            );
+            tracing::info!("match cancelled at {finished}/{total}");
+        } else {
+            let _ = app.emit(
+                "match://done",
+                serde_json::json!({ "total": total, "done": finished }),
+            );
         }
-        flush_hits(&store, &mut pending);
-        let _ = app.emit("match://done", serde_json::json!({ "total": total, "done": done }));
     });
     Ok(())
 }
+
+/// 全量匹配的并发作品数：Bangumi 仍受 1 req/s 限制，3 路足以让其它站点与封面下载
+/// 交叉进行，又不至于对社区站点产生突发压力。
+const MATCH_WORKERS: usize = 3;
 
 /// 全量匹配每批攒多少条命中再统一写盘。写盘是整库 JSON，条数太少会退化成逐部落盘。
 const FLUSH_BATCH: usize = 20;
@@ -418,8 +467,10 @@ pub fn resolve_hit(store: &Store, g: &Game) -> Result<Option<MatchHit>, AppError
     let mut hint: Option<(u32, net::Subject)> = None;
     // Bangumi 在部分网络（如国内直连）会整体超时：不能因为主源不可达就放弃萌娘百科兜底
     let mut bgm_err: Option<AppError> = None;
+    // 关键词只算一次：Bangumi 与萌娘百科两段搜索共用同一份列表
+    let kws = keywords(g);
 
-    for kw in keywords(g).iter().take(4) {
+    for kw in kws.iter().take(3) {
         let list = match net::search(&s, kw) {
             Ok(list) => list,
             Err(e) => {
@@ -472,7 +523,7 @@ pub fn resolve_hit(store: &Store, g: &Game) -> Result<Option<MatchHit>, AppError
     if s.network.metadata_enabled && s.network.moegirl_fallback && (need_fallback || need_summary) {
         // 中文站按「原名 + 中文名 + 去副标题变体」依次试：带副标题的标题在萌娘
         // 常常搜不到（「樱之诗 −于樱之森上飞舞−」），落到 simplify 变体才命中
-        for kw in keywords(g).iter().take(4) {
+        for kw in kws.iter().take(3) {
             match moegirl::lookup(&s, kw) {
                 Ok(Some(a)) => {
                     if a.score >= 75 && mbest.as_ref().map(|b| a.score > b.score).unwrap_or(true) {
@@ -540,14 +591,8 @@ pub fn resolve_hit(store: &Store, g: &Game) -> Result<Option<MatchHit>, AppError
     if tier == net::MatchTier::None {
         return Ok(None);
     }
-    // 旧版检索不带标签；标签既是分面筛选的数据源，也是会社打分的依据，选中后补一次详情
-    let sub = if sub.tags.is_empty() {
-        net::subject(&s, sub.id).unwrap_or(sub)
-    } else {
-        sub
-    };
-    // 简介择优：Bangumi 简介偏英文 / 日文时，改用刚才查到的萌娘百科中文简介。
-    // 只覆盖简介，标题、条目绑定、评分仍以 Bangumi 为准。
+    // 旧版检索不带标签：批量匹配时不再为每部补一次详情（那是 1 次/部的额外请求），
+    // 改由详情页按需调用 `ensure_tags` 补齐；这里直接用搜索结果里的标签（v0 命中有）。
     let summary = match mbest.as_ref() {
         Some(a) if need_summary => {
             let picked = pick_summary(sub.summary.as_deref(), a.summary.as_deref());
@@ -605,6 +650,40 @@ mod tests {
         assert!(summary_poor(EN), "英文简介需要中文替换");
         assert!(summary_poor(JP), "日文简介需要中文替换");
         assert!(!summary_poor(CN), "中文简介不需要再查萌娘");
+    }
+
+    /// 详情页按需补标签：已有标签不再发请求；联网关闭时静默返回空
+    #[test]
+    fn ensure_tags_short_circuits_without_requests() {
+        let dir = std::env::temp_dir().join(format!("stash-tags-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = Store { dir: dir.clone() };
+        let a = "0123456789abcdef";
+        let b = "0123456789abcdee";
+        store
+            .save_library(&[
+                Game {
+                    id: a.into(),
+                    title: "T".into(),
+                    tags: vec!["已有".into()],
+                    bangumi_id: Some(1),
+                    ..Default::default()
+                },
+                Game {
+                    id: b.into(),
+                    title: "E".into(),
+                    bangumi_id: Some(2),
+                    ..Default::default()
+                },
+            ])
+            .unwrap();
+
+        assert_eq!(ensure_tags_sync(&store, a).unwrap(), vec!["已有"]);
+        // 默认设置里在线元数据是关闭的：subject() 直接返回配置错误，这里应静默为空
+        assert!(ensure_tags_sync(&store, b).unwrap().is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

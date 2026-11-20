@@ -64,6 +64,8 @@ export interface Game {
   favorite: boolean;
   addedAt: number;
   needsLocale: boolean;
+  /** 转区覆盖：null/缺省 = 按自动判定；true = 强制转区；false = 不转区 */
+  localeOverride?: boolean | null;
   matched: boolean;
   /** 每游戏启动参数（P4 B10：详情页填写） */
   launchArgs: string[];
@@ -217,6 +219,8 @@ export interface Settings {
     moegirlFallback?: boolean;
     /** SteamGridDB API Key（封面 / 截图 / 横版图；为空跳过该源） */
     sgdbKey?: string | null;
+    /** 全量匹配时查询 EGS 评分 / 时长（每部 2 次请求，默认关） */
+    egs?: boolean;
   };
   /** 转区：warnOnly = 仅提示；toolPath = LEProc/Ntleas；launch = 对需转区游戏经工具启动 */
   locale: { warnOnly: boolean; toolPath: string | null; launch: boolean };

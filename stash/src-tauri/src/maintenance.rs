@@ -174,7 +174,7 @@ pub fn export_diagnostics_sync(store: &Store) -> Result<std::path::PathBuf, AppE
         games.len(),
         games.iter().filter(|g| g.favorite).count(),
         games.iter().filter(|g| g.matched).count(),
-        games.iter().filter(|g| g.needs_locale).count()
+        games.iter().filter(|g| g.locale_override.unwrap_or(g.needs_locale)).count()
     ));
     out.push_str(&format!(
         "缺封面 {} ｜ 缺缩略图 {} ｜ 累计游玩 {:.1} 小时 ｜ 目录总量 {:.1} GB\n\n",

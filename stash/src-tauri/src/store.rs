@@ -466,6 +466,15 @@ pub fn is_ignored(list: &[IgnoredGame], exe: &str) -> bool {
     list.iter().any(|x| normalize_dir(&x.exe) == key)
 }
 
+/// 汉化版主程序（`*_ch.exe` / `*_chs.exe`）通常已经改过编码，自动判定时不再提示转区。
+/// 仍有例外，用户可以按作品覆盖（`locale_override`）。
+fn exe_is_localized(exe: &str) -> bool {
+    Path::new(exe)
+        .file_stem()
+        .map(|s| crate::scanner::is_chs_stem(&s.to_string_lossy().to_lowercase()))
+        .unwrap_or(false)
+}
+
 /// 把「刚探测到的作品」合进现有库：同目录沿用旧条目（保留游玩记录），
 /// 其余字段以最新探测为准。手动添加时 `old` 传空，只起「造一条 Game」的作用。
 pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, ScanReport) {
@@ -496,7 +505,8 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
         if !seen_ids.insert(id.clone()) {
             continue;
         }
-        let needs_locale = crate::engine::needs_locale(Path::new(&d.dir), d.engine, system_jp);
+        let needs_locale = !exe_is_localized(&d.exe)
+            && crate::engine::needs_locale(Path::new(&d.dir), d.engine, system_jp);
         match prev {
             Some(p) => {
                 updated += 1;
@@ -552,6 +562,7 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
                     favorite: p.favorite,
                     added_at: p.added_at,
                     needs_locale,
+                    locale_override: p.locale_override,
                     matched: d.matched || keep_meta,
                     // 启动参数是手工配置：详情页改过就以库为准，meta.json 没写才用探测值
                     launch_args: if p.launch_args.is_empty() { d.launch_args } else { p.launch_args.clone() },
@@ -609,6 +620,7 @@ pub fn merge_games(old: &[Game], detected: Vec<DetectedGame>) -> (Vec<Game>, Sca
                     favorite: false,
                     added_at: now_secs(),
                     needs_locale,
+                    locale_override: None,
                     matched: d.matched,
                     launch_args: d.launch_args,
                     bangumi_id: None,
@@ -779,6 +791,21 @@ mod tests {
         assert_eq!(g.bangumi_id, Some(232));
         assert_eq!(g.match_score, Some(110));
         assert!(g.matched, "已匹配状态不能被合并冲掉");
+    }
+
+    /// 汉化版主程序自动不提示转区；手工覆盖在重扫合并后必须保留
+    #[test]
+    fn localized_exe_skips_locale_and_override_survives_merge() {
+        let dir = "D:/games/KANON";
+        let mut d = detected(dir);
+        d.exe = format!("{dir}/KANON_chs.exe");
+        let (mut games, _) = merge_games(&[], vec![d.clone()]);
+        assert!(!games[0].needs_locale, "汉化版 exe 不该提示转区");
+        games[0].locale_override = Some(true);
+
+        let (after, _) = merge_games(&games, vec![d]);
+        assert_eq!(after[0].locale_override, Some(true), "覆盖不能被合并冲掉");
+        assert!(!after[0].needs_locale);
     }
 
     /// 路径写法差异（斜杠 / 大小写 / 末尾分隔符）不能产生不同 id

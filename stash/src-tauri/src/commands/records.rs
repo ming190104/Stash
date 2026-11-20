@@ -1,10 +1,12 @@
 //! 库记录命令：收藏 / 启动参数 / 标题 / 隐藏 / 标签 / 备注 / 评分 / END / 移除。
 //!
 //! 这些都是 `library.json` 的读—改—写，统一走 `crate::mutate_game`（同一把库写锁），
-//! 只改索引不碰游戏目录；只有 `remove_game` 会顺带清掉该作品专属的缓存图。
+//! 只改索引不碰游戏目录；只有 `remove_game` 会顺带清掉该作品专属的缓存图，
+//! `delete_game_dir` 才会把游戏目录移入回收站（先过 `check_deletable` 护栏）。
 
 use crate::models::{AppError, EndMark, ErrCode, IgnoredGame};
 use crate::store::Store;
+use std::path::{Path, PathBuf};
 use tauri::State;
 
 /// 收藏落盘：`favorite` 属于游玩记录（唯一不可再生数据），改一次写一次盘。
@@ -85,6 +87,202 @@ pub async fn remove_game(store: State<'_, Store>, id: String) -> Result<(), AppE
 }
 
 fn remove_game_sync(store: &Store, id: &str) -> Result<(), AppError> {
+    drop_game_record(store, id, true)
+}
+
+/// 删除一部作品的游戏目录（移入系统回收站），成功后移除库记录。
+/// 删除是高危动作：先过 [`check_deletable`] 的护栏，再交给系统回收站；
+/// 任何一步失败都直接报错，绝不退化成永久删除。
+#[tauri::command]
+pub async fn delete_game_dir(store: State<'_, Store>, id: String) -> Result<(), AppError> {
+    let st = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || delete_game_dir_sync(&st, &id))
+        .await
+        .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
+}
+
+fn delete_game_dir_sync(store: &Store, id: &str) -> Result<(), AppError> {
+    crate::check_id(id)?;
+    if crate::launcher::is_running(id) {
+        return Err(AppError::new(
+            ErrCode::AlreadyRunning,
+            "游戏正在运行，请先结束游戏再删除目录",
+        ));
+    }
+    let (dir, others, roots) = {
+        let games = store.load_library();
+        let Some(g) = games.iter().find(|g| g.id == id) else {
+            return Err(AppError::new(ErrCode::NotFound, "游戏不在库中"));
+        };
+        let others: Vec<String> = games
+            .iter()
+            .filter(|x| x.id != id)
+            .map(|x| x.dir.clone())
+            .collect();
+        (g.dir.clone(), others, store.load_settings().library_roots)
+    };
+    let target = check_deletable(&dir, &others, &roots, &store.dir)?;
+    move_to_recycle_bin(&target)?;
+    tracing::info!("game dir moved to recycle bin: {}", target.display());
+    // 目录已经没了：只清索引与缓存，不写忽略表（重扫也不可能再发现它）
+    if let Err(e) = drop_game_record(store, id, false) {
+        tracing::error!("目录已移入回收站，但库记录清理失败 {id}：{}", e.message);
+    }
+    Ok(())
+}
+
+/// 「删除游戏目录」的安全闸：任何一条不满足都拒绝，调用方不得删除任何文件。
+///
+/// 只接受库内记录的真实目录；账号目录 / 系统目录 / 应用数据目录 / 库根目录，
+/// 以及「包含其它已入库作品」的上级目录一律拒绝——避免一次误触清空整个游戏库。
+pub(crate) fn check_deletable(
+    dir: &str,
+    others: &[String],
+    roots: &[String],
+    app_data: &Path,
+) -> Result<PathBuf, AppError> {
+    let refuse = |msg: String| AppError::new(ErrCode::ConfigInvalid, msg);
+    let raw = dir.trim();
+    if raw.is_empty() {
+        return Err(refuse("这条记录没有目录信息".into()));
+    }
+    if raw.starts_with(r"\\") {
+        return Err(refuse("网络路径不支持直接删除，请手动处理".into()));
+    }
+    let canon = std::fs::canonicalize(raw)
+        .map_err(|_| AppError::new(ErrCode::NotFound, "游戏目录不存在，可能已被手动删除"))?;
+    if !canon.is_dir() {
+        return Err(AppError::new(ErrCode::NotFound, "目标不是目录，已取消删除"));
+    }
+    // 盘符根不允许：那已经不是一个「游戏目录」
+    if canon.parent().is_none() || canon.components().count() < 3 {
+        return Err(refuse("不能删除盘符根目录".into()));
+    }
+    // 库里的路径是用户当年选的原始写法，这里统一按真实路径比较：
+    // canonicalize 在 Windows 会带 `\\?\` 前缀、解析短文件名与符号链接，
+    // 拿原始字符串和目标比较会漏判。不存在的路径退回原文（仍能拦同目录重复记录）。
+    fn key_of(p: &str) -> String {
+        std::fs::canonicalize(p)
+            .map(|c| crate::store::normalize_dir(&c.to_string_lossy()))
+            .unwrap_or_else(|_| crate::store::normalize_dir(p))
+    }
+    let key = crate::store::normalize_dir(&canon.to_string_lossy());
+
+    // 系统目录 / 用户目录 / 应用数据目录：等于它们、或目标包含它们，都拒绝
+    let mut protected: Vec<PathBuf> = vec![app_data.to_path_buf()];
+    for var in [
+        "SystemRoot",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "ProgramData",
+        "USERPROFILE",
+        "LOCALAPPDATA",
+        "APPDATA",
+    ] {
+        if let Ok(p) = std::env::var(var) {
+            protected.push(PathBuf::from(p));
+        }
+    }
+    for p in protected {
+        let Ok(pc) = std::fs::canonicalize(&p) else { continue };
+        let pkey = crate::store::normalize_dir(&pc.to_string_lossy());
+        if key == pkey || pkey.starts_with(&format!("{key}\\")) {
+            return Err(refuse(format!("拒绝删除系统 / 应用目录：{}", canon.display())));
+        }
+    }
+
+    // 库根目录：等于库根、或目标包含库根，都说明删下去会连累整库
+    for r in roots {
+        let rkey = key_of(r);
+        if rkey.is_empty() {
+            continue;
+        }
+        if rkey == key || rkey.starts_with(&format!("{key}\\")) {
+            return Err(refuse(format!(
+                "这个目录是游戏库根目录，不能删除：{}",
+                canon.display()
+            )));
+        }
+    }
+
+    // 其它已入库作品：同目录（重复记录）或目标包含其它作品，都拒绝
+    for o in others {
+        let okey = key_of(o);
+        if okey.is_empty() {
+            continue;
+        }
+        if okey == key || okey.starts_with(&format!("{key}\\")) {
+            return Err(refuse(format!(
+                "该目录还包含其它已入库作品，不能整目录删除：{}",
+                canon.display()
+            )));
+        }
+    }
+    Ok(canon)
+}
+
+/// `canonicalize` 产生的是 `\\?\` 前缀的扩展长度路径，而 SHFileOperationW 只接受普通写法。
+#[cfg(windows)]
+fn shell_path(path: &Path) -> String {
+    let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = s.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        s.into_owned()
+    }
+}
+
+/// 把目录移入 Windows 回收站（`FOF_ALLOWUNDO`）。
+/// 失败时返回错误，由调用方保留现场；不会改用永久删除兜底。
+/// 注意：`FOF_ALLOWUNDO` 在未启用回收站的卷（部分 U 盘 / 移动硬盘）上会被系统
+/// 直接永久删除——这是回收站 API 的既有行为，前端确认框已写明这一点。
+#[cfg(windows)]
+fn move_to_recycle_bin(path: &Path) -> Result<(), AppError> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::UI::Shell::{
+        SHFileOperationW, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FO_DELETE,
+        SHFILEOPSTRUCTW,
+    };
+
+    // `canonicalize` 在 Windows 返回 `\\?\C:\...` 形式，而 SHFileOperationW 不认这个前缀
+    // （会当作非法路径返回 0x7C）。调用前换回普通写法；UNC 前缀单独还原。
+    let plain = shell_path(path);
+
+    // pFrom 必须是「双 NUL 结尾」的宽字符串路径
+    let mut from: Vec<u16> = std::ffi::OsStr::new(&plain).encode_wide().collect();
+    from.push(0);
+    from.push(0);
+    let mut op: SHFILEOPSTRUCTW = unsafe { std::mem::zeroed() };
+    op.wFunc = FO_DELETE;
+    op.pFrom = from.as_ptr();
+    op.fFlags = (FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI) as u16;
+    let rc = unsafe { SHFileOperationW(&mut op) };
+    if op.fAnyOperationsAborted != 0 {
+        return Err(AppError::new(ErrCode::IoError, "操作已取消，未删除任何文件"));
+    }
+    if rc != 0 {
+        return Err(AppError::new(
+            ErrCode::IoError,
+            format!("移入回收站失败（代码 {rc}）：可手动删除该目录"),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn move_to_recycle_bin(_path: &Path) -> Result<(), AppError> {
+    Err(AppError::new(
+        ErrCode::ConfigInvalid,
+        "当前平台不支持回收站删除",
+    ))
+}
+
+/// 从库中移除一条记录，并清掉它专属的缓存图。
+/// `remember_ignore = true` 时写忽略表（「从库中移除」）；删除目录时传 false，
+/// 只清理可能残留的旧忽略项——目录已经不存在，再记住它没有意义。
+fn drop_game_record(store: &Store, id: &str, remember_ignore: bool) -> Result<(), AppError> {
     crate::check_id(id)?;
     let (cover, thumb, still_used, ignored) = {
         let _lock = crate::store::lock_library();
@@ -130,16 +328,21 @@ fn remove_game_sync(store: &Store, id: &str) -> Result<(), AppError> {
     // 就得等用户手动跑一次「清理无用数据」
     crate::prune_prefixed(&store.covers_dir(), &format!("{id}_bg."), None);
 
-    // 把这次移除记进忽略表：重扫同一根目录不再把它列出来，解决「删了又回来」的死循环。
-    // 写忽略表失败不影响移除本身（库已经落盘），最多下次扫描多出一次候选。
+    // 忽略表：移除出库要记住，重扫同一根目录不再把它列出来（解决「删了又回来」）；
+    // 删除目录时目录已经没了，只清掉可能残留的旧项。
     {
         let _lock = crate::store::lock_ignored();
         let key = crate::store::normalize_dir(&ignored.exe);
         let mut ignored_list = store.load_ignored();
+        let before = ignored_list.len();
         ignored_list.retain(|x| crate::store::normalize_dir(&x.exe) != key);
-        ignored_list.push(ignored);
-        if let Err(e) = store.save_ignored(&ignored_list) {
-            tracing::warn!("写入忽略表失败（本次移除仍生效）：{e}");
+        if remember_ignore {
+            ignored_list.push(ignored);
+        }
+        if remember_ignore || ignored_list.len() != before {
+            if let Err(e) = store.save_ignored(&ignored_list) {
+                tracing::warn!("写入忽略表失败（本次移除仍生效）：{e}");
+            }
         }
     }
 
@@ -237,6 +440,25 @@ pub async fn set_game_exe(
         crate::mutate_game(&st, &id, |g| {
             crate::guard_game_exe(&path, std::path::Path::new(&g.dir))?;
             g.exe = path.to_string_lossy().to_string();
+            Ok(())
+        })
+    })
+    .await
+    .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
+}
+
+/// 转区覆盖：None = 按自动判定；Some(true) = 强制转区；Some(false) = 不转区。
+/// 自动判定会误报（汉化版 / 重打包 / 引擎识别偏差），详情页可逐部纠正。
+#[tauri::command]
+pub async fn set_locale_override(
+    store: State<'_, Store>,
+    id: String,
+    value: Option<bool>,
+) -> Result<(), AppError> {
+    let st = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::mutate_game(&st, &id, |g| {
+            g.locale_override = value;
             Ok(())
         })
     })
@@ -378,5 +600,50 @@ mod tests {
         assert!(!inside.exists(), "缓存目录内的自有文件仍应清理");
         assert!(store.load_library().is_empty());
         let _ = std::fs::remove_dir_all(&store.dir);
+    }
+
+    /// 删除目录护栏：正常作品目录放行；库根 / 含其它作品 / 应用数据 / 盘符根一律拒绝
+    #[test]
+    fn check_deletable_guards_dangerous_paths() {
+        let base = std::env::temp_dir().join(format!("stash-del-guard-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let app_data = base.join("appdata");
+        let games = base.join("games");
+        let air = games.join("AIR");
+        let b = games.join("B");
+        for p in [&app_data, &air, &b] {
+            std::fs::create_dir_all(p).unwrap();
+        }
+        let s = |p: &std::path::Path| p.to_string_lossy().into_owned();
+        let roots = vec![s(&games)];
+        let others = vec![s(&b)];
+
+        // 正常作品目录：放行
+        let ok = check_deletable(&s(&air), &others, &roots, &app_data).unwrap();
+        assert_eq!(ok, std::fs::canonicalize(&air).unwrap());
+
+        // 库根：删下去会连累整库
+        assert!(check_deletable(&s(&games), &others, &roots, &app_data).is_err());
+        // 包含其它已入库作品
+        assert!(check_deletable(&s(&games), &[s(&air), s(&b)], &[], &app_data).is_err());
+        // 应用数据目录（等于 / 包含都拒绝）
+        assert!(check_deletable(&s(&app_data), &[], &[], &app_data).is_err());
+        assert!(check_deletable(&s(&base), &[], &[], &app_data).is_err());
+        // 网络路径不做直接删除
+        assert!(check_deletable(r"\\server\share\game", &[], &[], &app_data).is_err());
+        // 盘符根
+        #[cfg(windows)]
+        assert!(check_deletable(r"C:\", &[], &[], &app_data).is_err());
+
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// SHFileOperationW 不认扩展长度前缀：调用前必须换回普通 / UNC 写法
+    #[cfg(windows)]
+    #[test]
+    fn shell_path_strips_verbatim_prefix() {
+        assert_eq!(shell_path(Path::new(r"\\?\C:\Games\AIR")), r"C:\Games\AIR");
+        assert_eq!(shell_path(Path::new(r"\\?\UNC\srv\share\AIR")), r"\\srv\share\AIR");
+        assert_eq!(shell_path(Path::new(r"D:\Games\AIR")), r"D:\Games\AIR");
     }
 }

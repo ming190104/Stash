@@ -27,37 +27,82 @@ const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 /// Bangumi subject type=4 即游戏
 pub(crate) const TYPE_GAME: u8 = 4;
 
-/// 串行阀门：保证「同一时刻只有 1 个请求、且间隔 ≥1s」
-static GATE: Mutex<Option<Instant>> = Mutex::new(None);
-/// 在途许可：guard 活到请求结束，才是真正的「并发 1」
-static IN_FLIGHT: Mutex<()> = Mutex::new(());
+/// 串行阀门的「站点」。不同站点各自 1 req/s、互不阻塞：
+/// 四源并行才不会被 Bangumi 的 1 req/s 拖成串行；封面 CDN 也不再堵住 API。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(usize)]
+pub(crate) enum Gate {
+    Bangumi = 0,
+    Moegirl = 1,
+    Egs = 2,
+    Kungal = 3,
+    Sgdb = 4,
+    Image = 5,
+}
 
-/// 取得发车许可；返回值必须持有到请求结束（`let _turn = wait_turn();`）
-pub(crate) fn wait_turn() -> std::sync::MutexGuard<'static, ()> {
-    // 429 之后的全局冷却最长 60 秒。必须先在锁外等：若持着 IN_FLIGHT 睡觉，
-    // 一个在冷却里的请求会把四个数据源的请求全部堵死（实际并发变成 0）。
-    wait_cooldown();
-    let flight = IN_FLIGHT.lock().unwrap_or_else(|e| e.into_inner());
+const GATE_COUNT: usize = 6;
+
+/// 单个站点的阀门：在途许可 + 最小间隔 + 该站点自己的 429 冷却。
+/// 冷却必须按站点隔离：EGS 被封不该冻结 Bangumi / 萌娘百科。
+struct HostGate {
+    in_flight: Mutex<()>,
+    last: Mutex<Option<Instant>>,
+    cooldown: Mutex<Option<Instant>>,
+}
+
+impl HostGate {
+    const fn new() -> Self {
+        Self {
+            in_flight: Mutex::new(()),
+            last: Mutex::new(None),
+            cooldown: Mutex::new(None),
+        }
+    }
+}
+
+static GATES: [HostGate; GATE_COUNT] = [
+    HostGate::new(),
+    HostGate::new(),
+    HostGate::new(),
+    HostGate::new(),
+    HostGate::new(),
+    HostGate::new(),
+];
+
+fn host_gate(gate: Gate) -> &'static HostGate {
+    &GATES[gate as usize]
+}
+
+/// 取得发车许可；返回值必须持有到请求结束（`let _turn = wait_turn(Gate::Bangumi);`）
+pub(crate) fn wait_turn(gate: Gate) -> std::sync::MutexGuard<'static, ()> {
+    let g = host_gate(gate);
+    // 429 之后的冷却最长 60 秒。必须先在锁外等：若持着 in_flight 睡觉，
+    // 该站点后续请求会全部堵死（实际并发变成 0）。
+    wait_cooldown(gate);
+    let flight = g.in_flight.lock().unwrap_or_else(|e| e.into_inner());
     // 等锁期间可能有别的请求刚触发限流：拿到在途许可后再确认一次
-    wait_cooldown();
-    let mut g = GATE.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(last) = *g {
-        let elapsed = last.elapsed();
+    wait_cooldown(gate);
+    let mut last = g.last.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(t) = *last {
+        let elapsed = t.elapsed();
         if elapsed < TICK {
             std::thread::sleep(TICK - elapsed);
         }
     }
-    *g = Some(Instant::now());
+    *last = Some(Instant::now());
     flight
 }
 
 /// 分片睡眠等冷却结束：每片重读截止时间，用户点「测试连接 / 重新匹配」时
 /// `clear_cooldown()` 能立刻生效，不必干等满 60 秒。
-fn wait_cooldown() {
+fn wait_cooldown(gate: Gate) {
     loop {
-        let left = (*COOLDOWN.lock().unwrap_or_else(|e| e.into_inner()))
-            .map(|t| t.saturating_duration_since(Instant::now()))
-            .unwrap_or_default();
+        let left = (*host_gate(gate)
+            .cooldown
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()))
+        .map(|t| t.saturating_duration_since(Instant::now()))
+        .unwrap_or_default();
         if left.is_zero() {
             break;
         }
@@ -65,23 +110,24 @@ fn wait_cooldown() {
     }
 }
 
-/// 429 / 403 之后的冷却截止时间
-static COOLDOWN: Mutex<Option<Instant>> = Mutex::new(None);
-
-/// 清掉限流冷却：用户主动重试（换网络 / 换代理 / 点测试连接）时用，不该再等旧的 60 秒
+/// 清掉所有站点的限流冷却：用户主动重试（换网络 / 换代理 / 点测试连接）时用
 pub(crate) fn clear_cooldown() {
-    *COOLDOWN.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    for g in GATES.iter() {
+        *g.cooldown.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
 }
 
-/// 记一次限流：下一个请求至少等这么久。Bangumi 的限流窗口是分钟级的，60s 才有效果。
-/// 其他站点（EGS / SDGB / 萌娘百科）共用同一个冷却闸，只是错误文案各自拼。
-pub(crate) fn cool_down() {
-    *COOLDOWN.lock().unwrap_or_else(|e| e.into_inner()) =
+/// 记一次限流：该站点下一个请求至少等这么久。Bangumi 的限流窗口是分钟级的，60s 才有效果。
+pub(crate) fn cool_down(gate: Gate) {
+    *host_gate(gate)
+        .cooldown
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) =
         Some(Instant::now() + std::time::Duration::from_secs(60));
 }
 
 pub(crate) fn note_rate_limited(status: u16) -> AppError {
-    cool_down();
+    cool_down(Gate::Bangumi);
     AppError::new(
         ErrCode::RateLimited,
         format!("Bangumi 限流（HTTP {status}），已暂停 60 秒后自动重试"),

@@ -113,7 +113,7 @@ fn get_json(
     what: &str,
 ) -> Result<serde_json::Value, AppError> {
     let c = crate::net::client(s)?;
-    let _turn = crate::net::wait_turn();
+    let _turn = crate::net::wait_turn(crate::net::Gate::Moegirl);
     let resp = c
         .get(API)
         .query(params)
@@ -121,7 +121,7 @@ fn get_json(
         .map_err(|e| AppError::new(ErrCode::NetworkOffline, format!("{what}不可达：{e}")))?;
     let status = resp.status();
     if status.as_u16() == 429 {
-        crate::net::cool_down();
+        crate::net::cool_down(crate::net::Gate::Moegirl);
         return Err(AppError::new(
             ErrCode::RateLimited,
             format!("{what}限流（HTTP 429），已暂停 60 秒"),

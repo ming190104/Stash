@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { game, key, mountSkeleton, resetState } from './dom-skeleton';
 import { handleOverlayKey } from '../overlay';
 import { openDetailMenu } from '../screens/detail';
-import { applyCandidate, metaCandidates, unmatchGame, pickExeFile, setGameExe } from '../ipc';
+import { applyCandidate, metaCandidates, unmatchGame, pickExeFile, setGameExe, setLocaleOverride } from '../ipc';
 import { toast } from '../ui';
 import { state } from '../state';
 
@@ -20,6 +20,7 @@ vi.mock('../ipc', async (orig) => {
     unmatchGame: vi.fn(),
     pickExeFile: vi.fn(),
     setGameExe: vi.fn(),
+    setLocaleOverride: vi.fn(),
   };
 });
 
@@ -107,6 +108,33 @@ describe('游戏管理 · 启动程序', () => {
     await clickItem('启动程序');
     await new Promise((r) => setTimeout(r, 0));
     expect(setGameExe).not.toHaveBeenCalled();
+  });
+});
+
+describe('游戏管理 · 转区设置', () => {
+  it('未覆盖时显示自动判定结果，选「不需要转区」写入覆盖', async () => {
+    state.games = [game(ID, { title: 'KANON', needsLocale: true })];
+    vi.mocked(setLocaleOverride).mockResolvedValueOnce(undefined);
+
+    await openDetailMenu(ID);
+    expect(items().some((t) => t.includes('转区设置…需转区'))).toBe(true);
+
+    await clickItem('转区设置');
+    await vi.waitFor(() => expect(title()).toContain('转区设置'));
+    expect(items()).toEqual(['✓自动判断当前：需转区', '需要转区', '不需要转区', '返回B']);
+
+    await clickItem('不需要转区');
+    await vi.waitFor(() => expect(setLocaleOverride).toHaveBeenCalledWith(ID, false));
+  });
+
+  it('已有覆盖时角标跟着覆盖走，而不是自动判定', async () => {
+    state.games = [game(ID, { title: 'KANON', needsLocale: true, localeOverride: false })];
+    await openDetailMenu(ID);
+    expect(items().some((t) => t.includes('转区设置…不需要'))).toBe(true);
+
+    await clickItem('转区设置');
+    await vi.waitFor(() => expect(title()).toContain('转区设置'));
+    expect(items().some((t) => t.includes('✓不需要转区'))).toBe(true);
   });
 });
 

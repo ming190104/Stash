@@ -1,7 +1,7 @@
 //! EGS（ErogameScape / 批评空间）第三元数据源：中央値（口碑分）与参考游玩时长。
 //!
 //! 只做「标题 → 搜索结果第一条 → 作品页」两步，纯 HTML 解析，不带账号。
-//! - 与 Bangumi / 萌娘百科 共用 1 req/s 串行阀门（`net::wait_turn`）与同一套代理设置；
+//! - 使用 EGS 自己的 1 req/s 串行阀门与限流冷却（各站点互不阻塞），同一套代理设置；
 //! - EGS 整体不可达时置 OFFLINE，本轮剩余作品直接跳过，不再逐个等超时；
 //! - 任何解析失败都返回 None（补不上总比整批匹配失败好）。
 //!
@@ -61,16 +61,16 @@ fn fetch(client: &reqwest::blocking::Client, url: &str) -> Result<String, AppErr
 }
 
 fn fetch_once(client: &reqwest::blocking::Client, url: &str) -> Result<String, AppError> {
-    let _turn = crate::net::wait_turn();
+    let _turn = crate::net::wait_turn(crate::net::Gate::Egs);
     let resp = client
         .get(url)
         .send()
         .map_err(|e| AppError::new(ErrCode::NetworkOffline, format!("EGS 不可达：{e}")))?;
     let status = resp.status();
     // 只有 429 是真限流；403 多为地区封锁（EGS 对部分 IP 段直接拒绝），
-    // 等 60 秒也不会好转，更不该用它冻结 Bangumi / 萌娘百科 共用的节流闸
+    // 等 60 秒也不会好转；冷却也只作用于 EGS 自己的闸门
     if status.as_u16() == 429 {
-        crate::net::cool_down();
+        crate::net::cool_down(crate::net::Gate::Egs);
         return Err(AppError::new(
             ErrCode::RateLimited,
             "EGS 限流（HTTP 429），已暂停 60 秒",

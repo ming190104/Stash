@@ -240,7 +240,7 @@ async function showLaunchLayer(g: Game): Promise<void> {
   document.getElementById('llTitle')!.textContent = g.title;
   document.getElementById('llStatus')!.textContent = '正在启动…';
   layer.classList.add('on');
-  if (g.needsLocale && (state.settings?.locale.warnOnly ?? true)) {
+  if ((g.localeOverride ?? g.needsLocale) && (state.settings?.locale.warnOnly ?? true)) {
     toast('检测到 Shift-JIS 引擎：如启动异常，建议用转区工具运行');
   }
   // 首次用手柄启动游戏时提示唯一的手柄出口：游戏卡死 / 全屏时没有别的办法叫回窗口

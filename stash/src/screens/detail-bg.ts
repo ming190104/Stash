@@ -8,6 +8,9 @@ import type { Game } from '../types';
 import { asset, detailBackground } from '../ipc';
 import { cssUrl } from '../ui';
 
+/** 一张候选背景：`soft` 表示它是竖版封面 / 缩略图，只能当模糊氛围底 */
+type BgPick = { src: string; soft?: boolean };
+
 /** 已经尝试过联网取背景图的作品：失败后本进程内不再重试（避免每次进详情都发请求） */
 const bgTried = new Set<string>();
 
@@ -70,6 +73,7 @@ export function resetDetailArt(): void {
   paintedId = '';
   if (!el) return;
   el.classList.remove('show');
+  el.classList.remove('soft');
   el.style.backgroundImage = '';
   document.getElementById('app')?.classList.remove('has-bg');
 }
@@ -86,6 +90,7 @@ export function primeDetailArt(id: string): boolean {
   paintedId = id;
   el.style.backgroundImage = cssUrl(u);
   el.classList.add('show');
+  el.classList.remove('soft');
   app.classList.add('has-bg');
   showDetailArtNow(true);
   return true;
@@ -178,12 +183,15 @@ export function paintDetailArt(g: Game | null, isCurrent: () => boolean): void {
     paintedId = g.id;
   }
   let prio = 0;
-  const paint = (u: string, p: number): void => {
+  /** `soft`：这张图只当氛围底（竖版封面 / 缩略图），由 CSS 模糊压暗，
+   *  避免把 2:3 封面硬裁成 16:9 后放大发虚、构图被裁掉。 */
+  const paint = (u: string, p: number, soft = false): void => {
     if (!isCurrent() || p < prio) return;
     prio = p;
     // 从隐藏直接变出来时不要 450ms 淡入：那半秒里背景是半透明的，等于先暗一下
     const hidden = !el.classList.contains('show');
     if (hidden) el.style.transition = 'none';
+    el.classList.toggle('soft', soft);
     el.style.backgroundImage = cssUrl(u);
     el.classList.add('show');
     if (hidden) {
@@ -206,30 +214,32 @@ export function paintDetailArt(g: Game | null, isCurrent: () => boolean): void {
   };
   /** 按顺序试一串候选图：解不出来（路径失效 / 文件被删）就试下一张；
    *  全都失败时交回 `onFail`，让调用方决定退回哪一层 */
-  const showFirst = (list: string[], p: number, onFail?: () => void, i = 0): void => {
-    const src = list[i];
-    if (!src) {
+  const showFirst = (list: BgPick[], p: number, onFail?: () => void, i = 0): void => {
+    const pick = list[i];
+    if (!pick) {
       onFail?.();
       return;
     }
-    asset(src)
+    asset(pick.src)
       .then((u) =>
         preloadImage(u).then((ok) => {
-          if (ok) paint(u, p);
+          if (ok) paint(u, p, pick.soft === true);
           else showFirst(list, p, onFail, i + 1);
         }),
       )
       .catch(() => showFirst(list, p, onFail, i + 1));
   };
 
-  // 本地兜底：作品自带的图 → 封面 → 缩略图
+  // 本地兜底：作品自带的图 → 封面 → 缩略图。
+  // 目录实机图是真正的画面；只有竖版封面 / 缩略图走模糊氛围底。
   const locals = [...new Set([detailShot(g), g.cover, g.thumb].filter((x): x is string => !!x))];
+  const localPicks: BgPick[] = locals.map((src) => ({ src, soft: src === g.cover || src === g.thumb }));
   const paintLocals = (): void => {
     // 先挂 has-bg 等解码：否则打开详情的头一帧会先闪一下整屏封面。
     // 用 toggle 而不是 add：上一部有图、这一部封面/缩略图/截图全没有时必须清掉，
     // 否则 #kvArt 一直淡出、#detailArt 又没图画，详情页只剩模糊环境层。
     app?.classList.toggle('has-bg', locals.length > 0);
-    showFirst(locals, 1);
+    showFirst(localPicks, 1);
   };
   const known = bgKnown.get(g.id);
   const ready = bgReady.get(g.id);
@@ -238,7 +248,7 @@ export function paintDetailArt(g: Game | null, isCurrent: () => boolean): void {
     paint(ready, 2);
   } else if (typeof known === 'string') {
     // 已经知道有背景图：直接等它解码上屏，不拿本地图做过渡（那一帧的替换就是闪烁）
-    showFirst([known], 2, paintLocals);
+    showFirst([{ src: known }], 2, paintLocals);
   } else if (known === null) {
     // 明确没有背景图：本地图就是终态
     paintLocals();
@@ -251,7 +261,7 @@ export function paintDetailArt(g: Game | null, isCurrent: () => boolean): void {
       if (!isCurrent()) return;
       bgKnown.set(g.id, p);
       if (p) {
-        showFirst([p], 2, paintLocals);
+        showFirst([{ src: p }], 2, paintLocals);
         return;
       }
       // 确实没有背景图：这时才铺本地图（有预热过的话上面已经画过了，重画无副作用）
@@ -262,7 +272,7 @@ export function paintDetailArt(g: Game | null, isCurrent: () => boolean): void {
       return detailBackground(g.id, true).then((q) => {
         if (!q) return;
         bgKnown.set(g.id, q);
-        if (isCurrent()) showFirst([q], 3);
+        if (isCurrent()) showFirst([{ src: q }], 3);
       });
     })
     .catch(() => {

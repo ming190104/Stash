@@ -188,7 +188,7 @@ pub fn launch(app: AppHandle, store: Store, game: Game) -> Result<(), AppError> 
     // 转区启动（P4）：needsLocale + 设置开启 → 必须真能转区。
     // 工具缺失 / 未初始化一律报错并指路：静默直启会让日文老游戏乱码或闪退，
     // 退回 `-run` 则因为没有作品配置只会弹出 LEGUI，用户看到「什么都没发生」。
-    let locale_launch_cfg = game.needs_locale && settings.locale.launch;
+    let locale_launch_cfg = game.locale_override.unwrap_or(game.needs_locale) && settings.locale.launch;
     let locale_plan = if locale_launch_cfg {
         Some(plan_locale(&settings, &game)?)
     } else {

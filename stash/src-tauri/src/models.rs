@@ -124,8 +124,12 @@ pub struct Game {
     pub favorite: bool,
     /// 入库时间戳（秒）
     pub added_at: i64,
-    /// 是否需要转区（目录含日文 + 非日文系统）
+    /// 是否需要转区（目录含日文 + 非日文系统；汉化版 exe 视为不需要）
     pub needs_locale: bool,
+    /// 转区覆盖：None = 按自动判定；Some(true) = 强制转区；Some(false) = 不转区。
+    /// 自动判定会误报（汉化版 / 重打包 / 引擎识别偏差），详情页可逐部纠正。
+    #[serde(default)]
+    pub locale_override: Option<bool>,
     /// 是否已匹配到元数据（P0：meta.json 存在即视为已匹配）
     pub matched: bool,
     /// 每游戏启动参数（P4 B10：详情页填写，原样追加到命令行；meta.json 亦可提供）
@@ -224,6 +228,7 @@ impl Default for Game {
             favorite: false,
             added_at: 0,
             needs_locale: false,
+            locale_override: None,
             matched: false,
             launch_args: Vec::new(),
             bangumi_id: None,
@@ -476,6 +481,10 @@ pub struct NetworkSettings {
     /// SteamGridDB API Key（横版 hero / 封面 / 截图；为空即跳过该源）
     #[serde(default)]
     pub sgdb_key: Option<String>,
+    /// 全量匹配时是否查询 EGS（每部要 2 次请求，是最慢的一环）。
+    /// 默认关：关闭后整轮匹配明显更快；手动打开候选面板时 EGS 仍然可用。
+    #[serde(default)]
+    pub egs: bool,
 }
 
 /// 旧配置可能只有其中一部分键：逐字段兜底，缺一个键不该让整份设置回落到默认值
@@ -485,6 +494,7 @@ impl Default for NetworkSettings {
             metadata_enabled: false,
             moegirl_fallback: true,
             sgdb_key: None,
+            egs: false,
         }
     }
 }
@@ -669,6 +679,7 @@ impl Default for Settings {
                 metadata_enabled: false,
                 moegirl_fallback: true,
                 sgdb_key: None,
+                egs: false,
             },
             locale: LocaleSettings { warn_only: true, tool_path: None, launch: false },
             views: Vec::new(),

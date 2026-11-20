@@ -169,14 +169,14 @@ fn client() -> Result<reqwest::blocking::Client, AppError> {
 
 fn get_json<T: DeserializeOwned>(url: &str, what: &str) -> Result<T, AppError> {
     let c = client()?;
-    let _turn = crate::net::wait_turn();
+    let _turn = crate::net::wait_turn(crate::net::Gate::Kungal);
     let resp = c
         .get(url)
         .send()
         .map_err(|e| AppError::new(ErrCode::NetworkOffline, format!("{what}不可达：{e}")))?;
     let status = resp.status();
     if status.as_u16() == 429 {
-        crate::net::cool_down();
+        crate::net::cool_down(crate::net::Gate::Kungal);
         return Err(AppError::new(
             ErrCode::RateLimited,
             format!("{what}限流（HTTP 429），已暂停 60 秒"),

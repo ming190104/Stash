@@ -36,4 +36,14 @@ export function wireNetwork(body: HTMLElement): void {
       .then(() => toastNow(`萌娘百科兜底 · ${on ? '开' : '关'}`))
       .catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
   });
+  // EGS（批评空间）：每部 2 次请求，默认关；开启后匹配会补中央值与参考时长
+  body.querySelector('#tgEgs')?.addEventListener('click', (e) => {
+    if (!state.settings) return;
+    const on = state.settings.network.egs !== true;
+    state.settings.network.egs = on;
+    (e.currentTarget as HTMLElement).classList.toggle('on', on);
+    persist()
+      .then(() => toastNow(`批评空间评分 · ${on ? '开' : '关'}`))
+      .catch((err) => toast(esc(String((err as { message?: string })?.message ?? err)), true));
+  });
 }

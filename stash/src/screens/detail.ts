@@ -12,6 +12,7 @@ import {
   setGameTitle,
   setGameExe,
   pickExeFile,
+  setLocaleOverride,
   setGameCover,
   smartCover,
   steamgridCover,
@@ -24,7 +25,9 @@ import {
   setNotes,
   setRating,
   removeGame,
+  deleteGameDir,
   unmatchGame,
+  ensureTags,
 } from '../ipc';
 import { state, gameById, setScreen, versionGroup, markLocalEdit, clearLocalEdit } from '../state';
 import { PAD_DEFAULT, padGlyph } from '../padmap';
@@ -70,6 +73,8 @@ let detailIdx = 0;
 let ringGameId: string | null = null;
 /** 渲染序号：异步取数回来时若已开始渲染别的作品，丢弃这份旧结果 */
 let detailToken = 0;
+/** 本进程内已按需补过标签的作品：失败也不反复请求（详情页每次重渲染都会走到这里） */
+const tagsAsked = new Set<string>();
 /** 上一次渲染用的封面图源：图源没变就不重建 DOM（`.art img` 有 300ms 淡入，重建会闪） */
 let lastArtKey: string | null = null;
 /** 本次进入详情页（由 openDetail 打标记）：只有「翻到详情」才播放卷轴展开，评星/改标签等局刷不动 */
@@ -154,6 +159,25 @@ export async function renderDetail(): Promise<void> {
   // 整屏背景：清晰的完整原图（不是模糊的缩略图放大）
   paintDetailArt(g, () => token === detailToken);
 
+  // 批量匹配不再为每部补 Bangumi 标签（省一次请求/部）：详情页第一次打开时按需补齐。
+  // 标签只影响这篇详情与筛选；补齐后刷新一次库，让其它视图也跟着更新。
+  if (g.bangumiId != null && g.tags.length === 0 && !tagsAsked.has(g.id)) {
+    tagsAsked.add(g.id);
+    void ensureTags(g.id)
+      .then(async (tags) => {
+        if (!tags.length) return;
+        const cur = gameById(g.id);
+        if (!cur || cur.tags.length) return;
+        cur.tags = tags;
+        await refreshLibrary();
+        if (state.detailId === g.id) void renderDetail();
+      })
+      .catch(() => {
+        /* 补标签失败不影响详情：下次打开详情仍会重试 */
+        tagsAsked.delete(g.id);
+      });
+  }
+
   // 详情页用原封面而不是缩略图：缩略图 255×340 放到 200×266 的框里再放大，边缘会发虚
   const artGame = g.cover ? { ...g, thumb: null } : g;
   // 只在图源变化时重建封面 DOM：`.art img` 是 opacity 0 → 1 的 300ms 淡入，
@@ -212,7 +236,7 @@ export async function renderDetail(): Promise<void> {
     <div class="d-pills">${pills.join('')}</div>
     <p class="d-sum">${esc(cnFirst(g.summary ?? '') || '尚未匹配元数据——当前信息来自本地目录。可在「设置 · 元数据」里运行 Bangumi 匹配。')}</p>
     <div class="d-meta">
-      <div>开发商<b class="${g.developer ? '' : 'na'}">${esc(g.developer ?? '—')}</b></div><div>发售日<b class="${g.year ? '' : 'na'}">${g.year ?? '—'}</b></div><div>参考<b class="${ref === '—' ? 'na' : ''}">${ref}</b></div><div>元数据<b>${esc(srcLabel)}</b></div><div>引擎<b>${esc(g.engineLabel)}${g.needsLocale ? '<i class="warn"> · 需转区</i>' : ''}</b></div>
+      <div>开发商<b class="${g.developer ? '' : 'na'}">${esc(g.developer ?? '—')}</b></div><div>发售日<b class="${g.year ? '' : 'na'}">${g.year ?? '—'}</b></div><div>参考<b class="${ref === '—' ? 'na' : ''}">${ref}</b></div><div>元数据<b>${esc(srcLabel)}</b></div><div>引擎<b>${esc(g.engineLabel)}${(g.localeOverride ?? g.needsLocale) ? '<i class="warn"> · 需转区</i>' : ''}</b></div>
       <div>最近游玩<b>${fmtRelative(g.lastPlayed)}</b></div><div>累计时长<b>${fmtDuration(g.playSeconds)}</b></div><div>启动次数<b>${g.playCount} 次</b></div>
       <div>结局<b class="${g.endings.length ? '' : 'na'}">${g.endings.length ? `${endsDone}/${g.endings.length}` : '—'}</b>${g.endings.length ? `<span class="linkbtn" id="dEnds">管理</span>` : `<span class="linkbtn" id="dEnds">标记…</span>`}</div>
       <div>评分<b class="dstars">${stars}</b></div>
@@ -450,6 +474,13 @@ export async function openDetailMenu(id: string): Promise<void> {
       },
     },
     {
+      key: 'locale',
+      label: '转区设置…',
+      hint: (g.localeOverride ?? g.needsLocale) ? '需转区' : '不需要',
+      keepOpen: true,
+      run: () => openLocaleMenu(id),
+    },
+    {
       key: 'args',
       label: '启动参数…',
       hint: g.launchArgs.length ? `${g.launchArgs.length} 项` : '',
@@ -515,6 +546,45 @@ export async function openDetailMenu(id: string): Promise<void> {
     },
   ];
   await openMenu('游戏管理', g.title, list);
+}
+
+/** 子菜单：转区三态（自动 / 需要 / 不需要）。
+ *  自动判定会误报（汉化版 / 重打包 / 引擎识别偏差），这里按作品纠正，重启后保留。 */
+async function openLocaleMenu(id: string): Promise<void> {
+  const g = gameById(id);
+  if (!g) return;
+  const tick = (on: boolean): string => (on ? '✓ ' : '');
+  const items: MenuItem[] = [
+    {
+      key: 'auto',
+      label: `${tick(g.localeOverride == null)}自动判断`,
+      hint: g.needsLocale ? '当前：需转区' : '当前：不需要',
+      run: () => applyLocale(id, null, '已恢复自动判断'),
+    },
+    {
+      key: 'need',
+      label: `${tick(g.localeOverride === true)}需要转区`,
+      run: () => applyLocale(id, true, '已设为需要转区'),
+    },
+    {
+      key: 'not',
+      label: `${tick(g.localeOverride === false)}不需要转区`,
+      run: () => applyLocale(id, false, '已设为不需要转区'),
+    },
+    { key: 'back', label: '返回', hint: 'B', keepOpen: true, run: () => openDetailMenu(id) },
+  ];
+  await openMenu('转区设置', g.title, items, { back: () => openDetailMenu(id) });
+}
+
+async function applyLocale(id: string, value: boolean | null, msg: string): Promise<void> {
+  try {
+    await setLocaleOverride(id, value);
+  } catch (e) {
+    toast(esc(String((e as { message?: string })?.message ?? e)), true);
+    return;
+  }
+  await afterChange();
+  toast(msg);
 }
 
 /** 子菜单：自动重匹配 / 手动选条目 / 取消匹配。
@@ -705,6 +775,32 @@ async function openRemoveMenu(id: string): Promise<void> {
         state.detailId = null;
         setScreen('library');
         toast('已从库中移除 · 重扫不再导入');
+      },
+    },
+    {
+      key: 'delete',
+      label: '删除游戏目录…',
+      hint: '进回收站',
+      danger: true,
+      run: async () => {
+        // 完整路径必须出现在确认框里：这是唯一会动文件的操作
+        const ok = await promptConfirm({
+          title: '删除游戏目录',
+          sub: `将把整个目录移入系统回收站（可还原；该磁盘未启用回收站时会直接删除），并从库中移除这部作品：\n${g.dir}`,
+        });
+        if (!ok) return;
+        try {
+          await deleteGameDir(id);
+        } catch (e) {
+          // 后端护栏 / 回收站失败：文件仍在，直接报错让用户手动处理
+          toast(esc(String((e as { message?: string })?.message ?? e)), true);
+          return;
+        }
+        await refreshLibrary();
+        // 条目已不存在：不清 detailId 的话，数字 3 会进「作品已不在库中」的占位详情
+        state.detailId = null;
+        setScreen('library');
+        toast('已移入回收站 · 可从回收站还原');
       },
     },
     { key: 'back', label: '返回', hint: 'B', keepOpen: true, run: () => openDetailMenu(id) },

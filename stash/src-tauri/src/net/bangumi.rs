@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::client::{
     bangumi_offline, bgm_send, mark_bangumi_offline, note_bangumi_error, note_rate_limited,
-    read_json_limited, transport_failure, wait_turn, LEGACY_SEARCH_URL, RETRIES, SEARCH_URL,
+    read_json_limited, transport_failure, wait_turn, Gate, LEGACY_SEARCH_URL, RETRIES, SEARCH_URL,
     TICK, TYPE_GAME,
 };
 
@@ -181,7 +181,7 @@ fn legacy_search(settings: &Settings, keyword: &str) -> Result<Vec<Subject>, App
         .append_pair("responseGroup", "large")
         .append_pair("max_results", "10");
 
-    let _turn = wait_turn();
+    let _turn = wait_turn(Gate::Bangumi);
     let resp = bgm_send(settings, "旧版搜索", |c| c.get(url.clone()))?;
     let status = resp.status();
     if status == reqwest::StatusCode::NOT_FOUND {
@@ -212,7 +212,7 @@ fn search_v0(settings: &Settings, keyword: &str) -> Result<Vec<Subject>, AppErro
 
     let mut last_err: Option<AppError> = None;
     for attempt in 0..RETRIES {
-        let _turn = wait_turn();
+        let _turn = wait_turn(Gate::Bangumi);
         match bgm_send(settings, "搜索", |c| c.post(SEARCH_URL).json(&body)) {
             Ok(resp) => {
                 let status = resp.status();
@@ -248,7 +248,7 @@ pub fn subject(settings: &Settings, id: u32) -> Result<Subject, AppError> {
     if !settings.network.metadata_enabled {
         return Err(AppError::new(ErrCode::ConfigInvalid, "在线元数据未开启"));
     }
-    let _turn = wait_turn();
+    let _turn = wait_turn(Gate::Bangumi);
     let url = format!("https://api.bgm.tv/v0/subjects/{id}");
     let resp = bgm_send(settings, "Bangumi 条目", |c| c.get(&url))?;
     let status = resp.status();

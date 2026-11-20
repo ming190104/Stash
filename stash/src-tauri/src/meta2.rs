@@ -48,8 +48,8 @@ fn urlencode(s: &str) -> String {
 fn status_err(what: &str, code: u16) -> AppError {
     match code {
         429 => {
-            // 与 Bangumi / EGS / 萌娘百科共用冷却闸，否则下一部作品会立刻再撞一次
-            crate::net::cool_down();
+            // 只冷却 SteamGridDB 自己的闸门：其它数据源不该被它的 429 冻结
+            crate::net::cool_down(crate::net::Gate::Sgdb);
             AppError::new(
                 ErrCode::RateLimited,
                 format!("{what} 限流（HTTP 429），已暂停 60 秒"),
@@ -80,7 +80,7 @@ fn sgdb_game_id(
     kw: &str,
 ) -> Result<Option<u64>, AppError> {
     let search = {
-        let _turn = crate::net::wait_turn();
+        let _turn = crate::net::wait_turn(crate::net::Gate::Sgdb);
         let resp = c
             .get(format!("{SGDB_API}/search/autocomplete/{}", urlencode(kw)))
             .header(reqwest::header::AUTHORIZATION, format!("Bearer {key}"))
@@ -127,7 +127,7 @@ pub fn sgdb_cover(settings: &Settings, title: &str) -> Result<Option<String>, Ap
 
     // dimensions=600x900 即 2:3 竖版（Galgame 轨道就是竖封面）；取不到再退横版
     for q in ["?dimensions=600x900,342x482&types=static&limit=8", "?types=static&limit=8"] {
-        let _turn = crate::net::wait_turn();
+        let _turn = crate::net::wait_turn(crate::net::Gate::Sgdb);
         let resp = c
             .get(format!("{SGDB_API}/grids/game/{id}{q}"))
             .header(reqwest::header::AUTHORIZATION, format!("Bearer {key}"))
@@ -166,7 +166,7 @@ pub fn sgdb_hero(settings: &Settings, title: &str) -> Result<Option<(String, [u3
     let Some(id) = sgdb_game_id(&c, key, kw)? else {
         return Ok(None);
     };
-    let _turn = crate::net::wait_turn();
+    let _turn = crate::net::wait_turn(crate::net::Gate::Sgdb);
     let resp = c
         .get(format!("{SGDB_API}/heroes/game/{id}?types=static&limit=16"))
         .header(reqwest::header::AUTHORIZATION, format!("Bearer {key}"))
@@ -186,6 +186,47 @@ pub fn sgdb_hero(settings: &Settings, title: &str) -> Result<Option<(String, [u3
                     let url = h.get("url")?.as_str()?;
                     let w = h.get("width")?.as_u64()? as u32;
                     let hh = h.get("height")?.as_u64()? as u32;
+                    (w > 0 && hh > 0).then(|| (url.to_string(), [w, hh]))
+                })
+                .max_by_key(|(_, [w, h])| *w as u64 * *h as u64)
+        }))
+}
+
+/// 横版网格（460×215 / 920×430）：hero 没有时的补充来源。
+/// 不少作品只有网格没有 hero，多问一次能明显提高「找到宽图」的比例。
+pub fn sgdb_wide_grid(settings: &Settings, title: &str) -> Result<Option<(String, [u32; 2])>, AppError> {
+    let Some(key) = settings.network.sgdb_key.as_deref().and_then(key_of) else {
+        return Ok(None);
+    };
+    let kw = title.trim();
+    if kw.is_empty() {
+        return Ok(None);
+    }
+    let c = crate::net::client(settings)?;
+    let Some(id) = sgdb_game_id(&c, key, kw)? else {
+        return Ok(None);
+    };
+    let _turn = crate::net::wait_turn(crate::net::Gate::Sgdb);
+    let resp = c
+        .get(format!(
+            "{SGDB_API}/grids/game/{id}?types=static&dimensions=460x215,920x430&limit=16"
+        ))
+        .header(reqwest::header::AUTHORIZATION, format!("Bearer {key}"))
+        .send()
+        .map_err(|e| AppError::new(ErrCode::NetworkOffline, format!("SteamGridDB 不可达：{e}")))?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(status_err("SteamGridDB", status.as_u16()));
+    }
+    let v: serde_json::Value = crate::net::read_json_limited(resp, "SteamGridDB")?;
+    Ok(v.get("data")
+        .and_then(|d| d.as_array())
+        .and_then(|a| {
+            a.iter()
+                .filter_map(|g| {
+                    let url = g.get("url")?.as_str()?;
+                    let w = g.get("width")?.as_u64()? as u32;
+                    let hh = g.get("height")?.as_u64()? as u32;
                     (w > 0 && hh > 0).then(|| (url.to_string(), [w, hh]))
                 })
                 .max_by_key(|(_, [w, h])| *w as u64 * *h as u64)

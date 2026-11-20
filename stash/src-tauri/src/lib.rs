@@ -248,12 +248,14 @@ pub fn run() {
             records::set_launch_args,
             records::set_game_title,
             records::set_game_exe,
+            records::set_locale_override,
             records::set_hidden,
             records::set_user_tags,
             records::set_notes,
             records::set_rating,
             records::update_endings,
             records::remove_game,
+            records::delete_game_dir,
             records::list_ignored,
             records::unignore_game,
             // 只读文件浏览
@@ -289,6 +291,7 @@ pub fn run() {
             metadata::unmatch_game,
             metadata::cancel_match,
             metadata::match_running,
+            metadata::ensure_tags,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

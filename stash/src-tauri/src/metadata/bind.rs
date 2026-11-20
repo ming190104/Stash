@@ -249,6 +249,11 @@ pub fn egs_for(s: &Settings, g: &Game, title: &str) -> Option<egs::EgsStat> {
     if !s.network.metadata_enabled {
         return None;
     }
+    // EGS 每部要 2 次请求（搜索 + 作品页），是整轮匹配里最慢的一环；
+    // 默认关闭，用户可在设置 · 网络里打开。候选面板的四源查询不受此开关影响。
+    if !s.network.egs {
+        return None;
+    }
     if g.meta_score_source.as_deref() == Some("egs") && g.length_minutes.is_some() {
         return None;
     }
@@ -310,5 +315,19 @@ pub fn fetch_cover(store: &Store, game_id: &str, url: Option<&str>) -> (Option<S
             tracing::warn!("cover download failed {game_id}: {}", e.message);
             (None, None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 开关关闭时 egs_for 必须在发请求前短路：整轮匹配每部省 2 次请求
+    #[test]
+    fn egs_for_respects_off_switch() {
+        let mut s = Settings::default();
+        s.network.metadata_enabled = true;
+        s.network.egs = false;
+        assert!(egs_for(&s, &Game::default(), "Kanon").is_none());
     }
 }
