@@ -2,7 +2,7 @@
 
 import './app.css';
 import { state, setScreen, SORT_MODES } from './state';
-import { getLibrary, getSettings, onEvent, runningGame, TAURI, reportTiming, checkUpdate, sanitizeSettings } from './ipc';
+import { getLibrary, getSettings, listIgnored, onEvent, runningGame, TAURI, reportTiming, checkUpdate, sanitizeSettings } from './ipc';
 import { initLibrary, renderRail, openDetail, updateEmpty, scheduleLibraryRefresh } from './screens/library';
 import { initGrid, renderGrid } from './screens/grid';
 import { initDetail } from './screens/detail';
@@ -137,6 +137,13 @@ async function boot(): Promise<void> {
     libraryError = e;
     console.error('[boot] 库读取失败', e);
     state.games = [];
+  }
+  // 忽略列表只影响「扫描候选里显示什么」，读失败不能拖垮启动：按空表继续
+  try {
+    state.ignored = await listIgnored();
+  } catch (e) {
+    console.warn('[boot] 读取忽略列表失败', e);
+    state.ignored = [];
   }
   applyTheme(state.settings.theme);
   applyLayout(qLayout ?? state.settings.layout, !qLayout);

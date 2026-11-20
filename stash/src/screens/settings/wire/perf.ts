@@ -39,7 +39,7 @@ export function wirePerf(body: HTMLElement): void {
     // 立刻记下目标状态：连点两次时第二次才能正确算出反向，而不是重复「进入全屏」
     state.settings.fullscreen = on;
     btn.classList.toggle('on', on);
-    // 进入 / 退出都播完整跃迁（时长与冷启动一致），换边藏在白闪峰值下
+    // 进入 / 退出都完整播一遍启动动画，换边藏在白闪峰值下
     warpToggle(() => setFullscreen(on), true, { dropIfBusy: true })
       .then(() => {
         applyFullscreenUI(on);

@@ -180,6 +180,21 @@ pub async fn add_game(
         g
     };
 
+    // 手动添加等于「我就要它回来」：清掉忽略表里的同路径条目，
+    // 否则设置页会一直挂着一条已经回库的忽略项
+    {
+        let _lock = crate::store::lock_ignored();
+        let key = crate::store::normalize_dir(&game.exe);
+        let mut ignored = store2.load_ignored();
+        let before = ignored.len();
+        ignored.retain(|x| crate::store::normalize_dir(&x.exe) != key);
+        if ignored.len() != before {
+            if let Err(e) = store2.save_ignored(&ignored) {
+                tracing::warn!("清理忽略表失败：{e}");
+            }
+        }
+    }
+
     // 封面缩略图入库时后台补生成（不阻塞入库返回）
     spawn_thumbs(&app, &store2, std::slice::from_ref(&game));
 
@@ -386,10 +401,13 @@ pub async fn scan_steam(store: State<'_, Store>) -> Result<Vec<SteamCandidate>, 
     let st = store.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let games = st.load_library();
+        let ignored = st.load_ignored();
         let known: std::collections::HashSet<String> =
             games.iter().map(|g| store::normalize_dir(&g.dir)).collect();
         crate::steam::installed_apps()
             .into_iter()
+            // 与库根扫描同口径：被移除的作品不再出现在候选里
+            .filter(|app| !store::is_ignored(&ignored, &app.exe.to_string_lossy()))
             .map(|app| {
                 let dir = app.dir.to_string_lossy().to_string();
                 let (kind, _) = crate::engine::detect(&app.dir);
@@ -477,10 +495,13 @@ pub async fn remove_library_root(store: State<'_, Store>, path: String) -> Resul
 fn preview_candidates(st: &Store, root: &Path) -> Vec<ScanCandidate> {
     let found = scanner::find_games(root);
     let games = st.load_library();
+    let ignored = st.load_ignored();
     let known: std::collections::HashSet<String> =
         games.iter().map(|g| store::normalize_dir(&g.dir)).collect();
     found
         .into_iter()
+        // 被「移除出库」记住的作品不再出现在候选里：否则用户删一次、扫一次，永远删不干净
+        .filter(|f| !store::is_ignored(&ignored, &f.exe.to_string_lossy()))
         .map(|f| {
             let dir = f.dir.to_string_lossy().to_string();
             let (kind, _) = crate::engine::detect(&f.dir);

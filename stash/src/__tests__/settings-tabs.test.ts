@@ -227,9 +227,20 @@ describe('统计 / 关于 / 共用小工具', () => {
 
   it('关于页签带版本与四个数据入口', () => {
     const out = aboutHTML();
-    expect(out).toContain('版本 1.2.5');
+    // 版本只能来自 package.json（构建期注入），写死数字会在发版后自相矛盾
+    expect(out).toContain(`版本 ${__APP_VERSION__}`);
     for (const act of ['opendata', 'openlogs', 'diagnostics']) expect(out).toContain(act);
     expect(out).toContain('openHelpBtn');
+  });
+
+  it('库与统计：忽略列表带条目与恢复入口', () => {
+    state.ignored = [
+      { dir: 'D:\\Games\\AIR', exe: 'D:\\Games\\AIR\\game.exe', title: 'AIR', at: 1 },
+    ];
+    const out = libraryTabHTML('');
+    expect(out).toContain('忽略列表');
+    expect(out).toContain('data-unignore="D:\\Games\\AIR\\game.exe"');
+    expect(out).toContain('部已忽略');
   });
 
   it('分段选项可进入 Tab 顺序并具备按钮语义', () => {

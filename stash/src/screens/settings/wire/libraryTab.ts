@@ -5,10 +5,12 @@ import {
   getSettings,
   importLibraryRoot,
   importSteam,
+  listIgnored,
   pickFolder,
   previewLibraryRoot,
   removeLibraryRoot,
   scanSteam,
+  unignoreGame,
 } from '../../../ipc';
 import { state } from '../../../state';
 import { esc, toast } from '../../../ui';
@@ -200,6 +202,32 @@ export function wireLibraryTab(body: HTMLElement): void {
     btn.addEventListener('click', () => {
       const root = btn.dataset.root;
       if (root) void removeRoot(root);
+    });
+  });
+
+  // 忽略列表：恢复后重扫会重新列出（仍需勾选确认，不会自动回库）
+  body.querySelectorAll<HTMLElement>('[data-unignore]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const exe = btn.dataset.unignore;
+      if (!exe || busy) return;
+      busy = true;
+      void (async () => {
+        try {
+          await unignoreGame(exe);
+          // 以后端为准：同一条目可能因盘符大小写 / 分隔符写过多次，本地只按字符串比对会漏
+          try {
+            state.ignored = await listIgnored();
+          } catch {
+            state.ignored = (state.ignored ?? []).filter((x) => x.exe !== exe);
+          }
+          rerender();
+          toast('已恢复，下次扫描会重新列出');
+        } catch (e) {
+          fail(e);
+        } finally {
+          busy = false;
+        }
+      })();
     });
   });
 

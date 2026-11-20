@@ -178,7 +178,10 @@ export async function renderDetail(): Promise<void> {
     verIdx = Math.max(0, verRing.indexOf(state.detailId!));
   }
   const rating = g.rating ?? 0;
-  const stars = Array.from({ length: 5 }, (_, i) => `<span class="dstar${i < rating ? ' on' : ''}" data-star="${i + 1}">★</span>`).join('');
+  // aria-label / aria-pressed：五颗星文字全是「★」，读屏否则无法区分点的是第几颗
+  const stars = Array.from({ length: 5 }, (_, i) =>
+    `<span class="dstar${i < rating ? ' on' : ''}" data-star="${i + 1}" aria-label="第 ${i + 1} 星" aria-pressed="${i < rating}">★</span>`,
+  ).join('');
   const userTags = g.userTags ?? [];
   const pills = [
     ...g.tags.map((t) => `<span class="pill">${esc(t)}</span>`),
@@ -672,7 +675,8 @@ async function openRemoveMenu(id: string): Promise<void> {
       run: async () => {
         const ok = await promptConfirm({
           title: '移除出库',
-          sub: '只移除索引，不删除游戏文件',
+          // 说清副作用：移除会同时进忽略表，否则用户会以为下次扫描还能找回来
+          sub: '只移除索引，不删除游戏文件；同时加入忽略列表，重扫不会再导入（设置 → 库与统计 可恢复）',
         });
         if (!ok) return;
         await removeGame(id);
@@ -680,7 +684,7 @@ async function openRemoveMenu(id: string): Promise<void> {
         // 条目已不存在：不清 detailId 的话，数字 3 会进「作品已不在库中」的占位详情
         state.detailId = null;
         setScreen('library');
-        toast('已从库中移除');
+        toast('已从库中移除 · 重扫不再导入');
       },
     },
     { key: 'back', label: '返回', hint: 'B', keepOpen: true, run: () => openDetailMenu(id) },

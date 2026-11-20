@@ -1,6 +1,6 @@
 /** 全局轻量状态（vanilla，模块单例）。 */
 
-import type { Game, Screen, Settings, SortMode } from './types';
+import type { Game, IgnoredGame, Screen, Settings, SortMode } from './types';
 import type { PadKind } from './padmap';
 
 export type GridFilter = 'all' | 'playing' | 'done' | 'new' | 'fav';
@@ -24,6 +24,8 @@ export const SORT_MODES: { v: SortMode; label: string }[] = [
 
 export const state = {
   games: [] as Game[],
+  /** 忽略列表（移除出库的作品）：启动时读一次，恢复后原地更新 */
+  ignored: [] as IgnoredGame[],
   settings: null as Settings | null,
   screen: 'library' as Screen,
   /** 轨道焦点索引（sortedGames 序） */

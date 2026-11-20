@@ -120,6 +120,8 @@ pub fn run() {
     }
     // 标识符改名：WebView2 的界面缓存 / localStorage 跟着换目录，主题与布局偏好不丢
     migrate_webview_dir();
+    // 旧版内置代理（mihomo）已下线：目录里还明文存着订阅与 secret，启动时清掉
+    store::cleanup_legacy_mihomo();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         // 自动更新：查 latest.json → 校验签名 → 静默安装；process 提供重启
@@ -251,6 +253,8 @@ pub fn run() {
             records::set_rating,
             records::update_endings,
             records::remove_game,
+            records::list_ignored,
+            records::unignore_game,
             // 只读文件浏览
             fs::fs_list,
             // 维护：诊断 / 体检 / 清理 / 导入导出

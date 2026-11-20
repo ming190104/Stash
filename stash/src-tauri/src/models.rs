@@ -702,6 +702,18 @@ pub struct ScanCandidate {
     pub in_library: bool,
 }
 
+/// 「移除出库」时记住的作品：重扫同一根目录不再列出，避免「删了又回来」。
+/// 只按 exe 归一化路径比较；手动添加 exe 会清掉对应条目，因此不会永久锁死。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct IgnoredGame {
+    pub dir: String,
+    pub exe: String,
+    pub title: String,
+    /// 加入忽略的时间戳（秒），设置页按新→旧展示
+    pub at: i64,
+}
+
 /// 从本机 Steam 库发现的已安装游戏（预览用，未入库）
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

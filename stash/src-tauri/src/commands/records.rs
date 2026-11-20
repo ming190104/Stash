@@ -3,7 +3,7 @@
 //! 这些都是 `library.json` 的读—改—写，统一走 `crate::mutate_game`（同一把库写锁），
 //! 只改索引不碰游戏目录；只有 `remove_game` 会顺带清掉该作品专属的缓存图。
 
-use crate::models::{AppError, EndMark, ErrCode};
+use crate::models::{AppError, EndMark, ErrCode, IgnoredGame};
 use crate::store::Store;
 use tauri::State;
 
@@ -86,13 +86,20 @@ pub async fn remove_game(store: State<'_, Store>, id: String) -> Result<(), AppE
 
 fn remove_game_sync(store: &Store, id: &str) -> Result<(), AppError> {
     crate::check_id(id)?;
-    let (cover, thumb, still_used) = {
+    let (cover, thumb, still_used, ignored) = {
         let _lock = crate::store::lock_library();
         let mut games = store.load_library();
         let Some(pos) = games.iter().position(|g| g.id == id) else {
             return Err(AppError::new(ErrCode::NotFound, "游戏不在库中"));
         };
         let g = games.remove(pos);
+        // 移除前留一份路径：库写完后要把它记进忽略表，否则重扫会原样再导入
+        let ignored = IgnoredGame {
+            dir: g.dir.clone(),
+            exe: g.exe.clone(),
+            title: g.title.clone(),
+            at: crate::store::now_secs(),
+        };
         store.save_library(&games)?;
         // 移除后仍被其它条目引用的封面 / 缩略图：同一张外部封面可能被两条记录共用，
         // 导入时也可能收编成同名缓存——这些文件不能跟着这条记录一起删。
@@ -102,7 +109,7 @@ fn remove_game_sync(store: &Store, id: &str) -> Result<(), AppError> {
             .flatten()
             .map(crate::store::normalize_dir)
             .collect();
-        (g.cover, g.thumb, still_used)
+        (g.cover, g.thumb, still_used, ignored)
     };
     for p in [cover, thumb].into_iter().flatten() {
         if still_used.contains(&crate::store::normalize_dir(&p)) {
@@ -122,8 +129,48 @@ fn remove_game_sync(store: &Store, id: &str) -> Result<(), AppError> {
     // 详情页背景图（`<id>_bg.*`）同样只以 id 命名、不进任何字段：不在这里带走，
     // 就得等用户手动跑一次「清理无用数据」
     crate::prune_prefixed(&store.covers_dir(), &format!("{id}_bg."), None);
+
+    // 把这次移除记进忽略表：重扫同一根目录不再把它列出来，解决「删了又回来」的死循环。
+    // 写忽略表失败不影响移除本身（库已经落盘），最多下次扫描多出一次候选。
+    {
+        let _lock = crate::store::lock_ignored();
+        let key = crate::store::normalize_dir(&ignored.exe);
+        let mut ignored_list = store.load_ignored();
+        ignored_list.retain(|x| crate::store::normalize_dir(&x.exe) != key);
+        ignored_list.push(ignored);
+        if let Err(e) = store.save_ignored(&ignored_list) {
+            tracing::warn!("写入忽略表失败（本次移除仍生效）：{e}");
+        }
+    }
+
     tracing::info!("game removed from library: {id}");
     Ok(())
+}
+
+/// 忽略列表：被「移除出库」记住的作品（重扫不再列出）
+#[tauri::command]
+pub fn list_ignored(store: State<'_, Store>) -> Vec<IgnoredGame> {
+    store.load_ignored()
+}
+
+/// 撤销一条忽略：下次扫描会重新列出，但仍需用户勾选确认才会入库
+#[tauri::command]
+pub async fn unignore_game(store: State<'_, Store>, exe: String) -> Result<(), AppError> {
+    let st = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _lock = crate::store::lock_ignored();
+        let key = crate::store::normalize_dir(&exe);
+        let mut list = st.load_ignored();
+        let before = list.len();
+        list.retain(|x| crate::store::normalize_dir(&x.exe) != key);
+        if list.len() == before {
+            return Ok(());
+        }
+        st.save_ignored(&list)
+            .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))
+    })
+    .await
+    .map_err(|e| AppError::new(ErrCode::IoError, e.to_string()))?
 }
 
 /// 只允许缓存目录正下方的文件；返回消解 `..` 后的真实路径。

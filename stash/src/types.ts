@@ -148,6 +148,15 @@ export interface AppError {
   message: string;
 }
 
+/** 「移除出库」记住的作品：重扫同一根目录不再列出（设置 → 库与统计 可恢复） */
+export interface IgnoredGame {
+  dir: string;
+  exe: string;
+  title: string;
+  /** 加入忽略的时间戳（秒） */
+  at: number;
+}
+
 /** 库体检（无 AI）：失效条目 / 重复项 / 未识别引擎 / 孤儿缓存 */
 export interface HealthIssue {
   kind: string;

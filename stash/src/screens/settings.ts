@@ -4,7 +4,7 @@
  *  共享 UI 状态与落盘在 ./settings/ 下——本文件只保留「在哪一页、焦点在哪」的骨架。 */
 
 import type { NavIntent, PadMap } from '../types';
-import { TAURI, autostartEnabled, getSettings, onEvent } from '../ipc';
+import { TAURI, autostartEnabled, getSettings, listIgnored, onEvent } from '../ipc';
 import { state, setScreen } from '../state';
 import { registerHandler } from '../nav';
 import { toast, esc, ringActivate, ringClear, ringEls } from '../ui';
@@ -147,6 +147,22 @@ function spatialTarget(
   return best;
 }
 
+/** 开关补无障碍语义：模板里的 .tg 是一个空按钮，读屏只会念「按钮」。
+ *  按同一行标题补 aria-label，并把 on/off 映射成 role=switch + aria-checked；
+ *  翻开关的是各页签自己的 click 处理，这里等它跑完再同步状态。 */
+function decorateSwitches(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>('.tg').forEach((el) => {
+    const name = el.closest('.srow')?.querySelector('.lab b')?.textContent?.trim();
+    if (!name) return;
+    el.setAttribute('role', 'switch');
+    el.setAttribute('aria-label', name);
+    el.setAttribute('aria-checked', String(el.classList.contains('on')));
+    el.addEventListener('click', () => {
+      setTimeout(() => el.setAttribute('aria-checked', String(el.classList.contains('on'))), 0);
+    });
+  });
+}
+
 export async function renderSettings(): Promise<void> {
   if (!state.settings) state.settings = await getSettings();
   const s = state.settings;
@@ -171,7 +187,21 @@ export async function renderSettings(): Promise<void> {
         }
       : null;
 
-  document.querySelectorAll('#snav button').forEach((b, i) => b.classList.toggle('on', i === sui.tab));
+  // 顶栏面包屑跟着当前页签走：之前固定写「本地游戏库」，切到性能 / 外观页仍显示同一句话
+  const navBtns = document.querySelectorAll('#snav button');
+  navBtns.forEach((b, i) => b.classList.toggle('on', i === sui.tab));
+  const crumb = document.getElementById('setCrumb');
+  const tabName = navBtns[sui.tab]?.textContent?.trim();
+  if (crumb && tabName) crumb.textContent = `设置 / ${tabName}`;
+  // 忽略列表只在启动时读过一次：本次会话里刚移除的作品不会自己出现在这里，
+  // 因此每次进入「库与统计」都从磁盘重取一次（页内重渲染不重复拉）。
+  if (sui.tab === 5 && sui.lastRenderedTab !== sui.tab) {
+    try {
+      state.ignored = await listIgnored();
+    } catch (e) {
+      console.warn('[settings] 读取忽略列表失败', e);
+    }
+  }
   if (sui.lastRenderedTab !== sui.tab) {
     body.scrollTop = 0;
     sui.lastRenderedTab = sui.tab;
@@ -206,6 +236,7 @@ export async function renderSettings(): Promise<void> {
   }
 
   wire(body);
+  decorateSwitches(body);
   // 面板重建后重新挂焦点环（DOM 换了，旧引用已失效）。
   // 但用户正在输入框里打字时不能挂：applyRing 会把焦点抢到面板第一个控件上，
   // 表现为「每敲一下 / 后台刷新一次就跳出输入框」。

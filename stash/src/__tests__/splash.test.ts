@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 /** 跃迁转场队列：全屏开关这类幂等动作在转场期间必须「丢弃」而不是排队，
  *  否则同一按键的第二次投递会在动画播完后把刚进入的全屏又切回去。
- *  冷启动与全屏切换共用同一段完整跃迁，时长公式与速度倍率也完全一致。 */
+ *  冷启动与全屏切换都按设置完整播放同一段片头。 */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initSplash, previewBootAnim, warpBusy, warpToggle } from '../splash';
@@ -123,7 +123,7 @@ describe('warpToggle', () => {
     expect(warpBusy()).toBe(false);
   });
 
-  it('全屏切换与冷启动共用同一段跃迁：1× / 1.5× / 2× 时长一致', async () => {
+  it('全屏切换与冷启动同长：按速度倍率完整播放片头', async () => {
     const cases: Array<[string, string]> = [
       ['1', '5000ms'],
       ['1.5', '3333ms'],
@@ -132,19 +132,30 @@ describe('warpToggle', () => {
     for (const [speed, dur] of cases) {
       cachePatch({ animSpeed: Number(speed) });
       const turn = warpToggle(() => undefined, true);
-      await vi.advanceTimersByTimeAsync(50);
+      await vi.advanceTimersByTimeAsync(20);
       const el = document.getElementById('warpSplash')!;
       expect(el.style.getPropertyValue('--wv-dur')).toBe(dur);
-      await vi.advanceTimersByTimeAsync(5300);
+      await vi.advanceTimersByTimeAsync(5200);
       await turn;
     }
+  });
+
+  it('全屏切换跟随设置里的档位：选了 EVA 就播 EVA 序列', async () => {
+    cachePatch({ bootAnim: 'eva01', animSpeed: 1 });
+    const turn = warpToggle(() => undefined, true);
+    await vi.advanceTimersByTimeAsync(20);
+    const el = document.getElementById('warpSplash')!;
+    expect(el.classList.contains('mode-eva')).toBe(true);
+    expect(el.dataset.pal).toBe('01');
+    await vi.advanceTimersByTimeAsync(5200);
+    await turn;
   });
 
   it('跳过时先把换边补上，不让人卡在旧的全屏状态', async () => {
     const fn = vi.fn();
     const turn = warpToggle(fn, true);
     await vi.advanceTimersByTimeAsync(100);
-    expect(fn).not.toHaveBeenCalled(); // 白闪在 3s，还没到
+    expect(fn).not.toHaveBeenCalled(); // 白闪在 60% ≈ 3s，还没到
 
     dispatchEvent(new KeyboardEvent('keydown'));
     await vi.advanceTimersByTimeAsync(0);

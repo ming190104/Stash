@@ -171,5 +171,29 @@ export function libraryTabHTML(healthBlock: string): string {
     <div class="spanel">
       <div class="srow"><div class="lab"><b>手动添加</b><span>直接选主程序 exe + 填标题；封面 / 引擎仍按所在目录读取，小体积 / 合集目录也能入库</span></div>
         <button class="mini" data-act="addgame">选择 exe…</button></div>
+    </div>
+    ${ignoredHTML()}`;
+}
+
+/** 忽略列表：移除出库的作品不再出现在扫描候选里，恢复后下次扫描重新列出 */
+function ignoredHTML(): string {
+  const ignored = [...(state.ignored ?? [])].sort((a, b) => b.at - a.at);
+  const rows = ignored.length
+    ? `<div class="lcands">${ignored
+        .map(
+          (x) => `
+      <div class="pitem">
+        <span class="pnm">${esc(x.title || exeName(x.exe))}</span>
+        <span class="lcand-aux lcand-dir">${esc(x.exe)}</span>
+        <button class="mini" data-unignore="${esc(x.exe)}">恢复</button>
+      </div>`,
+        )
+        .join('')}</div>`
+    : `<div class="snote">没有忽略项。「从库中移除」的作品会记在这里，重扫时不再导入。</div>`;
+  return `
+    <div class="spanel">
+      <div class="srow"><div class="lab"><b>忽略列表</b><span>移除出库的作品不会在重扫时再次导入；恢复后下次扫描会重新列出（仍需勾选确认）</span></div>
+        <div class="stat"><b>${ignored.length}</b><span>部已忽略</span></div></div>
+      ${rows}
     </div>`;
 }

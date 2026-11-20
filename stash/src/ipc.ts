@@ -1,7 +1,16 @@
 /** IPC 封装：Tauri 可用时走 invoke，浏览器直开（vite dev）时走 mock 数据。
  *  mock 模式用于纯 UI 开发与校验，占位美术同样是正式降级设计。 */
 
-import type { EndMark, Game, HealthIssue, HealthReport, MetaCandidate, PlaySession, Settings } from './types';
+import type {
+  EndMark,
+  Game,
+  HealthIssue,
+  HealthReport,
+  IgnoredGame,
+  MetaCandidate,
+  PlaySession,
+  Settings,
+} from './types';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { normalizePadMap, normalizePadTuning } from './padmap';
 
@@ -327,6 +336,30 @@ export async function unmountIso(path: string): Promise<void> {
 
 export async function removeGame(id: string): Promise<void> {
   if (TAURI) await inv('remove_game', { id });
+}
+
+/** 忽略列表：被「移除出库」记住的作品（重扫不再列出） */
+export async function listIgnored(): Promise<IgnoredGame[]> {
+  if (!TAURI) return [];
+  const raw = await inv<unknown>('list_ignored');
+  if (!Array.isArray(raw)) return [];
+  const out: IgnoredGame[] = [];
+  for (const x of raw) {
+    const g = x as Partial<IgnoredGame> | null;
+    if (!g || typeof g.exe !== 'string' || !g.exe) continue;
+    out.push({
+      dir: typeof g.dir === 'string' ? g.dir : '',
+      exe: g.exe,
+      title: typeof g.title === 'string' ? g.title : '',
+      at: typeof g.at === 'number' ? g.at : 0,
+    });
+  }
+  return out;
+}
+
+/** 撤销一条忽略：下次扫描会重新列出，但仍需勾选确认才入库 */
+export async function unignoreGame(exe: string): Promise<void> {
+  if (TAURI) await inv('unignore_game', { exe });
 }
 
 export async function setGameTitle(id: string, title: string): Promise<void> {

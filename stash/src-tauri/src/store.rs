@@ -3,7 +3,7 @@
 //! library.json 是全应用唯一不可再生的数据（游玩记录），保存时先把新内容写进
 //! 临时文件并刷盘、再滚动 .bak、最后 rename 落位，读取顺序 library.json → .bak → 空库。
 
-use crate::models::{DetectedGame, Game, ScanReport, Settings};
+use crate::models::{DetectedGame, Game, IgnoredGame, ScanReport, Settings};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
@@ -31,6 +31,16 @@ static SET_LOCK: Mutex<()> = Mutex::new(());
 
 pub fn lock_settings() -> MutexGuard<'static, ()> {
     SET_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// ignored.json 的「读—改—写」串行锁。
+///
+/// 移除出库（追加）、恢复忽略（删除）、手动添加（清理）都会改这张表；
+/// 两个入口交错就是「后写覆盖先写」——表现为刚恢复的作品又回到忽略列表里。
+static IGN_LOCK: Mutex<()> = Mutex::new(());
+
+pub fn lock_ignored() -> MutexGuard<'static, ()> {
+    IGN_LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +72,28 @@ fn pick_root(new: PathBuf, old: PathBuf) -> PathBuf {
         return old;
     }
     new
+}
+
+/// 清理旧版内置代理（mihomo）的残留目录。
+///
+/// 从 1.3 起不再内置代理（改为跟随 Windows 系统代理），但旧目录里的 config.yaml
+/// 仍以明文保存订阅地址与 controller secret。升级后第一次启动就删掉，
+/// 避免凭据长期留在磁盘上；目录不存在时是空操作。
+pub fn cleanup_legacy_mihomo() {
+    match remove_mihomo_in(&data_root()) {
+        Ok(true) => tracing::info!("已清理旧版内置代理残留（mihomo）"),
+        Ok(false) => {}
+        Err(e) => tracing::warn!("清理旧版内置代理残留失败：{e}"),
+    }
+}
+
+fn remove_mihomo_in(base: &Path) -> std::io::Result<bool> {
+    let dir = base.join("mihomo");
+    if !dir.is_dir() {
+        return Ok(false);
+    }
+    fs::remove_dir_all(dir)?;
+    Ok(true)
 }
 
 /// 旧版数据目录一次性搬到新目录。
@@ -135,6 +167,10 @@ impl Store {
     pub fn settings_bak_path(&self) -> PathBuf {
         self.dir.join("settings.json.bak")
     }
+    /// 忽略表：被「移除出库」记住的 exe 路径（与库分开存，删库不会把忽略一起清掉）
+    pub fn ignored_path(&self) -> PathBuf {
+        self.dir.join("ignored.json")
+    }
     pub fn thumbs_dir(&self) -> PathBuf {
         self.dir.join("thumbs")
     }
@@ -171,6 +207,19 @@ impl Store {
             let _ = save_atomic(&self.settings_bak_path(), &text);
         }
         save_atomic(&self.settings_path(), &serde_json::to_string_pretty(s)?)
+    }
+
+    /// 读忽略表：文件缺失 / 损坏都按空表处理——它只影响「扫描是否重新列出」，
+    /// 不该让整个扫描失败。
+    pub fn load_ignored(&self) -> Vec<IgnoredGame> {
+        fs::read_to_string(self.ignored_path())
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn save_ignored(&self, list: &[IgnoredGame]) -> std::io::Result<()> {
+        save_atomic(&self.ignored_path(), &serde_json::to_string_pretty(list)?)
     }
 
     pub fn load_library(&self) -> Vec<Game> {
@@ -409,6 +458,12 @@ pub fn normalize_dir(dir: &str) -> String {
         s.pop();
     }
     s.to_lowercase()
+}
+
+/// 是否在忽略表里（按 exe 归一化路径比较；大小写 / 分隔符 / 尾斜杠不同也算命中）
+pub fn is_ignored(list: &[IgnoredGame], exe: &str) -> bool {
+    let key = normalize_dir(exe);
+    list.iter().any(|x| normalize_dir(&x.exe) == key)
 }
 
 /// 把「刚探测到的作品」合进现有库：同目录沿用旧条目（保留游玩记录），
@@ -781,6 +836,41 @@ mod tests {
         // 全新安装：两个都不存在时用新目录
         let _ = std::fs::remove_dir_all(&base);
         assert_eq!(pick_root(new, base.join("vn-shelf")).file_name().unwrap(), "Stash");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// 忽略表：写盘再读回内容一致；路径比较做归一化（大小写 / 分隔符）
+    #[test]
+    fn ignored_list_roundtrip_and_normalized_match() {
+        let dir = std::env::temp_dir().join(format!("stash-ignored-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let s = Store { dir: dir.clone() };
+        assert!(s.load_ignored().is_empty(), "文件缺失按空表处理");
+        s.save_ignored(&[IgnoredGame {
+            dir: "D:/Games/AIR".into(),
+            exe: "D:/Games/AIR/game.exe".into(),
+            title: "AIR".into(),
+            at: 1,
+        }])
+        .unwrap();
+        let list = s.load_ignored();
+        assert_eq!(list.len(), 1);
+        assert!(is_ignored(&list, "d:\\games\\air\\GAME.EXE"));
+        assert!(!is_ignored(&list, "D:\\Games\\CLANNAD\\game.exe"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 旧版代理残留：目录存在才删，删完再调用返回 false（幂等）
+    #[test]
+    fn legacy_mihomo_dir_is_removed_once() {
+        let base = std::env::temp_dir().join(format!("stash-mihomo-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("mihomo")).unwrap();
+        std::fs::write(base.join("mihomo/config.yaml"), "secret: x").unwrap();
+        assert!(remove_mihomo_in(&base).unwrap());
+        assert!(!base.join("mihomo").exists());
+        assert!(!remove_mihomo_in(&base).unwrap());
         let _ = std::fs::remove_dir_all(&base);
     }
 

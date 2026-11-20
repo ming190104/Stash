@@ -89,6 +89,7 @@ export function mountSkeleton(): void {
 /** 每个用例前复位单例状态，避免上一个用例的作品 / 筛选 / 屏幕串进来 */
 export function resetState(): void {
   state.games = [];
+  state.ignored = [];
   state.settings = null;
   state.screen = 'library';
   state.focus = 0;

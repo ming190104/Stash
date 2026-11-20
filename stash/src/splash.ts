@@ -1,6 +1,7 @@
 /** 冷启动动画（设置 · 外观 → 启动动画）：
  *    warp = 流光跃迁 5.0s（默认）/ eva01·eva02·evaNerv·eva00 = EVA 起动序列 5.0s / off = 关闭。
- *  全屏切换复用同一段完整动画，和冷启动共用同一个速度倍率与时长公式。
+ *  全屏切换与冷启动共用同一段片头（含音效、HUD 与字标）：两处观感一致，
+ *  档位与速度倍率在设置里只配一次。
  *  视觉只用 transform / opacity；跃迁走主题令牌（各主题自动适配），
  *  EVA 自带三套机体配色（初号机 / 明日香 / NERV）。
  *  换边发生在白闪峰值那一刻，藏在遮罩下完成。 */
@@ -190,6 +191,12 @@ function ensure(anim: BootAnim): HTMLDivElement | null {
     el.appendChild(buildEva(pal));
   }
   app.appendChild(el);
+  // 提示可跳过：5s 的片头不写出来，用户只会以为卡住。
+  // 淡入放到 0.7s，避开开头那一段光丝爆发，不会跟画面抢注意力。
+  const hint = document.createElement('div');
+  hint.className = 'wv-skip';
+  hint.textContent = '按任意键 / 手柄 A 跳过';
+  el.appendChild(hint);
   overlay = el;
   built = mode;
   return el;
@@ -265,7 +272,7 @@ function run(
       e.preventDefault();
       e.stopImmediatePropagation();
     };
-    /** 全屏切换要播满 5s：允许跳过，但跳过时先把换边补上，
+    /** 过场允许跳过，但跳过时先把换边补上：
      *  否则用户按了键却停在旧的全屏状态，还得再等一轮。 */
     const skip = (e?: Event): void => {
       if (e) {
@@ -314,7 +321,7 @@ function run(
   });
 }
 
-/** 播一次启动动画。冷启动与全屏切换共用：时长、速度倍率、音效、换边位置完全一致。 */
+/** 播一次启动动画。冷启动按设置档位与速度倍率完整播放。 */
 function playAnim(anim: BootAnim, onFlash?: () => void): Promise<void> {
   const mode: BootAnim = anim === 'off' ? 'warp' : anim;
   const el = ensure(mode);
@@ -354,7 +361,8 @@ export interface WarpOptions {
   dropIfBusy?: boolean;
 }
 
-/** 全屏切换：进入 / 退出都播同一段完整动画（5s ÷ 速度倍率），换边藏在白闪峰值下。 */
+/** 全屏切换：进入 / 退出都完整播一遍启动动画（与冷启动同一档位、同一速度倍率），
+ *  换边藏在白闪峰值下完成。 */
 export function warpToggle(
   run: () => void | Promise<void>,
   animate = true,

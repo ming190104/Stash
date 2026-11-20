@@ -156,7 +156,7 @@ export async function openBatch(): Promise<void> {
       run: async () => {
         const ok = await promptConfirm({
           title: '批量移除出库',
-          sub: '只移除索引，不删除游戏文件',
+          sub: '只移除索引，不删除游戏文件；同时加入忽略列表，重扫不会再导入（设置 → 库与统计 可恢复）',
         });
         if (!ok) return;
         const failed = await eachGame(ids, (id) => removeGame(id));

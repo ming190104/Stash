@@ -47,6 +47,23 @@
   pointer-events: auto;
 }
 
+/* 跳过提示：0.7s 后才淡入，5s 的冷启动与全屏切换都来得及看清。
+   颜色跟着主题走，EVA 固定用米白。 */
+#warpSplash .wv-skip {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  z-index: 12;
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  color: color-mix(in srgb, var(--ink1) 55%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  animation: wv-skip-in .45s ease .7s forwards;
+}
+#warpSplash.mode-eva .wv-skip { color: rgba(242, 238, 227, .5); }
+@keyframes wv-skip-in { to { opacity: 1; } }
+
 /* 颗粒：内联 SVG 湍流当 alpha，不下载素材；没有它，OLED 纯黑上的大渐变会出色带 */
 #warpSplash::before {
   content: '';
