@@ -382,12 +382,15 @@ input::placeholder,textarea::placeholder{color:var(--ink3);opacity:1}
    启动转场层 / 空态 / FPS 面板 / 键盘焦点态 / 帧率档动效时长
    ============================================================ */
 
-/* ===== 启动转场层（游戏运行中全屏遮罩） ===== */
+/* ===== 启动转场层（游戏运行中全屏遮罩） =====
+   启动后整屏纯黑：封面 / 标题 / 状态 / 结束按钮都只做视觉隐藏。
+   节点仍留在 DOM 里——运行态文案照常更新，X 与手柄 Start+Select 仍能结束游戏，
+   读屏也还能从 aria-label 得知当前是「游戏运行中」。 */
 .launch-layer{position:absolute;inset:0;z-index:70;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
-  background:radial-gradient(120% 100% at 50% 0%,rgba(20,16,22,.88),rgba(5,6,8,.96));
-  backdrop-filter:blur(18px);opacity:0;pointer-events:none;visibility:hidden;
+  background:#000;opacity:0;pointer-events:none;visibility:hidden;
   transition:opacity .3s ease,visibility 0s linear .3s}
 .launch-layer.on{opacity:1;pointer-events:auto;visibility:visible;transition:opacity .3s ease}
+.launch-layer>.ll-art,.launch-layer>.ll-title,.launch-layer>.ll-status,.launch-layer>.ghost{display:none}
 .ll-art{width:210px;height:280px;border-radius:12px;overflow:hidden;box-shadow:0 30px 70px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.14);background-size:cover;background-position:center}
 .ll-art .art{border-radius:12px}
 .ll-title{font-family:var(--serif);font-size:calc(24px * var(--fs,1));font-weight:700;letter-spacing:2px;text-shadow:0 2px 20px rgba(0,0,0,.5)}

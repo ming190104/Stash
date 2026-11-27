@@ -527,23 +527,18 @@ describe('运行事件与输入设备兜底', () => {
     expect(state.gridMulti).toBe(false);
   });
 
-  it('首次用手柄启动游戏时提示 Start+Select 回书架，且只提示一次', async () => {
+  it('首次用手柄启动不再弹 Start+Select 提示（纯黑遮罩上不显示文字）', async () => {
     state.games = [game('a')];
     state.padInfo = { name: 'Xbox Wireless Controller', kind: 'xbox' as const, power: 'full', ff: true };
-    localStorage.removeItem('stash.padHomeHint');
     renderRail();
     const started = H.events.get('game://started')!;
     started('a');
-    await vi.waitFor(() => expect(allToasts()).toContain('长按 Start+Select 1.2 秒可结束游戏并回书架'));
-
-    H.toast.mockClear();
-    const exited = H.events.get('game://exited')!;
-    exited({ id: 'a', code: 0 });
-    await vi.waitFor(() => expect(state.running).toBeNull());
-    started('a');
-    await new Promise((r) => setTimeout(r, 10));
+    await vi.waitFor(() => expect(state.running).toBe('a'));
+    expect(document.getElementById('launchLayer')!.classList.contains('on')).toBe(true);
+    // 启动遮罩是纯黑屏：手柄出口提示不再出现（结束入口在快捷菜单里）
     expect(allToasts()).not.toContain('长按 Start+Select 1.2 秒可结束游戏并回书架');
-    localStorage.removeItem('stash.padHomeHint');
+
+    const exited = H.events.get('game://exited')!;
     exited({ id: 'a', code: 0 });
     await vi.waitFor(() => expect(state.running).toBeNull());
   });

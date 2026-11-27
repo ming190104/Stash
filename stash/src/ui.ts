@@ -263,6 +263,23 @@ export function cssUrl(u: string): string {
   return `url("${u.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r?\n/g, '\\a ')}")`;
 }
 
+/** 启动/运行遮罩是纯黑屏，上面不应出现任何文字。
+ *  快捷菜单 / 输入弹层本身有界面，它们开着时仍允许提示（那是操作反馈）。 */
+function coveredByLaunch(): boolean {
+  const launch = document.getElementById('launchLayer');
+  if (!launch?.classList.contains('on')) return false;
+  if (document.getElementById('qmenu')?.classList.contains('show')) return false;
+  return !document.querySelector('#app > .state.show');
+}
+
+/** 立刻收起当前提示与排队：进入纯黑遮罩前调用，避免旧提示残留到黑屏上 */
+export function clearToast(): void {
+  clearTimeout(toastTimer);
+  toastShowing = false;
+  toastQueue.length = 0;
+  document.getElementById('toast')?.classList.remove('show', 'hot');
+}
+
 /** 播一条并按时收起；收起后若有排队，立刻接上下一条（中间不空闪） */
 function playToast(el: HTMLElement, t: { msg: string; hot: boolean }): void {
   setRawHTML(el, t.msg);
@@ -279,6 +296,11 @@ function playToast(el: HTMLElement, t: { msg: string; hot: boolean }): void {
 }
 
 export function toast(msg: string, hot = false): void {
+  // 纯黑运行遮罩上不留任何文字：消息直接吞掉，但报错音照响（用户至少知道出了事）
+  if (coveredByLaunch()) {
+    if (hot) sfx.error();
+    return;
+  }
   if (hot) sfx.error(); // 报错音立即响，不等排到队列：连续失败时用户需要立刻听到
   const el = document.getElementById('toast');
   if (!el) return;
@@ -295,6 +317,10 @@ export function toast(msg: string, hot = false): void {
  *  反馈不能排在旧值后面，否则用户看到的还是上一条（以为没选中）。
  *  错误提示（hot）留在队列里，播完当前条后仍会出现。 */
 export function toastNow(msg: string, hot = false): void {
+  if (coveredByLaunch()) {
+    if (hot) sfx.error();
+    return;
+  }
   const el = document.getElementById('toast');
   if (!el) return;
   for (let i = toastQueue.length - 1; i >= 0; i--) {

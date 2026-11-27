@@ -9,7 +9,7 @@ import { state, sortedGames, setScreen, lastPlayedId, gameById, gridList, versio
 import { clearHTML, setRawHTML } from '../html';
 import { registerHandler, isPadNavEvent } from '../nav';
 import { markSel, toggleSel, setMulti, openBatch, setMultiRefresh } from '../multi';
-import { toast, esc, press, pressCard, applyFullscreenUI } from '../ui';
+import { toast, esc, press, pressCard, applyFullscreenUI, clearToast } from '../ui';
 import { anyState, showEmpty, hideEmpty, emptyShown, syncScreenInert } from '../overlay';
 import { refreshPadHints } from '../keybar';
 import { sfx } from '../sfx';
@@ -31,8 +31,6 @@ export { wallPos } from './wall';
 const CARD_W = 170;
 const STEP = 184;
 const HALF = 85;
-/** 手柄回书架手势只提示一次：它是游戏卡死时唯一的纯手柄出口 */
-const PAD_HOME_HINT = 'stash.padHomeHint';
 const RAIL_PAD = 32;
 /** 舞台逻辑宽度：fitStage 会按窗口比例把它撑到 1280 以上（16:9 时正好 1280），
  *  轨道居中与首尾夹紧必须跟着走，否则宽窗口里焦点卡会偏到左边 */
@@ -240,16 +238,11 @@ async function showLaunchLayer(g: Game): Promise<void> {
   document.getElementById('llTitle')!.textContent = g.title;
   document.getElementById('llStatus')!.textContent = '正在启动…';
   layer.classList.add('on');
+  // 纯黑遮罩上不保留任何文字：进入前把正在显示的提示连同排队一起收掉；
+  // 遮罩期间 toast() 也会被吞掉（快捷菜单 / 输入弹层打开时例外）。
+  clearToast();
   // 运行遮罩期间主屏 inert：按键 / Tab / 读屏都不落到背后的库屏
   syncScreenInert();
-  if ((g.localeOverride ?? g.needsLocale) && (state.settings?.locale.warnOnly ?? true)) {
-    toast('检测到 Shift-JIS 引擎：如启动异常，建议用转区工具运行');
-  }
-  // 首次用手柄启动游戏时提示唯一的手柄出口：游戏卡死 / 全屏时没有别的办法叫回窗口
-  if (state.padInfo.name && localStorage.getItem(PAD_HOME_HINT) !== '1') {
-    localStorage.setItem(PAD_HOME_HINT, '1');
-    toast('手柄：长按 Start+Select 1.2 秒可结束游戏并回书架');
-  }
 }
 
 function hideLaunchLayer(): void {

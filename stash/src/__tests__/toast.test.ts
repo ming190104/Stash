@@ -3,7 +3,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountSkeleton, resetState } from './dom-skeleton';
-import { toast } from '../ui';
+import { toast, clearToast } from '../ui';
 
 const el = (): HTMLElement => document.getElementById('toast')!;
 
@@ -57,5 +57,28 @@ describe('toast 队列', () => {
   it('没有 toast 节点时静默忽略，不抛错', () => {
     document.getElementById('toast')?.remove();
     expect(() => toast('无处显示')).not.toThrow();
+  });
+
+  it('运行遮罩（纯黑）打开时吞掉提示；快捷菜单打开后恢复', () => {
+    document.getElementById('launchLayer')!.classList.add('on');
+    toast('不该出现');
+    expect(el().classList.contains('show')).toBe(false);
+
+    // 快捷菜单本身有界面：它的操作反馈照常显示
+    document.getElementById('qmenu')!.classList.add('show');
+    toast('菜单提示');
+    expect(el().classList.contains('show')).toBe(true);
+    expect(el().textContent).toBe('菜单提示');
+  });
+
+  it('进入纯黑遮罩前 clearToast 立即收起提示并清空排队', () => {
+    toast('旧提示');
+    toast('排队提示');
+    expect(el().classList.contains('show')).toBe(true);
+    clearToast();
+    expect(el().classList.contains('show')).toBe(false);
+    // 队列已清空：推进时间不会把「排队提示」补播出来
+    vi.advanceTimersByTime(5000);
+    expect(el().classList.contains('show')).toBe(false);
   });
 });
