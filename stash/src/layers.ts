@@ -43,6 +43,17 @@ export function anyState(): boolean {
   return LAYERS.some(layerShown);
 }
 
+/** 主屏隔离：任一状态层 / 快捷菜单 / 运行遮罩打开时，把四屏整体标成 inert。
+ *  否则底部界面仍留在可访问树里（读屏会念两层），Tab 也能落到被遮住的卡片与按钮上。
+ *  .state / #qmenu / #launchLayer 都是 #app 的直接子节点，不受影响。 */
+export function syncScreenInert(): void {
+  const on = anyState();
+  document.querySelectorAll<HTMLElement>('#app > .screen').forEach((s) => {
+    if (on) s.setAttribute('inert', '');
+    else s.removeAttribute('inert');
+  });
+}
+
 /** 启动/运行遮罩是否显示中 */
 export function launchShown(): boolean {
   return layerShown('launchLayer');
@@ -62,13 +73,24 @@ export function hideStates(): void {
   document.querySelectorAll('.state').forEach((s) => s.classList.remove('show'));
   // 快捷菜单不是 .state（类名 qmenu），单例切换时也必须跟着收起，否则两层叠在一起
   document.getElementById('qmenu')?.classList.remove('show');
-  document.querySelectorAll('#spList .sp-item.on').forEach((x) => x.classList.remove('on'));
+  document.querySelectorAll('#spList .sp-item.on').forEach((x) => {
+    x.classList.remove('on');
+    x.setAttribute('aria-selected', 'false');
+  });
+  // 搜索面板收起：组合框的展开态与活动候选一起复位，读屏不会指向已隐藏的列表项
+  const sp = document.getElementById('spInput');
+  if (sp) {
+    sp.setAttribute('aria-expanded', 'false');
+    sp.removeAttribute('aria-activedescendant');
+  }
+  syncScreenInert();
 }
 
 /** 单例切换：任何一层打开前先关掉其余层 */
 export function showState(id: string): void {
   hideStates();
   document.getElementById(id)?.classList.add('show');
+  syncScreenInert();
 }
 
 export function emptyShown(): boolean {
@@ -99,6 +121,7 @@ export function bgShown(): boolean {
 /** 只收起空态层（库有数据时由 updateEmpty 调用；不触碰搜索/加载/失败层） */
 export function hideEmpty(): void {
   document.getElementById('emptyState')?.classList.remove('show');
+  syncScreenInert();
 }
 
 /* ============ 加载 ============ */

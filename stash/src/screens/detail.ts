@@ -151,7 +151,7 @@ export async function renderDetail(): Promise<void> {
     paintDetailArt(null, () => token === detailToken);
     setRawHTML(
       info,
-      '<div class="d-cn">作品已不在库中</div><p class="d-sum">可能已被移出库或隐藏；按 B 返回游戏库。</p>',
+      '<h1 class="d-cn">作品已不在库中</h1><p class="d-sum">可能已被移出库或隐藏；按 B 返回游戏库。</p>',
     );
     return;
   }
@@ -231,7 +231,7 @@ export async function renderDetail(): Promise<void> {
   setRawHTML(
     info,
     `
-    <div class="d-cn">${esc(g.title)}</div>
+    <h1 class="d-cn">${esc(g.title)}</h1>
     ${jpLine ? `<div class="d-jp">${jpLine}</div>` : ''}
     <div class="d-pills">${pills.join('')}</div>
     <p class="d-sum">${esc(cnFirst(g.summary ?? '') || '尚未匹配元数据——当前信息来自本地目录。可在「设置 · 元数据」里运行 Bangumi 匹配。')}</p>

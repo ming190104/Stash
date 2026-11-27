@@ -7,6 +7,7 @@ import { html, setHTML, setRawHTML } from './html';
 import { promptConfirm, promptShown } from './prompt';
 import { warpToggle, warpBusy } from './splash';
 import { modalState, openSearch } from './overlay';
+import { syncScreenInert } from './layers';
 import { persist } from './settings-persist';
 import { stopGame, getSettings, setFullscreen, TAURI } from './ipc';
 
@@ -38,9 +39,13 @@ function ensure(): HTMLElement {
   m = document.createElement('div');
   m.id = 'qmenu';
   m.className = 'qmenu';
+  // 模态语义：标题用菜单头部的 #qTitle（子菜单 / 详情「更多操作」改标题时自动跟随）
+  m.setAttribute('role', 'dialog');
+  m.setAttribute('aria-modal', 'true');
+  m.setAttribute('aria-labelledby', 'qTitle');
   setRawHTML(
     m,
-    `<div class="qbox"><div class="qt">快捷菜单<span>Start / 菜单键</span></div><div class="qlist"></div>` +
+    `<div class="qbox"><div class="qt" id="qTitle">快捷菜单<span>Start / 菜单键</span></div><div class="qlist"></div>` +
       `<div class="qfoot"><span>↑↓ 选择</span><span>A / Enter 确认</span><span>B / Esc 返回</span></div></div>`,
   );
   document.getElementById('app')?.appendChild(m);
@@ -290,6 +295,7 @@ export async function openMenu(
   idx = start >= 0 ? start : 0;
   parent = opts?.back ?? null;
   m.classList.add('show');
+  syncScreenInert();
   paint();
 }
 
@@ -318,6 +324,7 @@ export async function toggleQuickMenu(): Promise<void> {
 export function close(): void {
   parent = null;
   el()?.classList.remove('show');
+  syncScreenInert();
 }
 
 /** 菜单内按键：返回 true 表示已消费 */
@@ -330,6 +337,18 @@ export function handleQuickKey(e: KeyboardEvent): boolean {
     parent = null;
     if (up) up();
     else close();
+    e.preventDefault();
+    return true;
+  }
+  // Tab / Shift+Tab：与 ↑↓ 同义，键盘用户不必先学方向键
+  if (e.code === 'Tab') {
+    if (!items.length) {
+      e.preventDefault();
+      return true;
+    }
+    const n = e.shiftKey ? -1 : 1;
+    idx = (idx + n + items.length) % items.length;
+    paint();
     e.preventDefault();
     return true;
   }

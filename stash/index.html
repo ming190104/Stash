@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#0d0e13"/>
 <title>Stash · 游戏库</title>
 <!-- 字体只用系统栈（--sans / --serif 见 app.css）：此前引 Google Fonts，
      既要在每次启动时外连（离线 / 国内网络下必失败），也会被 CSP 拦下，
@@ -308,11 +309,11 @@
   </div>
 
   <!-- 搜索 · 排序面板 -->
-  <div class="state" id="searchPanel">
+  <div class="state" id="searchPanel" role="dialog" aria-modal="true" aria-label="搜索 · 排序">
     <div class="sp-box">
       <div class="sp-field">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/></svg>
-        <input id="spInput" placeholder="搜索作品名 / 会社 / 标签 / 拼音 / 罗马音…"/>
+        <input id="spInput" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="spList" aria-label="搜索作品" placeholder="搜索作品名 / 会社 / 标签 / 拼音 / 罗马音…"/>
         <span class="kk">Esc</span>
       </div>
       <div>
@@ -320,8 +321,8 @@
         <div class="seg" id="spSort"><b class="on">最近游玩</b><b>名称</b><b>发售年</b></div>
       </div>
       <div>
-        <div class="sp-lab">结果<span class="sp-count" id="spCount"></span></div>
-        <div class="sp-list" id="spList"></div>
+        <div class="sp-lab">结果<span class="sp-count" id="spCount" aria-live="polite"></span></div>
+        <div class="sp-list" id="spList" role="listbox" aria-label="搜索结果"></div>
       </div>
       <div class="flt-foot sp-foot">
         <span class="kg"><span class="kk">↑↓</span>选择</span>
@@ -334,7 +335,7 @@
   </div>
 
   <!-- 筛选面板（快捷分类 / 标签 / 会社 / 年份，P1 + P10 保存视图） -->
-  <div class="state" id="filterPanel">
+  <div class="state" id="filterPanel" role="dialog" aria-modal="true" aria-label="筛选">
     <div class="flt-box">
       <div class="flt-head">
         <b>筛选</b>
@@ -355,7 +356,7 @@
   </div>
 
   <!-- 结局 / 路线标记（详情页「结局 x/y · 管理」入口） -->
-  <div class="state" id="endPanel">
+  <div class="state" id="endPanel" role="dialog" aria-modal="true" aria-label="结局 · 路线">
     <div class="snap-box">
       <div class="snap-head">
         <b>结局 · 路线</b>
@@ -374,7 +375,7 @@
   </div>
 
   <!-- 背景图候选墙（详情 · 更多操作 · 背景图）：上方 16:9 画面 + 下方文字，A / 点击即应用 -->
-  <div class="state" id="bgPanel">
+  <div class="state" id="bgPanel" role="dialog" aria-modal="true" aria-label="背景图">
     <div class="bg-box">
       <div class="flt-head">
         <b>背景图</b>
@@ -395,7 +396,7 @@
   </div>
 
   <!-- 改绑条目（设置 · 元数据 / 待确认 / 未匹配）：候选卡片模态层，A 绑定 · X 取消匹配 -->
-  <div class="state" id="candPanel">
+  <div class="state" id="candPanel" role="dialog" aria-modal="true" aria-label="改绑条目">
     <div class="cand-box">
       <div class="flt-head">
         <b>改绑条目</b>
@@ -419,7 +420,7 @@
   </div>
 
   <!-- 快捷键总览（F1 / ?）：键位散落在各屏 keybar，这里给一页可查的总表 -->
-  <div class="state" id="helpPanel">
+  <div class="state" id="helpPanel" role="dialog" aria-modal="true" aria-label="快捷键总览">
     <div class="help-box">
       <div class="flt-head">
         <b>快捷键总览</b>
@@ -475,7 +476,7 @@
   </div>
 
   <!-- 启动转场层（游戏运行中） -->
-  <div class="launch-layer" id="launchLayer">
+  <div class="launch-layer" id="launchLayer" role="dialog" aria-modal="true" aria-label="游戏运行中">
     <div class="ll-art" id="llArt"></div>
     <div class="ll-title" id="llTitle"></div>
     <div class="ll-status" id="llStatus">正在启动…</div>

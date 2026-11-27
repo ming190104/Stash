@@ -149,7 +149,7 @@ export function renderSearch(): void {
     ? list
         .map(
           (g, i) => `
-    <div class="sp-item${i === 0 ? ' on' : ''}" data-id="${esc(g.id)}">
+    <div class="sp-item${i === 0 ? ' on' : ''}" role="option" id="sp-opt-${i}" aria-selected="${i === 0 ? 'true' : 'false'}" data-id="${esc(g.id)}">
       <div class="sp-th" style="background:${placeholderArt(g.id).bg}"></div>
       <div class="sp-tx"><div class="sp-nm">${esc(g.title)}</div><div class="sp-mt">${esc([g.developer, g.year].filter(Boolean).join(' · ')) || esc(g.engineLabel)}</div></div>
     </div>`,
@@ -157,6 +157,13 @@ export function renderSearch(): void {
         .join('')
     : `<div class="sp-empty"><span>没有匹配「${esc(state.query)}」的作品 · 试试会社名 / 标签 / 日文假名 / 拼音 / 罗马音</span><button class="mini" id="spClear">清除搜索</button></div>`;
   setRawHTML(box, histHtml + listHtml);
+  // 组合框语义：读屏跟随输入框上的活动候选项（列表本身不是 Tab 停靠点）
+  const active = box.querySelector<HTMLElement>('.sp-item.on');
+  const liveInp = document.getElementById('spInput');
+  if (liveInp) {
+    if (active?.id) liveInp.setAttribute('aria-activedescendant', active.id);
+    else liveInp.removeAttribute('aria-activedescendant');
+  }
   box.querySelector('#spClear')?.addEventListener('click', clearQuery);
   box.querySelectorAll<HTMLElement>('.sp-item').forEach((el) => {
     el.addEventListener('click', () => {
@@ -184,7 +191,11 @@ export function renderSearch(): void {
 }
 
 function renderSortSeg(): void {
-  document.querySelectorAll('#spSort b').forEach((b, i) => b.classList.toggle('on', SORT_MODES[i]?.v === state.sortBy));
+  document.querySelectorAll('#spSort b').forEach((b, i) => {
+    const on = SORT_MODES[i]?.v === state.sortBy;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
 }
 
 /** 切换排序档：搜索面板点击与手柄 ←/→ 共用同一条路径。 */
@@ -238,6 +249,8 @@ export function openSearch(keepQuery = false): void {
   document.querySelectorAll('#spSort b').forEach((b) => b.classList.remove('focus'));
   renderSearch();
   showState('searchPanel');
+  // showState 内部会先 hideStates（把展开态复位成 false），所以展开态要在它之后再写
+  inp?.setAttribute('aria-expanded', 'true');
   // 面板可能在 80ms 内被 B/Esc 收起：此时不能再把焦点送给隐藏的输入框，
   // 否则它会一直吞掉 / F 数字 等全局快捷键（与 prompt 的 focusTimer 同一类问题）
   setTimeout(() => {
@@ -251,14 +264,21 @@ function selectResult(step: number): void {
   // 防抖窗口内先让列表跟上最新输入：否则方向键是在上一次的候选里选，Enter 会开到错误的作品
   flushSearchRender();
   const items = [...document.querySelectorAll<HTMLElement>('#spList .sp-item')];
-  if (!items.length) return;
+  if (!items.length) {
+    document.getElementById('spInput')?.removeAttribute('aria-activedescendant');
+    return;
+  }
   const cur = items.findIndex((x) => x.classList.contains('on'));
   const k = cur < 0 ? (step > 0 ? 0 : items.length - 1) : (cur + step + items.length) % items.length;
   items.forEach((x, i) => {
-    x.classList.toggle('on', i === k);
+    const on = i === k;
+    x.classList.toggle('on', on);
     // .focus 是手柄焦点环：只靠 .on 的背景在 TV 距离上几乎看不出来
-    x.classList.toggle('focus', i === k);
+    x.classList.toggle('focus', on);
+    x.setAttribute('aria-selected', String(on));
   });
+  const inp = document.getElementById('spInput');
+  if (inp && items[k]!.id) inp.setAttribute('aria-activedescendant', items[k]!.id);
   items[k]?.scrollIntoView({ block: 'nearest' });
 }
 

@@ -96,6 +96,8 @@ function buildGrid(animate = false): void {
 
 function syncMultiUI(): void {
   document.getElementById('selBtn')?.classList.toggle('on', state.gridMulti);
+  // 操作条停靠在键位栏位置：多选态让键位提示让位，否则会压住最后一排作品标题
+  document.getElementById('app')?.classList.toggle('multi', state.gridMulti);
   // 网格与库屏各有一条操作条，多选态下同时可见只看当前屏那条
   for (const id of ['gselBar', 'lselBar']) {
     const bar = document.getElementById(id);

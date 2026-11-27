@@ -332,3 +332,47 @@ describe('启动遮罩', () => {
     expect(handleOverlayKey(key('ArrowDown'))).toBe(true);
   });
 });
+
+describe('浮层内 Tab', () => {
+  it('没有浮层时不拦截 Tab（屏幕内保持浏览器默认）', () => {
+    expect(handleOverlayKey(key('Tab'))).toBe(false);
+  });
+
+  it('搜索面板：Tab 把焦点移入层内控件，不会落回主屏', () => {
+    state.games = [game('a', { title: 'A' }), game('b', { title: 'B' })];
+    openSearch();
+    const inp = el('spInput');
+    const e = key('Tab');
+    expect(handleOverlayKey(e)).toBe(true);
+    expect(e.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(inp);
+    // 层内只有一个可聚焦控件：再按 Tab 仍在层内循环
+    handleOverlayKey(key('Tab'));
+    expect(document.activeElement).toBe(inp);
+  });
+
+  it('筛选面板：焦点在按钮上时 Enter 触发该按钮，不执行面板默认动作', () => {
+    openFilter();
+    const save = el('saveView');
+    const click = vi.fn();
+    save.addEventListener('click', click);
+    save.focus();
+    expect(handleOverlayKey(key('Enter'))).toBe(true);
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it('输入弹层：Tab 在按钮间循环，Enter 触发焦点按钮（取消）', async () => {
+    const p = promptConfirm({ title: '退出？' });
+    const ok = el('pOk');
+    const cancel = el('pCancel');
+    ok.focus();
+    expect(handleOverlayKey(key('Tab'))).toBe(true);
+    expect(document.activeElement).toBe(cancel);
+    handleOverlayKey(key('Tab', { shiftKey: true }));
+    expect(document.activeElement).toBe(ok);
+    // 焦点在「取消」时按 Enter 必须取消，不能被面板默认分支当成「确定」
+    handleOverlayKey(key('Tab'));
+    expect(handleOverlayKey(key('Enter'))).toBe(true);
+    await expect(p).resolves.toBe(false);
+  });
+});

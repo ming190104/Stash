@@ -1,6 +1,10 @@
 /* Stash 前端样式 —— 结构与取值照搬 design/ui-mockup.html（像素级事实源），
    增补段：真实封面 img / 启动转场层 / 空态 / FPS 面板 / 键盘焦点态 / 帧率档动效时长 */
 *{margin:0;padding:0;box-sizing:border-box}
+/* 原生控件（滚动条 / 文本选区 / 表单）跟随主题明暗：
+   深色主题下不该出现 WebView 默认的浅色滚动条，REI 白瓷主题则反过来 */
+html{color-scheme:dark}
+html[data-theme="rei"]{color-scheme:light}
 :root{
   /* 单一主题（影院暗色）：配色令牌只此一组，不再有主题选择器 */
   /* 字号缩放：设置 · 外观写入 0.9 / 1 / 1.12 / 1.25；所有 font-size 都乘它 */

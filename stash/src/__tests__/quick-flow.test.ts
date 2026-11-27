@@ -98,6 +98,16 @@ describe('条目构建与执行', () => {
     expect(quickShown()).toBe(false);
   });
 
+  it('Tab / Shift+Tab 在条目间移动（与 ↑↓ 同义）', async () => {
+    await toggleQuickMenu();
+    const on = (): string | null => document.querySelector('#qmenu .qitem.on')?.getAttribute('data-k') ?? null;
+    expect(on()).toBe('search');
+    expect(handleQuickKey(key('Tab'))).toBe(true);
+    expect(on()).toBe('full');
+    expect(handleQuickKey(key('Tab', { shiftKey: true }))).toBe(true);
+    expect(on()).toBe('search');
+  });
+
   it('全屏 / 随机 / 设置各自生效', async () => {
     await toggleQuickMenu();
     item('full')!.click();

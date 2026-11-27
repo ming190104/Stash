@@ -25,6 +25,7 @@ import { showEmpty } from './empty';
 import { bgKey } from './bgpanel';
 import { candKey } from './candpanel';
 import { endingsKey } from './endings';
+import { clickable } from './ui';
 
 export {
   anyState,
@@ -40,6 +41,7 @@ export {
   searchShown,
   filterShown,
   endShown,
+  syncScreenInert,
 } from './layers';
 export {
   openSearch,
@@ -53,6 +55,42 @@ export { openFilter, renderFilter, syncFilterChip, saveCurrentView } from './fil
 export { filterDesc, showEmpty } from './empty';
 export { openEndings } from './endings';
 
+/** 当前最上层的浮层根节点（同一时刻只有一个 .state.show；快捷菜单 / 输入层可叠在它之上） */
+function topLayerEl(): HTMLElement | null {
+  const prompt = document.getElementById('promptLayer');
+  if (prompt?.classList.contains('show')) return prompt;
+  const qm = document.getElementById('qmenu');
+  if (qm?.classList.contains('show')) return qm;
+  const state = document.querySelector<HTMLElement>('#app > .state.show');
+  if (state) return state;
+  const launch = document.getElementById('launchLayer');
+  if (launch?.classList.contains('on')) return launch;
+  return null;
+}
+
+/** 层内可聚焦控件选择器（原生控件 + 由 clickable() 补过语义的伪按钮） */
+const TABBABLES =
+  'button:not([disabled]),a[href],input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/** 层内可聚焦控件（隐藏的不算） */
+function tabbablesIn(root: HTMLElement): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(TABBABLES)].filter((el) => {
+    if (el.hidden || el.closest('[hidden]')) return false;
+    const cs = getComputedStyle(el);
+    return cs.display !== 'none' && cs.visibility !== 'hidden';
+  });
+}
+
+/** 在一层内部循环移动焦点：Tab 不能漏回 inert 的主屏，也不能直接失效 */
+function cycleFocus(root: HTMLElement, step: number): void {
+  const list = tabbablesIn(root);
+  if (!list.length) return;
+  const cur = document.activeElement as HTMLElement | null;
+  const i = cur ? list.indexOf(cur) : -1;
+  const next = i < 0 ? list[step > 0 ? 0 : list.length - 1] : list[(i + step + list.length) % list.length];
+  next?.focus();
+}
+
 /** 返回 true 表示已消费该按键（底层屏幕不再响应）。
  *  焦点在输入框时要分两种情况：搜索框把 Esc / Enter / ↑↓ 交给候选列表；
  *  其余输入框（如设置页的代理地址）只吞掉会误触全局快捷键的键，方向键则
@@ -60,6 +98,32 @@ export { openEndings } from './endings';
 export function handleOverlayKey(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
   const isField = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
+
+  // Tab：浮层打开时在层内可聚焦控件之间循环。
+  // 以前 Tab 被 NATIVE_DEFAULT 直接吞掉，键盘 / 读屏用户只能改用方向键，纯键盘路径等于断了；
+  // 现在 Tab = 常规焦点遍历（排序档 / 清空 / 保存视图 / 弹层按钮都能到），
+  // 候选与卡片墙的移动仍交给 ↑↓ / ←→，两条输入路径互不干扰。
+  if (e.code === 'Tab') {
+    const root = topLayerEl();
+    if (!root) return false; // 没有浮层：屏幕内保持浏览器默认 Tab
+    e.preventDefault();
+    cycleFocus(root, e.shiftKey ? -1 : 1);
+    return true;
+  }
+
+  // Tab 把焦点移到浮层内的按钮后：Enter / Space 触发该按钮。
+  // 否则焦点停在「取消」上也仍会被面板默认分支当成「确定」。
+  const focusEl = document.activeElement as HTMLElement | null;
+  if (
+    (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') &&
+    focusEl &&
+    focusEl.tagName === 'BUTTON' &&
+    topLayerEl()?.contains(focusEl)
+  ) {
+    focusEl.click();
+    e.preventDefault();
+    return true;
+  }
 
   if (isField && t.id === 'spInput') return searchFieldKey(e);
 
@@ -223,6 +287,11 @@ export function initOverlay(): void {
       if (e.target === panel) hideStates();
     });
   }
+  // 伪按钮（span / b 冒充的按钮）补齐语义：Tab 可聚焦、Enter / Space 可触发。
+  // 之前它们只有 click 监听，键盘用户完全到不了（全选/多选/清空筛选/保存视图/换背景/取消匹配）。
+  document
+    .querySelectorAll<HTMLElement>('.fchip, #spSort b, #fltClear, #saveView, #bgPick, #bgAuto, #candUnmatch')
+    .forEach(clickable);
   syncFilterChip();
 }
 

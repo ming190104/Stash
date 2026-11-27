@@ -158,9 +158,13 @@ html[data-layout="classic"] .qekey{display:none}
 .selmk{position:absolute;top:8px;right:8px;z-index:4;width:22px;height:22px;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:calc(12px * var(--fs,1));font-weight:700;color:var(--acc-on);background:var(--accg);border:1px solid rgba(255,255,255,.35);box-shadow:0 4px 12px rgba(0,0,0,.45)}
 .gcell.sel .selmk{display:flex}
 .gcell.sel .card{box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 70%,transparent),0 18px 40px rgba(0,0,0,.5)}
-/* 多选底部操作条：浮在键位栏上方 */
-.gselbar{position:absolute;left:0;right:0;bottom:64px;margin:0 auto;width:max-content;z-index:22;display:flex;align-items:center;gap:12px;padding:10px 14px 10px 20px;border-radius:99px;background:color-mix(in srgb,var(--bg0) 72%,transparent);border:1px solid var(--gline);backdrop-filter:blur(14px);box-shadow:0 16px 40px rgba(0,0,0,.5)}
+/* 多选底部操作条：停靠在键位栏的位置。
+   原先 bottom:64px 会压在轨道 / 网格 / 海报墙最后一排的封面与标题上（三种布局都实测遮盖），
+   现在与键位栏同位，多选态由 #app.multi 让键位提示让位，卡片区域不再被遮挡。 */
+.gselbar{position:absolute;left:0;right:0;bottom:0;margin:0 auto;width:max-content;height:48px;z-index:22;display:flex;align-items:center;gap:12px;padding:0 16px 0 22px;border-radius:99px;background:color-mix(in srgb,var(--bg0) 78%,transparent);border:1px solid var(--gline);backdrop-filter:blur(14px);box-shadow:0 -10px 30px rgba(0,0,0,.45)}
 .gselbar[hidden]{display:none}
+/* 多选态：底部键位提示换成操作条（操作条自带「批量操作 / 退出」），不再叠出两层 */
+#app.multi .keybar{opacity:0;pointer-events:none;transition:opacity .15s ease}
 .gseln{font-size:calc(12px * var(--fs,1));letter-spacing:1px;color:var(--ink2)}
 
 /* ===== 详情屏 ===== */
@@ -175,7 +179,7 @@ html[data-layout="classic"] .qekey{display:none}
 .dcover .art{border-radius:12px}
 .dcover .vt{font-size:calc(17px * var(--fs,1));letter-spacing:6px;top:18px;right:15px}
 .dinfo{flex:1;min-width:0;padding-bottom:2px}
-.d-cn{font-family:var(--serif);font-size:calc(34px * var(--fs,1));font-weight:700;letter-spacing:2px;line-height:1.2;text-shadow:0 2px 26px rgba(0,0,0,.5)}
+.d-cn{font-family:var(--serif);font-size:calc(34px * var(--fs,1));font-weight:700;letter-spacing:2px;line-height:1.2;margin:0;text-shadow:0 2px 26px rgba(0,0,0,.5)}
 .d-jp{font-size:calc(11.5px * var(--fs,1));letter-spacing:5px;color:var(--ink3);margin:8px 0 12px;font-family:var(--serif)}
 .d-pills{display:flex;gap:8px;margin-bottom:12px}
 .d-sum{font-size:calc(13px * var(--fs,1));line-height:1.8;color:var(--ink2);max-width:600px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}

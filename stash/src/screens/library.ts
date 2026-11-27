@@ -10,7 +10,7 @@ import { clearHTML, setRawHTML } from '../html';
 import { registerHandler, isPadNavEvent } from '../nav';
 import { markSel, toggleSel, setMulti, openBatch, setMultiRefresh } from '../multi';
 import { toast, esc, press, pressCard, applyFullscreenUI } from '../ui';
-import { anyState, showEmpty, hideEmpty, emptyShown } from '../overlay';
+import { anyState, showEmpty, hideEmpty, emptyShown, syncScreenInert } from '../overlay';
 import { refreshPadHints } from '../keybar';
 import { sfx } from '../sfx';
 import { artHTML, hydrateArts } from './art';
@@ -240,6 +240,8 @@ async function showLaunchLayer(g: Game): Promise<void> {
   document.getElementById('llTitle')!.textContent = g.title;
   document.getElementById('llStatus')!.textContent = '正在启动…';
   layer.classList.add('on');
+  // 运行遮罩期间主屏 inert：按键 / Tab / 读屏都不落到背后的库屏
+  syncScreenInert();
   if ((g.localeOverride ?? g.needsLocale) && (state.settings?.locale.warnOnly ?? true)) {
     toast('检测到 Shift-JIS 引擎：如启动异常，建议用转区工具运行');
   }
@@ -252,6 +254,7 @@ async function showLaunchLayer(g: Game): Promise<void> {
 
 function hideLaunchLayer(): void {
   document.getElementById('launchLayer')?.classList.remove('on');
+  syncScreenInert();
 }
 
 /* ============ 收藏切换（轨道卡 / 网格卡 / 详情三处视图同步） ============ */

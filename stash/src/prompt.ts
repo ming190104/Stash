@@ -3,6 +3,7 @@
  *  打开期间底层屏幕的快捷键一律不响应（输入框自身由 handleOverlayKey 的 isField 分支兜住）。 */
 
 import { setRawHTML } from './html';
+import { syncScreenInert } from './layers';
 
 let done: ((v: string | null) => void) | null = null;
 /** 多行模式（备注）：Enter 换行，Ctrl+Enter 确认 */
@@ -53,6 +54,10 @@ function ensure(): HTMLElement {
     m = document.createElement('div');
     m.id = 'promptLayer';
     m.className = 'state';
+    // 模态语义：读屏进入弹层时只读弹层内容，标题跟随 #pTitle
+    m.setAttribute('role', 'dialog');
+    m.setAttribute('aria-modal', 'true');
+    m.setAttribute('aria-labelledby', 'pTitle');
     document.getElementById('app')?.appendChild(m);
   }
   if (!m.firstElementChild) {
@@ -81,6 +86,8 @@ function finish(ok: boolean): void {
   const fn = done;
   done = null;
   fn?.(ok && inp ? inp.value : null);
+  // 层已收起：解除主屏 inert（若背后还有别的弹层，sync 会按实际状态保持隔离）
+  syncScreenInert();
 }
 
 /** 打开输入弹层；确定返回输入串（可能为空串），取消/覆盖返回 null */
@@ -119,6 +126,7 @@ export function promptInput(o: {
   const active = document.activeElement as HTMLElement | null;
   if (active && !m.contains(active)) active.blur();
   m.classList.add('show');
+  syncScreenInert();
   clearTimeout(focusTimer);
   focusTimer = window.setTimeout(() => {
     if (!m.classList.contains('show')) return; // 已按 A/B 收起：别让隐藏的输入框偷走焦点
