@@ -22,7 +22,7 @@ pub async fn set_favorite(store: State<'_, Store>, id: String, favorite: bool) -
 
 fn set_favorite_sync(store: &Store, id: &str, favorite: bool) -> Result<(), AppError> {
     let _lock = crate::store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     let g = games
         .iter_mut()
         .find(|g| g.id == id)
@@ -62,7 +62,7 @@ pub async fn set_launch_args(store: State<'_, Store>, id: String, args: Vec<Stri
 
 fn set_launch_args_sync(store: &Store, id: &str, cleaned: Vec<String>) -> Result<(), AppError> {
     let _lock = crate::store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     let g = games
         .iter_mut()
         .find(|g| g.id == id)
@@ -110,7 +110,7 @@ fn delete_game_dir_sync(store: &Store, id: &str) -> Result<(), AppError> {
         ));
     }
     let (dir, others, roots) = {
-        let games = store.load_library();
+        let games = store.load_library_for_write()?;
         let Some(g) = games.iter().find(|g| g.id == id) else {
             return Err(AppError::new(ErrCode::NotFound, "游戏不在库中"));
         };
@@ -286,7 +286,7 @@ fn drop_game_record(store: &Store, id: &str, remember_ignore: bool) -> Result<()
     crate::check_id(id)?;
     let (cover, thumb, still_used, ignored) = {
         let _lock = crate::store::lock_library();
-        let mut games = store.load_library();
+        let mut games = store.load_library_for_write()?;
         let Some(pos) = games.iter().position(|g| g.id == id) else {
             return Err(AppError::new(ErrCode::NotFound, "游戏不在库中"));
         };
@@ -551,7 +551,7 @@ pub async fn update_endings(store: State<'_, Store>, id: String, endings: Vec<En
 
 fn update_endings_sync(store: &Store, id: &str, endings: Vec<EndMark>) -> Result<(), AppError> {
     let _lock = crate::store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     let g = games
         .iter_mut()
         .find(|g| g.id == id)
@@ -645,5 +645,33 @@ mod tests {
         assert_eq!(shell_path(Path::new(r"\\?\C:\Games\AIR")), r"C:\Games\AIR");
         assert_eq!(shell_path(Path::new(r"\\?\UNC\srv\share\AIR")), r"\\srv\share\AIR");
         assert_eq!(shell_path(Path::new(r"D:\Games\AIR")), r"D:\Games\AIR");
+    }
+
+    #[test]
+    fn write_refuses_backup_when_main_library_is_not_readable() {
+        let dir = std::env::temp_dir().join(format!("stash-strict-write-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let store = Store { dir: dir.clone() };
+        let id = "0123456789abcdef";
+        let game = Game { id: id.into(), title: "AIR".into(), ..Default::default() };
+
+        store.save_library(std::slice::from_ref(&game)).unwrap();
+        let mut latest = game.clone();
+        latest.play_seconds = 42;
+        store.save_library(&[latest]).unwrap();
+        std::fs::write(store.library_path(), "{ not json").unwrap();
+
+        let err = set_favorite_sync(&store, id, true).unwrap_err();
+        assert_eq!(err.code, ErrCode::IoError);
+        assert_eq!(std::fs::read_to_string(store.library_path()).unwrap(), "{ not json");
+        let backup: Vec<Game> = serde_json::from_str(
+            &std::fs::read_to_string(store.library_bak_path()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(backup[0].play_seconds, 0);
+        assert!(!backup[0].favorite);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

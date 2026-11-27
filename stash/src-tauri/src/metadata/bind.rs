@@ -53,7 +53,7 @@ fn bind_moegirl_sync(store: &Store, id: &str, title: &str, f: ApplyFields) -> Re
         _ => (None, None),
     };
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     {
         let g = games
             .iter_mut()
@@ -78,7 +78,7 @@ fn bind_egs_sync(store: &Store, id: &str, title: &str, f: ApplyFields) -> Result
     let stat = egs::lookup(&s, title)?
         .ok_or_else(|| AppError::new(ErrCode::NotFound, "批评空间没有这条数据"))?;
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     {
         let g = games
             .iter_mut()
@@ -125,7 +125,7 @@ fn bind_kungal_sync(store: &Store, id: &str, work_id: &str, f: ApplyFields) -> R
         _ => (None, None),
     };
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     {
         let g = games
             .iter_mut()
@@ -166,7 +166,7 @@ pub fn bind_subject_sync(
     };
 
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     {
         let g = games
             .iter_mut()
@@ -208,7 +208,7 @@ pub fn unmatch_game_sync(store: &Store, id: &str) -> Result<(), AppError> {
         scanner::read_meta(std::path::Path::new(&g.dir))
     };
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     let g = games
         .iter_mut()
         .find(|g| g.id == id)

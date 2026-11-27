@@ -226,6 +226,21 @@ impl Store {
         self.load_library_checked().0
     }
 
+    /// 读—改—写必须以主文件为基线：主文件存在但读取/解析失败时，
+    /// 不能拿旧 .bak 修改后盖回主文件。主文件不存在时仍允许从备份恢复。
+    pub fn load_library_for_write(&self) -> std::io::Result<Vec<Game>> {
+        match fs::read_to_string(self.library_path()) {
+            Ok(raw) => serde_json::from_str(&self.rebase_legacy_paths(raw)).map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("library.json 解析失败，已停止写入以保护备份和主库：{e}"),
+                )
+            }),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(self.load_library()),
+            Err(e) => Err(e),
+        }
+    }
+
     /// 仅当主文件**读取并解析成功**时返回库。
     /// 自愈写盘（清理失效媒体路径）必须用它判断来源：主文件瞬时读失败时
     /// `load_library` 会回落到 `.bak`，把那一代写回主文件等于丢一代数据。

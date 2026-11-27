@@ -351,7 +351,13 @@ fn normalize_existing_bg(store: &Store) {
 /// 只在写库路径上翻译的话，老数据永远是英文 / 日文混排。
 fn localize_library_tags(store: &Store) {
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = match store.load_library_for_write() {
+        Ok(games) => games,
+        Err(e) => {
+            tracing::warn!("标签中文化跳过：读取主库失败：{e}");
+            return;
+        }
+    };
     let mut changed = false;
     for g in games.iter_mut() {
         let next = tagzh::localize_all(&g.tags);
@@ -523,7 +529,7 @@ where
     F: FnOnce(&mut Game) -> Result<(), AppError>,
 {
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     let g = games
         .iter_mut()
         .find(|g| g.id == id)

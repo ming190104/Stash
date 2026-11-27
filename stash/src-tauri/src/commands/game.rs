@@ -42,18 +42,23 @@ pub fn stop_game(id: String) -> Result<(), AppError> {
 pub async fn running_game(store: State<'_, Store>) -> Result<Option<Game>, AppError> {
     // 读整库 + 枚举进程都是阻塞操作：放主线程会冻界面（云同步盘尤其明显）
     let st = store.inner().clone();
-    Ok(tauri::async_runtime::spawn_blocking(move || {
-        launcher::running_id().and_then(|id| {
-            let games = {
-                let _lock = crate::store::lock_library();
-                st.load_library()
-            };
-            games.into_iter().find(|g| g.id == id)
-        })
+    let game = tauri::async_runtime::spawn_blocking(move || {
+        let Some(id) = launcher::running_id() else {
+            return Ok(None);
+        };
+        let games = {
+            let _lock = crate::store::lock_library();
+            st.load_library()
+        };
+        games
+            .into_iter()
+            .find(|g| g.id == id)
+            .map(Some)
+            .ok_or_else(|| AppError::new(ErrCode::IoError, "检测到游戏仍在运行，但无法读取对应库记录"))
     })
     .await
-    .ok()
-    .flatten())
+    .map_err(|e| AppError::new(ErrCode::IoError, format!("无法确认游戏运行状态：{e}")))??;
+    Ok(game)
 }
 
 /// 当前手柄连接状态。前端启动时补查一次：手柄线程起得比页面早，

@@ -101,6 +101,35 @@ describe('关于页 · 自动更新', () => {
     expect(u.install).not.toHaveBeenCalled();
   });
 
+  it('下载前无法确认游戏运行状态：失败关闭，不下载也不安装', async () => {
+    const u = fakeUpdate();
+    H.checkUpdate.mockResolvedValue(u);
+    H.runningGame.mockRejectedValue(new Error('IPC 不可用'));
+    await wire();
+
+    btn().click();
+    await vi.waitFor(() => expect(tip().textContent).toContain('1.3.0'));
+    btn().click();
+    await vi.waitFor(() => expect(tip().textContent).toContain('无法确认游戏运行状态'));
+    expect(u.download).not.toHaveBeenCalled();
+    expect(u.install).not.toHaveBeenCalled();
+  });
+
+  it('下载后无法确认游戏运行状态：放弃安装并释放更新句柄', async () => {
+    const u = fakeUpdate();
+    H.checkUpdate.mockResolvedValue(u);
+    H.runningGame.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('IPC 不可用'));
+    await wire();
+
+    btn().click();
+    await vi.waitFor(() => expect(tip().textContent).toContain('1.3.0'));
+    btn().click();
+    await vi.waitFor(() => expect(tip().textContent).toContain('无法确认游戏运行状态'));
+    expect(u.download).toHaveBeenCalled();
+    expect(u.install).not.toHaveBeenCalled();
+    expect(u.close).toHaveBeenCalled();
+  });
+
   it('下载期间又开了游戏：放弃安装并释放更新句柄', async () => {
     const u = fakeUpdate();
     H.checkUpdate.mockResolvedValue(u);

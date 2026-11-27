@@ -152,7 +152,7 @@ pub async fn add_game(
 
     let game = {
         let _lock = crate::store::lock_library();
-        let mut games = store2.load_library();
+        let mut games = store2.load_library_for_write()?;
         let dir_norm = crate::store::normalize_dir(&dir_s);
         if games
             .iter()
@@ -269,7 +269,13 @@ fn spawn_thumbs(app: &AppHandle, store: &Store, games: &[Game]) {
         }
         // 一次 load + 批量改 + 一次 save：导入千部时不再产生千次全量落盘
         let _lock = store::lock_library();
-        let mut games = store.load_library();
+        let mut games = match store.load_library_for_write() {
+            Ok(games) => games,
+            Err(e) => {
+                tracing::warn!("缩略图路径未落盘：读取主库失败：{e}");
+                return;
+            }
+        };
         let mut any = false;
         for (id, path) in done {
             if let Some(g) = games.iter_mut().find(|g| g.id == id) {
@@ -379,7 +385,7 @@ pub async fn import_library_root(
 
     let (games, report) = {
         let _lock = store::lock_library();
-        let old = st.load_library();
+        let old = st.load_library_for_write()?;
         let (merged, report) = store::merge_into_library(&old, detected);
         st.save_library(&merged)?;
         (merged, report)
@@ -451,7 +457,7 @@ pub async fn import_steam(
 
     let (games, report) = {
         let _lock = store::lock_library();
-        let old = st.load_library();
+        let old = st.load_library_for_write()?;
         let dirs: std::collections::HashSet<String> = detected
             .iter()
             .map(|d| store::normalize_dir(&d.dir))

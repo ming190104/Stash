@@ -547,7 +547,7 @@ pub fn prune_missing_games_sync(store: &Store) -> Result<usize, AppError> {
     }
     // 锁内重读一次再删：期间用户可能刚给这些条目改了名 / 取消隐藏
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = store.load_library_for_write()?;
     let before = games.len();
     games.retain(|g| !dead.contains(&g.id));
     let removed = before - games.len();

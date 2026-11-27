@@ -289,7 +289,13 @@ fn flush_hits(store: &Store, pending: &mut Vec<PendingHit>) {
     }
     let count = pending.len();
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = match store.load_library_for_write() {
+        Ok(games) => games,
+        Err(e) => {
+            tracing::error!("匹配结果未落盘：读取主库失败：{e}");
+            return;
+        }
+    };
     for p in pending.iter() {
         // 匹配期间被移出库（目录被删）的条目：放弃这次结果
         if let Some(g) = games.iter_mut().find(|g| g.id == p.id) {
@@ -323,7 +329,13 @@ pub fn needs_match(g: &Game, force: bool) -> bool {
 /// `force` = 用户主动发起的重新匹配：允许覆盖手改过的元数据（清掉 meta_manual）。
 pub fn write_hit_locked(store: &Store, id: &str, hit: Option<&MatchHit>, force: bool) -> &'static str {
     let _lock = store::lock_library();
-    let mut games = store.load_library();
+    let mut games = match store.load_library_for_write() {
+        Ok(games) => games,
+        Err(e) => {
+            tracing::error!("匹配结果未落盘 {id}：读取主库失败：{e}");
+            return "none";
+        }
+    };
     let Some(g) = games.iter_mut().find(|g| g.id == id) else {
         return "none"; // 匹配期间被移出库（目录被删）：放弃这次结果
     };

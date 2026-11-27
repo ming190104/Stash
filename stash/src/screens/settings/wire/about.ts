@@ -98,9 +98,9 @@ async function runningTitle(): Promise<string | null> {
   try {
     const g = await runningGame();
     return g ? g.title : null;
-  } catch {
-    // 查询失败不拦更新：别把正常升级也堵死
-    return null;
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    throw Object.assign(new Error(`无法确认游戏运行状态：${detail}`), { cause: e });
   }
 }
 

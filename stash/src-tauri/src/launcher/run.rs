@@ -115,7 +115,13 @@ impl Drop for LaunchGuard {
 /// （RUNNING 与库锁无任何嵌套等待，不会死锁。）
 pub(crate) fn flush_running_records(store: &Store) {
     let _lock = crate::store::lock_library();
-    let mut games = store.load_library();
+    let mut games = match store.load_library_for_write() {
+        Ok(games) => games,
+        Err(e) => {
+            tracing::error!("exit flush: 读取主库失败，游玩记录未写盘：{e}");
+            return;
+        }
+    };
     let now = now_secs();
     let mut changed = false;
     {
@@ -455,23 +461,29 @@ pub fn launch(app: AppHandle, store: Store, game: Game) -> Result<(), AppError> 
             {
                 // 与收藏 / END / 扫描共用库写锁：读—改—写必须原子，否则互相覆盖
                 let _lock = crate::store::lock_library();
-                let mut games = store.load_library();
-                if let Some(g) = games.iter_mut().find(|g| g.id == id) {
-                    g.last_played = Some(now_secs());
-                    g.play_count += 1;
-                    // 时长按秒累加；不足 1 秒的启动（误点即退）不计，避免把次数刷成时长
-                    if played > 0 {
-                        g.play_seconds = g.play_seconds.saturating_add(played as u64);
-                        // M6：最近 50 次场次，供详情页展示
-                        g.sessions.push(PlaySession { at: started, seconds: played as u64 });
-                        if g.sessions.len() > 50 {
-                            let extra = g.sessions.len() - 50;
-                            g.sessions.drain(0..extra);
+                match store.load_library_for_write() {
+                    Ok(mut games) => {
+                        if let Some(g) = games.iter_mut().find(|g| g.id == id) {
+                            g.last_played = Some(now_secs());
+                            g.play_count += 1;
+                            // 时长按秒累加；不足 1 秒的启动（误点即退）不计，避免把次数刷成时长
+                            if played > 0 {
+                                g.play_seconds = g.play_seconds.saturating_add(played as u64);
+                                // M6：最近 50 次场次，供详情页展示
+                                g.sessions.push(PlaySession { at: started, seconds: played as u64 });
+                                if g.sessions.len() > 50 {
+                                    let extra = g.sessions.len() - 50;
+                                    g.sessions.drain(0..extra);
+                                }
+                            }
+                            // 游玩记录是唯一不可再生数据：写盘失败必须留痕，不能静默当成功
+                            if let Err(e) = store.save_library(&games) {
+                                tracing::error!("game exit: 游玩记录写盘失败 {id}: {e}");
+                            }
                         }
                     }
-                    // 游玩记录是唯一不可再生数据：写盘失败必须留痕，不能静默当成功
-                    if let Err(e) = store.save_library(&games) {
-                        tracing::error!("game exit: 游玩记录写盘失败 {id}: {e}");
+                    Err(e) => {
+                        tracing::error!("game exit: 读取主库失败，游玩记录未写盘 {id}: {e}");
                     }
                 }
             }
